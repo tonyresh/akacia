@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import type { Visitor, Guard, Shift, Category, Group, SecurityShift } from '../types';
 
 interface DataContextType {
@@ -16,6 +16,7 @@ interface DataContextType {
   setGroups: React.Dispatch<React.SetStateAction<Group[]>>;
   locations: string[];
   setLocations: React.Dispatch<React.SetStateAction<string[]>>;
+  performShiftBackupAndReset: () => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -63,6 +64,82 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     ];
   });
 
+  const performShiftBackupAndReset = () => {
+    const now = new Date();
+    const shiftDateString = new Date(now.getTime() - 8 * 60 * 60 * 1000).toISOString().split('T')[0] + '-' + Date.now();
+    
+    // Backup Settings
+    const settings = { categories, locations, groups };
+    const blobOptions = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+    const urlOptions = URL.createObjectURL(blobOptions);
+    const aOptions = document.createElement('a');
+    aOptions.href = urlOptions;
+    aOptions.download = `backup_settings_${shiftDateString}.json`;
+    document.body.appendChild(aOptions);
+    aOptions.click();
+    document.body.removeChild(aOptions);
+
+    // Report of Visitors
+    setTimeout(() => {
+      const headers = [
+        'Дата',
+        '№ п/п',
+        'Звання',
+        'Прізвище Ім\'я По батькові',
+        'Звідки прибув',
+        'Група',
+        ...Array.from({length: 4}).flatMap((_, i) => [`Вхід ${i+1}`, `Вихід ${i+1}`]),
+        'Загальний час (хв)'
+      ];
+
+      const sortedVisitors = [...visitors].sort((a, b) => a.name.localeCompare(b.name));
+
+      const rows = sortedVisitors.map((v, i) => {
+        const logs = v.logs || (v.lastEntry ? [{ in: v.lastEntry }] : []);
+        const date = logs[0]?.in ? new Date(logs[0].in).toLocaleDateString() : now.toLocaleDateString();
+        
+        const timeCols = Array.from({length: 4}).flatMap((_, idx) => {
+          const log = logs[idx];
+          const timeIn = log?.in ? new Date(log.in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+          const timeOut = log?.out ? new Date(log.out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+          return [timeIn, timeOut];
+        });
+        
+        return [
+          date,
+          i + 1,
+          v.category,
+          v.name,
+          v.location || v.locationId || v.group,
+          v.group,
+          ...timeCols,
+          v.totalTimeMinutes || 0
+        ].map(val => `"${val}"`).join(',');
+      });
+
+      const csvContent = [headers.map(h => `"${h}"`).join(','), ...rows].join('\n');
+      const blobReport = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const urlReport = URL.createObjectURL(blobReport);
+      const aReport = document.createElement('a');
+      aReport.href = urlReport;
+      aReport.download = `report_visitors_${shiftDateString}.csv`;
+      document.body.appendChild(aReport);
+      aReport.click();
+      document.body.removeChild(aReport);
+    }, 500);
+
+    // Clean cells
+    setVisitors(prev => prev.map(v => {
+      if (v.status !== 'in') {
+        const newV = { ...v, status: 'out' as const, totalTimeMinutes: 0 };
+        delete newV.logs;
+        delete newV.lastEntry;
+        return newV;
+      }
+      return v;
+    }));
+  };
+
   useEffect(() => { localStorage.setItem('visitors', JSON.stringify(visitors)); }, [visitors]);
   useEffect(() => { localStorage.setItem('guards', JSON.stringify(guards)); }, [guards]);
   useEffect(() => { localStorage.setItem('shifts', JSON.stringify(shifts)); }, [shifts]);
@@ -72,7 +149,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { localStorage.setItem('groups', JSON.stringify(groups)); }, [groups]);
 
   return (
-    <DataContext.Provider value={{ visitors, setVisitors, guards, setGuards, shifts, setShifts, securityShifts, setSecurityShifts, categories, setCategories, groups, setGroups, locations, setLocations }}>
+    <DataContext.Provider value={{ visitors, setVisitors, guards, setGuards, shifts, setShifts, securityShifts, setSecurityShifts, categories, setCategories, groups, setGroups, locations, setLocations, performShiftBackupAndReset }}>
       {children}
     </DataContext.Provider>
   );

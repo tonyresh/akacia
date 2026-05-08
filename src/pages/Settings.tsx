@@ -103,7 +103,7 @@ export default function Settings() {
               Ваш додаток працює абсолютно <strong>автономно, без зв'язку з зовнішніми серверами</strong>. Всі дані про зміни та співробітників зберігаються локально в пам'яті цього пристрою/браузера. Щоб перенести дані на інший комп'ютер або зробити резервну копію, експортуйте файл бази даних.
             </p>
           </div>
-          <div className="flex sm:flex-col gap-3 shrink-0 auto-cols-auto">
+          <div className="flex sm:flex-col gap-3 shrink-0 auto-cols-auto flex-wrap">
              <button onClick={handleExportData} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/20 text-sm font-medium">
                <Download className="w-4 h-4"/> Експорт бази (.json)
              </button>

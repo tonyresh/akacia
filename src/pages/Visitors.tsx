@@ -17,7 +17,8 @@ export default function Visitors() {
 
   const filtered = visitors
     .filter(v => v.name.toLowerCase().includes(search.toLowerCase()))
-    .filter(v => activeGroup === 'all' || v.groupId === activeGroup || v.group === activeGroup);
+    .filter(v => activeGroup === 'all' || v.groupId === activeGroup || v.group === activeGroup)
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const markIn = (id: string, index: number) => {
     setVisitors(prev => prev.map(v => {
@@ -147,11 +148,11 @@ export default function Visitors() {
           <table className="w-full text-left text-sm whitespace-nowrap min-w-max">
             <thead className="bg-muted/50 text-muted-foreground border-b border-border">
               <tr>
-                <th rowSpan={2} className="px-4 py-4 font-semibold uppercase tracking-wider text-[10px] w-12 text-center border-r border-border">№</th>
-                <th rowSpan={2} className="px-4 py-4 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Звання</th>
-                <th rowSpan={2} className="px-4 py-4 font-semibold uppercase tracking-wider text-[10px] border-r border-border">ПІБ</th>
-                <th rowSpan={2} className="px-4 py-4 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Звідки прибув</th>
-                <th rowSpan={2} className="px-4 py-4 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Група</th>
+                <th rowSpan={2} className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] w-12 text-center border-r border-border">№</th>
+                <th rowSpan={2} className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Звання</th>
+                <th rowSpan={2} className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">ПІБ</th>
+                <th rowSpan={2} className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Звідки прибув</th>
+                <th rowSpan={2} className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Група</th>
                 <th colSpan={2} className="px-2 py-2 font-semibold uppercase tracking-wider text-[10px] text-center border-r border-border">Відвідування 1</th>
                 <th colSpan={2} className="px-2 py-2 font-semibold uppercase tracking-wider text-[10px] text-center border-r border-border">Відвідування 2</th>
                 <th colSpan={2} className="px-2 py-2 font-semibold uppercase tracking-wider text-[10px] text-center border-r border-border">Відвідування 3</th>
@@ -178,17 +179,17 @@ export default function Visitors() {
                 const visitorGroup = groups.find(g => g.id === v.groupId) || groups.find(g => g.name === v.group);
                 return (
                 <tr key={v.id} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-4 py-3 text-center border-r border-border text-xs font-bold" style={{ backgroundColor: v.color || visitorGroup?.color || 'transparent', color: v.color ? '#fff' : 'var(--foreground)' }}>{index + 1}</td>
-                  <td className="px-4 py-3 border-r border-border" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
-                    <span className="bg-secondary/50 text-secondary-foreground px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">{v.category}</span>
+                  <td className="px-2 py-2 text-center border-r border-border text-xs font-bold" style={{ backgroundColor: v.color || visitorGroup?.color || 'transparent', color: v.color ? '#fff' : 'var(--foreground)' }}>{index + 1}</td>
+                  <td className="px-2 py-2 border-r border-border" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
+                    <span className="text-xs text-muted-foreground" style={{ color: visitorGroup?.color ? '#ffffff' : undefined }}>{v.category}</span>
                   </td>
-                  <td className="px-4 py-3 font-medium border-r border-border" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
+                  <td className="px-2 py-2 font-medium border-r border-border" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
                     {v.name}
                   </td>
-                  <td className="px-4 py-3 border-r border-border" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
+                  <td className="px-2 py-2 border-r border-border" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
                     <span className="text-xs text-muted-foreground" style={{ color: visitorGroup?.color ? '#ffffff' : undefined }}>{v.location || v.locationId || v.group}</span>
                   </td>
-                  <td className="px-4 py-3 border-r border-border" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
+                  <td className="px-2 py-2 border-r border-border" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
                     <span className="text-[10px] uppercase font-bold text-muted-foreground" style={{ color: visitorGroup?.color ? 'rgba(255,255,255,0.7)' : undefined }}>{visitorGroup?.name}</span>
                   </td>
                   {Array.from({length: 4}).map((_, i) => {

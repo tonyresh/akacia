@@ -4,7 +4,7 @@ import { ShieldAlert, Plus, Play, Square, Coffee, Trash2, Settings, Users } from
 import { differenceInMinutes } from 'date-fns';
 
 export default function Security() {
-  const { visitors, securityShifts, setSecurityShifts, shifts, setShifts } = useData();
+  const { visitors, securityShifts, setSecurityShifts, shifts, setShifts, performShiftBackupAndReset } = useData();
   
   const [activeTab, setActiveTab] = useState<string>('');
   
@@ -21,7 +21,40 @@ export default function Security() {
   const [shiftNameInput, setShiftNameInput] = useState('');
   const [rosterSelection, setRosterSelection] = useState<string[]>([]);
 
+  const [isHandoverModalOpen, setIsHandoverModalOpen] = useState(false);
+  const [handoverTarget, setHandoverTarget] = useState('');
+
   const activeShift = securityShifts.find(s => s.id === activeTab);
+
+  const executeHandover = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!handoverTarget) return;
+
+    const now = new Date().toISOString();
+    
+    // End all active guard work sessions across ALL shifts to be safe
+    setShifts(prev => prev.map(s => s.endTime ? s : { ...s, endTime: now }));
+
+    // Start work sessions for the target group's guards
+    const targetGroup = securityShifts.find(s => s.id === handoverTarget);
+    if (targetGroup) {
+        const newShifts = targetGroup.visitorIds.map(id => ({
+           id: Date.now().toString() + '-' + id + '-' + Math.random(),
+           guardId: id,
+           startTime: now,
+           restPeriods: []
+        }));
+        
+        // Use a timeout to ensure state settles before adding new
+        setTimeout(() => {
+          setShifts(prev => [...prev, ...newShifts]);
+          setActiveTab(targetGroup.id);
+        }, 50);
+    }
+    
+    performShiftBackupAndReset();
+    setIsHandoverModalOpen(false);
+  };
 
   const openAddModal = () => {
     setEditingShiftId(null);
@@ -139,7 +172,16 @@ export default function Security() {
                 <Users className="w-4 h-4" /> Чергових: {activeShift.visitorIds.length}
               </p>
             </div>
-            <div className="flex gap-2 mt-4 sm:mt-0">
+            <div className="flex flex-wrap gap-2 mt-4 sm:mt-0">
+              <button 
+                onClick={() => {
+                  setHandoverTarget('');
+                  setIsHandoverModalOpen(true);
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground font-medium rounded-xl hover:bg-primary/90 transition-colors text-sm shadow-lg shadow-primary/20"
+              >
+                Передати зміну
+              </button>
               <button 
                 onClick={() => openEditModal(activeShift)} 
                 className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground font-medium rounded-xl hover:bg-secondary/80 transition-colors text-sm"
@@ -301,6 +343,70 @@ export default function Security() {
                   className="px-5 py-2 bg-primary text-primary-foreground rounded-full hover:bg-primary/90 text-sm font-medium transition-colors shadow-lg shadow-primary/20"
                 >
                   {editingShiftId ? 'Зберегти зміни' : 'Зберегти зміну'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Modal Handover Shift */}
+      {isHandoverModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <div className="bg-card w-full max-w-sm p-6 rounded-3xl shadow-xl border border-border">
+            <h2 className="text-xl font-bold mb-6">Передати зміну</h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Ця дія завершить чергування всіх співробітників поточної зміни та розпочне чергування для вибраної групи.
+            </p>
+            <form onSubmit={executeHandover}>
+              <div className="mb-6">
+                <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1.5">Кому передати зміну?</label>
+                <select 
+                  required
+                  value={handoverTarget}
+                  onChange={e => setHandoverTarget(e.target.value)}
+                  className="w-full px-4 py-2 border border-border bg-background rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow"
+                >
+                  <option value="">Виберіть групу...</option>
+                  {securityShifts.filter(s => s.id !== activeShift?.id).map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+                {handoverTarget && (() => {
+                  const targetShift = securityShifts.find(s => s.id === handoverTarget);
+                  if (!targetShift) return null;
+                  const missingGuards = targetShift.visitorIds.filter(id => visitors.find(v => v.id === id)?.status !== 'in').map(id => visitors.find(v => v.id === id)?.name || 'Невідомий');
+                  if (missingGuards.length > 0) {
+                    return (
+                      <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-600 space-y-1">
+                        <p className="font-bold">Група не готова заступити на зміну!</p>
+                        <p>Наступні співробітники ще не зайшли:</p>
+                        <ul className="list-disc pl-4 mt-1 opacity-80">
+                          {missingGuards.map((name, i) => <li key={i}>{name}</li>)}
+                        </ul>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="mt-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-600">
+                      <p className="font-bold flex items-center gap-2">✓ Група готова заступити на зміну</p>
+                    </div>
+                  );
+                })()}
+              </div>
+              <div className="flex justify-end gap-3">
+                <button 
+                  type="button" 
+                  onClick={() => setIsHandoverModalOpen(false)}
+                  className="px-5 py-2 border border-border rounded-full hover:bg-muted text-sm font-medium transition-colors"
+                >
+                  Скасувати
+                </button>
+                <button 
+                  type="submit"
+                  disabled={!handoverTarget || (handoverTarget && securityShifts.find(s => s.id === handoverTarget)?.visitorIds.some(id => visitors.find(v => v.id === id)?.status !== 'in'))}
+                  className="px-5 py-2 bg-primary text-primary-foreground rounded-full hover:bg-primary/90 text-sm font-medium transition-colors shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Підтвердити
                 </button>
               </div>
             </form>

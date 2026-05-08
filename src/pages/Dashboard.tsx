@@ -3,12 +3,12 @@ import { useData } from '../store/DataContext';
 import { Users, Clock, ArrowRightCircle } from 'lucide-react';
 
 export default function Dashboard() {
-  const { visitors, groups } = useData();
+  const { visitors, groups, categories } = useData();
 
   const commandVisitors = visitors.filter(v => {
     const groupName = groups.find(g => g.id === v.groupId)?.name || v.group;
     return groupName === 'Командування полку';
-  });
+  }).sort((a, b) => a.name.localeCompare(b.name));
 
   const today8am = new Date();
   today8am.setHours(8, 0, 0, 0);

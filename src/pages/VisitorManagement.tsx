@@ -12,6 +12,7 @@ export default function VisitorManagement() {
   const { visitors, setVisitors, categories, groups, locations } = useData();
   const [search, setSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [visitorToDelete, setVisitorToDelete] = useState<string | null>(null);
   
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState('');
@@ -27,7 +28,9 @@ export default function VisitorManagement() {
   const [editGroupId, setEditGroupId] = useState('');
   const [editColor, setEditColor] = useState('');
 
-  const filtered = visitors.filter(v => v.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = visitors
+    .filter(v => v.name.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,9 +87,14 @@ export default function VisitorManagement() {
     setEditingId(null);
   };
 
-  const deleteVisitor = (id: string) => {
-    if (confirm('Ви впевнені, що хочете видалити цього співробітника з бази? Буде видалена також вся історія відвідувань.')) {
-      setVisitors(prev => prev.filter(v => v.id !== id));
+  const confirmDeleteVisitor = (id: string) => {
+    setVisitorToDelete(id);
+  };
+
+  const executeDelete = () => {
+    if (visitorToDelete) {
+      setVisitors(prev => prev.filter(v => v.id !== visitorToDelete));
+      setVisitorToDelete(null);
     }
   };
 
@@ -121,12 +129,12 @@ export default function VisitorManagement() {
           <table className="w-full text-left text-sm min-w-max">
             <thead className="bg-muted/50 text-muted-foreground border-b border-border">
               <tr>
-                <th className="px-4 py-4 font-semibold uppercase tracking-wider text-[10px] border-r border-border w-12 text-center">Колір</th>
-                <th className="px-4 py-4 font-semibold uppercase tracking-wider text-[10px] border-r border-border">ПІБ</th>
-                <th className="px-4 py-4 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Звання</th>
-                <th className="px-4 py-4 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Звідки прибув</th>
-                <th className="px-4 py-4 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Група</th>
-                <th className="px-4 py-4 font-semibold uppercase tracking-wider text-[10px] text-right">Дії</th>
+                <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border w-12 text-center">Колір</th>
+                <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Звання</th>
+                <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">ПІБ</th>
+                <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Звідки прибув</th>
+                <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Група</th>
+                <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] text-right">Дії</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -143,7 +151,7 @@ export default function VisitorManagement() {
                 
                 return (
                   <tr key={v.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3 text-center border-r border-border">
+                    <td className="px-2 py-2 text-center border-r border-border">
                       {isEditing ? (
                         <div className="flex gap-1 flex-wrap w-24">
                           {COLORS.slice(0, 8).map(c => (
@@ -167,7 +175,20 @@ export default function VisitorManagement() {
                         <div className="w-6 h-6 rounded-full mx-auto shadow-sm" style={{ backgroundColor: v.color || visitorGroup?.color || '#e2e8f0' }} />
                       )}
                     </td>
-                    <td className="px-4 py-3 border-r border-border font-medium" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
+                    <td className="px-2 py-2 border-r border-border" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
+                      {isEditing ? (
+                        <select
+                          value={editCat}
+                          onChange={(e) => setEditCat(e.target.value)}
+                          className="w-full px-2 py-1 bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                        >
+                          {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                      ) : (
+                        <span className="text-xs text-muted-foreground" style={{ color: visitorGroup?.color ? '#ffffff' : undefined }}>{v.category}</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-2 border-r border-border font-medium" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
                       {isEditing ? (
                         <input
                           autoFocus
@@ -179,20 +200,7 @@ export default function VisitorManagement() {
                         v.name
                       )}
                     </td>
-                    <td className="px-4 py-3 border-r border-border" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
-                      {isEditing ? (
-                        <select
-                          value={editCat}
-                          onChange={(e) => setEditCat(e.target.value)}
-                          className="w-full px-2 py-1 bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
-                        >
-                          {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      ) : (
-                        <span className="bg-secondary/50 text-secondary-foreground px-2 py-0.5 rounded-full text-[10px] font-bold uppercase">{v.category}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 border-r border-border" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
+                    <td className="px-2 py-2 border-r border-border" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
                       {isEditing ? (
                         <select
                           value={editLocation}
@@ -205,7 +213,7 @@ export default function VisitorManagement() {
                         <span className="text-xs text-muted-foreground" style={{ color: visitorGroup?.color ? '#ffffff' : undefined }}>{v.location || v.locationId || v.group}</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 border-r border-border" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
+                    <td className="px-2 py-2 border-r border-border" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
                       {isEditing ? (
                         <select
                           value={editGroupId}
@@ -218,7 +226,7 @@ export default function VisitorManagement() {
                         <span className="text-[10px] uppercase font-bold text-muted-foreground" style={{ color: visitorGroup?.color ? 'rgba(255,255,255,0.7)' : undefined }}>{visitorGroup?.name}</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-2 py-2 text-right">
                       {isEditing ? (
                         <div className="flex items-center justify-end gap-2">
                           <button onClick={cancelEdit} className="p-1.5 text-muted-foreground hover:bg-muted rounded-md transition-colors">
@@ -233,7 +241,7 @@ export default function VisitorManagement() {
                           <button onClick={() => startEditing(v)} className="p-1.5 text-blue-500 hover:bg-blue-500/10 rounded-md transition-colors" title="Редагувати">
                             <Pencil className="w-4 h-4" />
                           </button>
-                          <button onClick={() => deleteVisitor(v.id)} className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-md transition-colors" title="Видалити">
+                          <button onClick={() => confirmDeleteVisitor(v.id)} className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-md transition-colors" title="Видалити">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
@@ -254,17 +262,6 @@ export default function VisitorManagement() {
             <h2 className="text-xl font-bold mb-6">Додати співробітника</h2>
             <form onSubmit={handleAdd} className="space-y-4">
               <div>
-                <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1.5">ПІБ</label>
-                <input 
-                  autoFocus
-                  required
-                  type="text" 
-                  value={newName}
-                  onChange={e => setNewName(e.target.value)}
-                  className="w-full px-4 py-2 border border-border bg-background rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow"
-                />
-              </div>
-              <div>
                 <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1.5">Звання</label>
                 <select 
                   value={newCat} 
@@ -274,6 +271,17 @@ export default function VisitorManagement() {
                   <option value="">Виберіть звання...</option>
                   {categories.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
+              </div>
+              <div>
+                <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1.5">ПІБ</label>
+                <input 
+                  autoFocus
+                  required
+                  type="text" 
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  className="w-full px-4 py-2 border border-border bg-background rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow"
+                />
               </div>
               <div>
                 <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1.5">Звідки прибув</label>
@@ -335,6 +343,32 @@ export default function VisitorManagement() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {visitorToDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
+          <div className="bg-card w-full max-w-md p-6 rounded-3xl shadow-xl border border-border">
+            <h2 className="text-xl font-bold mb-4 text-red-500">Видалити співробітника?</h2>
+            <p className="text-muted-foreground mb-6">
+              Ви впевнені, що хочете видалити цього співробітника з бази? Буде видалена також вся історія відвідувань. Цю дію неможливо скасувати.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setVisitorToDelete(null)}
+                className="px-5 py-2 border border-border rounded-full hover:bg-muted text-sm font-medium transition-colors"
+              >
+                Скасувати
+              </button>
+              <button 
+                onClick={executeDelete}
+                className="px-5 py-2 bg-red-500 text-white rounded-full hover:bg-red-600 text-sm font-medium transition-colors"
+              >
+                Видалити
+              </button>
+            </div>
           </div>
         </div>
       )}
