@@ -14,6 +14,7 @@ export interface TimeLog {
 export interface Visitor {
   id: string;
   name: string;
+  callsign?: string;
   category: Category;
   groupId: string;
   group: string; // Legacy string for groups

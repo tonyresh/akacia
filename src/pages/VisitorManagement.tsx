@@ -16,6 +16,7 @@ export default function VisitorManagement() {
   
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState('');
+  const [newCallsign, setNewCallsign] = useState('');
   const [newCat, setNewCat] = useState(categories[0] || '');
   const [newLocation, setNewLocation] = useState(locations[0] || '');
   const [newGroup, setNewGroup] = useState(groups[0]?.id || '');
@@ -23,6 +24,7 @@ export default function VisitorManagement() {
 
   // Edit form state
   const [editName, setEditName] = useState('');
+  const [editCallsign, setEditCallsign] = useState('');
   const [editCat, setEditCat] = useState('');
   const [editLocation, setEditLocation] = useState('');
   const [editGroupId, setEditGroupId] = useState('');
@@ -42,15 +44,16 @@ export default function VisitorManagement() {
       .replace(/[уy]/g, 'y');
   };
 
-  const matchesSearch = (name: string, searchStr: string) => {
+  const matchesSearch = (name: string, callsign: string | undefined, searchStr: string) => {
     const normName = normalizeForSearch(name);
+    const normCallsign = callsign ? normalizeForSearch(callsign) : '';
     const searchWords = normalizeForSearch(searchStr).split(/\s+/).filter(w => w.length > 0);
     if (searchWords.length === 0) return true;
-    return searchWords.every(word => normName.includes(word));
+    return searchWords.every(word => normName.includes(word) || normCallsign.includes(word));
   };
 
   const filtered = visitors
-    .filter(v => matchesSearch(v.name, search))
+    .filter(v => matchesSearch(v.name, v.callsign, search))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const handleAdd = (e: React.FormEvent) => {
@@ -60,6 +63,7 @@ export default function VisitorManagement() {
     setVisitors(prev => [...prev, {
       id: Date.now().toString(),
       name: newName,
+      callsign: newCallsign.trim() || undefined,
       category: newCat || categories[0] || '',
       locationId: newLocation || locations[0] || '',
       location: newLocation || locations[0] || '',
@@ -70,6 +74,7 @@ export default function VisitorManagement() {
       color: newColor
     }]);
     setNewName('');
+    setNewCallsign('');
     setNewColor('');
     setIsAdding(false);
   };
@@ -77,6 +82,7 @@ export default function VisitorManagement() {
   const startEditing = (v: any) => {
     setEditingId(v.id);
     setEditName(v.name);
+    setEditCallsign(v.callsign || '');
     setEditCat(v.category);
     setEditLocation(v.location || v.locationId || locations[0] || '');
     setEditGroupId(v.groupId || groups.find(g => g.name === v.group)?.id || groups[0]?.id || '');
@@ -91,6 +97,7 @@ export default function VisitorManagement() {
         return { 
           ...v, 
           name: editName, 
+          callsign: editCallsign.trim() || undefined,
           category: editCat, 
           locationId: editLocation, 
           location: editLocation, 
@@ -153,6 +160,7 @@ export default function VisitorManagement() {
                 <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border w-12 text-center">Колір</th>
                 <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Звання</th>
                 <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">ПІБ</th>
+                <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Позивний</th>
                 <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Звідки прибув</th>
                 <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Група</th>
                 <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] text-right">Дії</th>
@@ -161,7 +169,7 @@ export default function VisitorManagement() {
             <tbody className="divide-y divide-border">
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">
                     Співробітники не знайдені
                   </td>
                 </tr>
@@ -219,6 +227,18 @@ export default function VisitorManagement() {
                         />
                       ) : (
                         v.name
+                      )}
+                    </td>
+                    <td className="px-2 py-2 border-r border-border font-medium" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
+                      {isEditing ? (
+                        <input
+                          value={editCallsign}
+                          onChange={(e) => setEditCallsign(e.target.value)}
+                          placeholder="Позивний"
+                          className="w-full px-2 py-1 bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
+                        />
+                      ) : (
+                        v.callsign ? <span className="text-xs text-muted-foreground" style={{ color: visitorGroup?.color ? '#ffffff' : undefined }}>{v.callsign}</span> : ''
                       )}
                     </td>
                     <td className="px-2 py-2 border-r border-border" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
@@ -301,6 +321,16 @@ export default function VisitorManagement() {
                   type="text" 
                   value={newName}
                   onChange={e => setNewName(e.target.value)}
+                  className="w-full px-4 py-2 border border-border bg-background rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1.5">Позивний (опціонально)</label>
+                <input 
+                  type="text" 
+                  value={newCallsign}
+                  onChange={e => setNewCallsign(e.target.value)}
+                  placeholder="Введіть позивний"
                   className="w-full px-4 py-2 border border-border bg-background rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow"
                 />
               </div>

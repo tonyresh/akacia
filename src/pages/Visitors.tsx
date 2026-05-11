@@ -4,7 +4,7 @@ import { Search, LogIn, LogOut, Download, Mic, MicOff } from 'lucide-react';
 import { differenceInMinutes } from 'date-fns';
 
 export default function Visitors() {
-  const { visitors, setVisitors, categories, groups, locations } = useData();
+  const { visitors, setVisitors, categories, groups, locations, shifts } = useData();
   const [search, setSearch] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -33,18 +33,19 @@ export default function Visitors() {
       .replace(/[уy]/g, 'y');
   };
 
-  const matchesSearch = (name: string, searchStr: string) => {
+  const matchesSearch = (name: string, callsign: string | undefined, searchStr: string) => {
     const normName = normalizeForSearch(name);
+    const normCallsign = callsign ? normalizeForSearch(callsign) : '';
     const searchWords = normalizeForSearch(searchStr).split(/\s+/).filter(w => w.length > 0);
     if (searchWords.length === 0) return true;
-    return searchWords.every(word => normName.includes(word));
+    return searchWords.every(word => normName.includes(word) || normCallsign.includes(word));
   };
 
   const executeCommand = (nameQuery: string, action: 'in' | 'out') => {
     if (!nameQuery) return;
     
     setVisitors(prev => {
-        const matching = prev.filter(v => matchesSearch(v.name, nameQuery));
+        const matching = prev.filter(v => matchesSearch(v.name, v.callsign, nameQuery));
         if (matching.length === 0) return prev;
         
         const v = matching[0];
@@ -66,6 +67,13 @@ export default function Visitors() {
                  return newVisitors;
              }
         } else if (action === 'out') {
+             const isGuard = (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон');
+             const isGuardOnDuty = isGuard && shifts.some(s => s.guardId === v.id && !s.endTime);
+             
+             if (isGuardOnDuty) {
+               return prev; // Prevent mark out if guard is on duty
+             }
+
              let targetIndex = -1;
              for (let i = 0; i < 4; i++) {
                 const log = logs[i];
@@ -166,7 +174,7 @@ export default function Visitors() {
   };
 
   const filtered = visitors
-    .filter(v => normalizeForSearch(v.name).includes(normalizeForSearch(search)))
+    .filter(v => matchesSearch(v.name, v.callsign, search))
     .filter(v => activeGroup === 'all' || v.groupId === activeGroup || v.group === activeGroup)
     .filter(v => showOnlyIn ? v.status === 'in' : true)
     .sort((a, b) => {
@@ -210,7 +218,7 @@ export default function Visitors() {
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="relative flex flex-col justify-center items-center sm:block py-2 mb-2">
         <h1 className="text-xl font-bold tracking-tight text-muted-foreground sm:absolute sm:left-0 sm:top-1/2 sm:-translate-y-1/2">
-          Зміна: {currentTime.toLocaleDateString()}
+          Чергова зміна: {currentTime.toLocaleDateString()}
         </h1>
         <div className="text-4xl font-black tracking-tighter text-foreground tabular-nums text-center mt-2 sm:mt-0">
           {currentTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: false})}
@@ -292,7 +300,7 @@ export default function Visitors() {
                   <div className="flex justify-between items-start gap-2">
                     <div className="flex flex-col">
                       <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">
-                        {v.category}
+                        {v.category} {v.callsign ? `• ${v.callsign}` : ''}
                       </span>
                       <h3 className="font-bold text-foreground leading-tight text-sm" style={{ fontFamily: 'Roboto, sans-serif' }}>
                         {v.name}
@@ -339,15 +347,25 @@ export default function Visitors() {
                           Зайшов
                         </button>
                       )}
-                      {v.status === 'in' && (
-                        <button
-                          onClick={() => markOut(v.id, logs.length - 1)}
-                          className="flex-1 flex justify-center items-center gap-1 px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-lg border border-red-500/30 text-red-600 bg-red-500/10 hover:bg-red-500/20 active:bg-red-500/30 transition-colors"
-                        >
-                          <LogOut className="w-3 h-3" />
-                          Вийшов
-                        </button>
-                      )}
+                      {v.status === 'in' && (() => {
+                        const isGuard = (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон');
+                        const isGuardOnDuty = isGuard && shifts.some(s => s.guardId === v.id && !s.endTime);
+                        return (
+                          <button
+                            onClick={() => !isGuardOnDuty && markOut(v.id, logs.length - 1)}
+                            disabled={isGuardOnDuty}
+                            title={isGuardOnDuty ? "Не можна вийти до передачі зміни" : undefined}
+                            className={`flex-1 flex justify-center items-center gap-1 px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-lg border transition-colors ${
+                              isGuardOnDuty 
+                                ? 'border-muted bg-muted/50 text-muted-foreground cursor-not-allowed'
+                                : 'border-red-500/30 text-red-600 bg-red-500/10 hover:bg-red-500/20 active:bg-red-500/30'
+                            }`}
+                          >
+                            <LogOut className="w-3 h-3" />
+                            Вийшов
+                          </button>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
