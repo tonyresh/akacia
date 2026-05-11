@@ -1,24 +1,179 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../store/DataContext';
-import { Search, LogIn, LogOut, Download } from 'lucide-react';
+import { Search, LogIn, LogOut, Download, Mic, MicOff } from 'lucide-react';
 import { differenceInMinutes } from 'date-fns';
 
 export default function Visitors() {
-  const { visitors, setVisitors, categories, groups } = useData();
+  const { visitors, setVisitors, categories, groups, locations } = useData();
   const [search, setSearch] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
 
   const [activeGroup, setActiveGroup] = useState<string>('all');
+  const [showOnlyIn, setShowOnlyIn] = useState(false);
+  
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
+  const normalizeForSearch = (str: string) => {
+    return str.toLowerCase()
+      .replace(/['`’ʼ.,!?]/g, '')
+      .replace(/[иіїыi]/g, 'i')
+      .replace(/[еєэe]/g, 'e')
+      .replace(/[гґg]/g, 'g')
+      .replace(/[аa]/g, 'a')
+      .replace(/[оo]/g, 'o')
+      .replace(/[рp]/g, 'p')
+      .replace(/[сc]/g, 'c')
+      .replace(/[хx]/g, 'x')
+      .replace(/[уy]/g, 'y');
+  };
+
+  const matchesSearch = (name: string, searchStr: string) => {
+    const normName = normalizeForSearch(name);
+    const searchWords = normalizeForSearch(searchStr).split(/\s+/).filter(w => w.length > 0);
+    if (searchWords.length === 0) return true;
+    return searchWords.every(word => normName.includes(word));
+  };
+
+  const executeCommand = (nameQuery: string, action: 'in' | 'out') => {
+    if (!nameQuery) return;
+    
+    setVisitors(prev => {
+        const matching = prev.filter(v => matchesSearch(v.name, nameQuery));
+        if (matching.length === 0) return prev;
+        
+        const v = matching[0];
+        const logs = v.logs ? [...v.logs] : (v.lastEntry ? [{ in: v.lastEntry }] : []);
+        
+        if (action === 'in') {
+             let targetIndex = -1;
+             for (let i = 0; i < 4; i++) {
+                const isNextIn = (v.status === 'out' && logs.filter(l => l.out).length === i) || (logs.length === 0 && i === 0 && (!v.lastEntry || v.status === 'out'));
+                if (isNextIn) {
+                   targetIndex = i;
+                   break;
+                }
+             }
+             if (targetIndex !== -1) {
+                 const now = new Date().toISOString();
+                 logs[targetIndex] = { in: now };
+                 const newVisitors = prev.map(visitor => visitor.id === v.id ? { ...visitor, status: 'in' as const, lastEntry: now, logs } : visitor);
+                 return newVisitors;
+             }
+        } else if (action === 'out') {
+             let targetIndex = -1;
+             for (let i = 0; i < 4; i++) {
+                const log = logs[i];
+                const isNextOut = v.status === 'in' && logs.length === i + 1 && !log?.out;
+                if (isNextOut) {
+                   targetIndex = i;
+                   break;
+                }
+             }
+             if (targetIndex !== -1) {
+                 const now = new Date().toISOString();
+                 logs[targetIndex] = { ...logs[targetIndex], out: now };
+                 const diff = logs[targetIndex].in ? differenceInMinutes(new Date(now), new Date(logs[targetIndex].in!)) : 0;
+                 return prev.map(visitor => visitor.id === v.id ? { 
+                     ...visitor, 
+                     status: 'out' as const, 
+                     lastEntry: undefined,
+                     logs,
+                     totalTimeMinutes: (visitor.totalTimeMinutes || 0) + diff 
+                 } : visitor);
+             }
+        }
+        return prev;
+    });
+  };
+
+
+
+  // We need an effect or ref to access the latest search state inside recognition callback
+  const latestSearch = useRef(search);
+  useEffect(() => {
+    latestSearch.current = search;
+  }, [search]);
+
+  const toggleListening = () => {
+    if (isListening) {
+      if (recognitionRef.current) recognitionRef.current.stop();
+      setIsListening(false);
+      return;
+    }
+
+    // @ts-ignore
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Ваш браузер не підтримує розпізнавання мови");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'uk-UA'; 
+    recognition.continuous = true;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = (event: any) => { 
+      console.error('Speech recognition error:', event.error);
+      setIsListening(false);
+      if (event.error === 'not-allowed') {
+        alert("Помилка: Надайте дозвіл на використання мікрофону у браузері.");
+      }
+    };
+    recognition.onresult = (event: any) => {
+      const resultIndex = event.results.length - 1;
+      const transcript = event.results[resultIndex][0].transcript.toLowerCase();
+      
+      let text = transcript.trim();
+      const isPlus = /(плюс|заш|зайш|ввійш|увійш|прийш)/i.test(text);
+      const isMinus = /(минус|мінус|выш|вийш|піш)/i.test(text);
+
+      let searchName = text
+        .replace(/(плюс|минус|мінус|зашел|зашла|зайшов|зайшла|ввійшов|ввійшла|увійшов|увійшла|прийшов|прийшла|зайшли|прийшли|вышел|вышла|вийшов|вийшла|пішов|пішла|вийшли|пішли|заш|зайш|ввійш|увійш|прийш|выш|вийш|піш)[а-яіїєґ]*/gi, '')
+        .replace(/[.,!?]/g, '')
+        .trim();
+
+      if (searchName) {
+        setSearch(searchName);
+      } else {
+        searchName = latestSearch.current;
+      }
+
+      if (isPlus || isMinus) {
+        executeCommand(searchName, isPlus ? 'in' : 'out');
+        setTimeout(() => {
+          setSearch('');
+          setShowOnlyIn(true);
+        }, 1000);
+      }
+    };
+
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+    } catch (err) {
+      console.error(err);
+      setIsListening(false);
+    }
+  };
+
   const filtered = visitors
-    .filter(v => v.name.toLowerCase().includes(search.toLowerCase()))
+    .filter(v => normalizeForSearch(v.name).includes(normalizeForSearch(search)))
     .filter(v => activeGroup === 'all' || v.groupId === activeGroup || v.group === activeGroup)
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .filter(v => showOnlyIn ? v.status === 'in' : true)
+    .sort((a, b) => {
+      if (a.status === 'in' && b.status !== 'in') return -1;
+      if (a.status !== 'in' && b.status === 'in') return 1;
+      return a.name.localeCompare(b.name);
+    });
 
   const markIn = (id: string, index: number) => {
     setVisitors(prev => prev.map(v => {
@@ -28,6 +183,7 @@ export default function Visitors() {
       logs[index] = { in: now };
       return { ...v, status: 'in', lastEntry: now, logs };
     }));
+    setSearch('');
   };
 
   const markOut = (id: string, index: number) => {
@@ -47,52 +203,7 @@ export default function Visitors() {
         totalTimeMinutes: (v.totalTimeMinutes || 0) + diff 
       };
     }));
-  };
-
-  const exportToCSV = () => {
-    const headers = [
-      'Дата',
-      '№ п/п',
-      'Звання',
-      'Прізвище Ім\'я По батькові',
-      'Звідки прибув',
-      'Група',
-      ...Array.from({length: 4}).flatMap((_, i) => [`Вхід ${i+1}`, `Вихід ${i+1}`]),
-      'Загальний час (хв)'
-    ];
-
-    const rows = filtered.map((v, i) => {
-      const logs = v.logs || (v.lastEntry ? [{ in: v.lastEntry }] : []);
-      const date = logs[0]?.in ? new Date(logs[0].in).toLocaleDateString() : new Date().toLocaleDateString();
-      
-      const timeCols = Array.from({length: 4}).flatMap((_, idx) => {
-        const log = logs[idx];
-        const timeIn = log?.in ? new Date(log.in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-        const timeOut = log?.out ? new Date(log.out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-        return [timeIn, timeOut];
-      });
-      
-      return [
-        date,
-        i + 1,
-        v.category,
-        v.name,
-        v.location || v.locationId || v.group,
-        v.group,
-        ...timeCols,
-        v.totalTimeMinutes
-      ].map(val => `"${val}"`).join(',');
-    });
-
-    const csvContent = [headers.map(h => `"${h}"`).join(','), ...rows].join('\n');
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.href = url;
-    link.setAttribute('download', `visitors_export_${new Date().toLocaleDateString()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    setSearch('');
   };
 
   return (
@@ -101,23 +212,11 @@ export default function Visitors() {
         <h1 className="text-xl font-bold tracking-tight text-muted-foreground sm:absolute sm:left-0 sm:top-1/2 sm:-translate-y-1/2">
           Зміна: {currentTime.toLocaleDateString()}
         </h1>
-        <div className="text-5xl font-black tracking-tighter text-foreground tabular-nums text-center mt-2 sm:mt-0">
-          {currentTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'})}
+        <div className="text-4xl font-black tracking-tighter text-foreground tabular-nums text-center mt-2 sm:mt-0">
+          {currentTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: false})}
         </div>
-        <div className="mt-4 sm:mt-0 flex gap-2 w-full sm:w-auto sm:absolute sm:right-0 sm:top-1/2 sm:-translate-y-1/2">
-          <button 
-            onClick={exportToCSV}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-secondary text-secondary-foreground border border-border px-5 py-2 rounded-full hover:bg-secondary/80 transition-colors text-sm font-medium whitespace-nowrap shadow-sm"
-          >
-            <Download className="w-4 h-4" />
-            Експорт
-          </button>
-        </div>
-      </div>
-
-      <div className="flex flex-col">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-          <div className="relative w-full sm:w-80">
+        <div className="mt-4 sm:mt-0 flex gap-2 w-full sm:w-64 sm:absolute sm:right-0 sm:top-1/2 sm:-translate-y-1/2">
+          <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input 
               type="text"
@@ -127,7 +226,29 @@ export default function Visitors() {
               className="w-full pl-9 pr-4 py-2 bg-background border border-border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow"
             />
           </div>
-          <div className="flex gap-2 w-full sm:w-auto overflow-x-auto pb-2 sm:pb-0">
+          <button
+             onClick={toggleListening}
+             className={`p-2 border rounded-full transition-colors flex-shrink-0 ${isListening ? 'bg-red-500 text-white border-transparent shadow-[0_0_15px_rgba(239,68,68,0.5)]' : 'bg-background border-border hover:bg-muted text-foreground'}`}
+             title="Голосовий пошук та команди (Голосове 'плюс' або 'минус')"
+          >
+            {isListening ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5 text-muted-foreground" />}
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-col">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+          <div className="flex gap-2 w-full flex-wrap pb-2">
+            <button
+               onClick={() => setShowOnlyIn(!showOnlyIn)}
+               className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors border ${
+                 showOnlyIn
+                   ? 'bg-green-600 text-white border-transparent shadow-md'
+                   : 'bg-background hover:bg-muted border-border text-foreground'
+               }`}
+             >
+               Тільки зайшли
+             </button>
             {[{ id: 'all', name: 'Всі', color: '' }, ...groups].map(g => (
               <button
                 key={g.id}
@@ -144,99 +265,95 @@ export default function Visitors() {
           </div>
         </div>
 
-        <div className="border border-border rounded-2xl overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap min-w-max">
-            <thead className="bg-muted/50 text-muted-foreground border-b border-border">
-              <tr>
-                <th rowSpan={2} className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] w-12 text-center border-r border-border">№</th>
-                <th rowSpan={2} className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Звання</th>
-                <th rowSpan={2} className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">ПІБ</th>
-                <th rowSpan={2} className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Звідки прибув</th>
-                <th rowSpan={2} className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Група</th>
-                <th colSpan={2} className="px-2 py-2 font-semibold uppercase tracking-wider text-[10px] text-center border-r border-border">Відвідування 1</th>
-                <th colSpan={2} className="px-2 py-2 font-semibold uppercase tracking-wider text-[10px] text-center border-r border-border">Відвідування 2</th>
-                <th colSpan={2} className="px-2 py-2 font-semibold uppercase tracking-wider text-[10px] text-center border-r border-border">Відвідування 3</th>
-                <th colSpan={2} className="px-2 py-2 font-semibold uppercase tracking-wider text-[10px] text-center border-r border-border">Відвідування 4</th>
-              </tr>
-              <tr>
-                {Array.from({length: 4}).map((_, i) => (
-                  <React.Fragment key={i}>
-                    <th className="px-2 py-2 font-semibold uppercase tracking-wider text-[10px] text-center border-r border-t border-border bg-muted/20">Зайшов</th>
-                    <th className={`px-2 py-2 font-semibold uppercase tracking-wider text-[10px] text-center border-t border-border bg-muted/20 ${i < 3 ? 'border-r border-border' : ''}`}>Вийшов</th>
-                  </React.Fragment>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={12} className="px-6 py-8 text-center text-muted-foreground">
-                    Немає даних для відображення
-                  </td>
-                </tr>
-              )}
-              {filtered.map((v, index) => {
-                const visitorGroup = groups.find(g => g.id === v.groupId) || groups.find(g => g.name === v.group);
-                return (
-                <tr key={v.id} className="hover:bg-muted/30 transition-colors">
-                  <td className="px-2 py-2 text-center border-r border-border text-xs font-bold" style={{ backgroundColor: v.color || visitorGroup?.color || 'transparent', color: v.color ? '#fff' : 'var(--foreground)' }}>{index + 1}</td>
-                  <td className="px-2 py-2 border-r border-border" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
-                    <span className="text-xs text-muted-foreground" style={{ color: visitorGroup?.color ? '#ffffff' : undefined }}>{v.category}</span>
-                  </td>
-                  <td className="px-2 py-2 font-medium border-r border-border" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
-                    {v.name}
-                  </td>
-                  <td className="px-2 py-2 border-r border-border" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
-                    <span className="text-xs text-muted-foreground" style={{ color: visitorGroup?.color ? '#ffffff' : undefined }}>{v.location || v.locationId || v.group}</span>
-                  </td>
-                  <td className="px-2 py-2 border-r border-border" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
-                    <span className="text-[10px] uppercase font-bold text-muted-foreground" style={{ color: visitorGroup?.color ? 'rgba(255,255,255,0.7)' : undefined }}>{visitorGroup?.name}</span>
-                  </td>
-                  {Array.from({length: 4}).map((_, i) => {
-                    const logs = v.logs || (v.lastEntry ? [{ in: v.lastEntry }] : []);
-                    const log = logs[i];
-                    
-                    const isNextIn = (v.status === 'out' && logs.filter(l => l.out).length === i) || (logs.length === 0 && i === 0 && (!v.lastEntry || v.status === 'out'));
-                    const isNextOut = v.status === 'in' && logs.length === i + 1 && !log?.out;
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+          {filtered.length === 0 && (
+            <div className="col-span-full py-16 text-center text-muted-foreground border border-border rounded-2xl bg-muted/20">
+              Немає даних для відображення
+            </div>
+          )}
+          {filtered.map((v, index) => {
+            const visitorGroup = groups.find(g => g.id === v.groupId) || groups.find(g => g.name === v.group);
+            const bgColor = v.color || visitorGroup?.color || 'transparent';
+            const hasColor = bgColor !== 'transparent';
+            
+            const logs = v.logs || (v.lastEntry ? [{ in: v.lastEntry }] : []);
+            
+            return (
+              <div 
+                key={v.id} 
+                className="flex flex-col relative bg-card border border-border rounded-xl overflow-hidden shadow-sm hover:shadow transition-shadow"
+              >
+                <div 
+                  className="absolute left-0 top-0 bottom-0 w-1.5"
+                  style={{ backgroundColor: hasColor ? bgColor : 'var(--border)' }}
+                />
+                
+                <div className="p-3 pl-4 flex-1 flex flex-col gap-2">
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="flex flex-col">
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">
+                        {v.category}
+                      </span>
+                      <h3 className="font-bold text-foreground leading-tight text-sm" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                        {v.name}
+                      </h3>
+                    </div>
+                    <div className="text-[10px] font-mono font-bold text-muted-foreground bg-muted/50 border border-border px-1.5 py-0.5 rounded-md">
+                      #{index + 1}
+                    </div>
+                  </div>
 
-                    return (
-                      <React.Fragment key={i}>
-                        <td className="px-2 py-3 text-center border-r border-border">
-                          {log?.in ? (
-                            <span className="text-xs font-mono">{new Date(log.in).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                          ) : isNextIn ? (
-                            <button
-                              onClick={() => markIn(v.id, i)}
-                              className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded border border-emerald-500/30 text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20 transition-colors w-full"
-                            >
-                              Зайшов
-                            </button>
-                          ) : (
-                            <span className="text-muted-foreground/30">-</span>
-                          )}
-                        </td>
-                        <td className={`px-2 py-3 text-center ${i < 3 ? 'border-r border-border' : ''}`}>
-                          {log?.out ? (
-                            <span className="text-xs font-mono">{new Date(log.out).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                          ) : isNextOut ? (
-                            <button
-                              onClick={() => markOut(v.id, i)}
-                              className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded border border-red-500/30 text-red-600 bg-red-500/10 hover:bg-red-500/20 transition-colors w-full"
-                            >
-                              Вийшов
-                            </button>
-                          ) : (
-                            <span className="text-muted-foreground/30">-</span>
-                          )}
-                        </td>
-                      </React.Fragment>
-                    );
-                  })}
-                </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                  <div className="flex flex-col gap-1 text-xs text-muted-foreground mt-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-semibold text-foreground text-[10px] uppercase tracking-wider opacity-70">Звідки:</span>
+                      <span className="truncate">{v.location || v.locationId || v.group}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-semibold text-foreground text-[10px] uppercase tracking-wider opacity-70">Група:</span>
+                      <span className="truncate px-1 py-0.5 rounded text-[10px] font-medium" style={{ backgroundColor: hasColor ? `${bgColor}15` : 'var(--muted)', color: hasColor ? bgColor : 'inherit' }}>
+                        {visitorGroup?.name || v.group}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-auto pt-2 border-t border-border flex flex-col gap-2">
+                    {logs.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {logs.map((log, i) => (
+                          <div key={i} className="flex items-center text-[10px] font-mono font-medium bg-muted/50 border border-border rounded px-1.5 py-0.5">
+                            <span className="text-emerald-600">{log.in ? new Date(log.in).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false}) : '--:--'}</span>
+                            <span className="mx-0.5 text-muted-foreground/30">-</span>
+                            <span className="text-red-500">{log.out ? new Date(log.out).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false}) : '--:--'}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    <div className="flex gap-2 w-full mt-1">
+                      {v.status !== 'in' && logs.length < 4 && (
+                        <button
+                          onClick={() => markIn(v.id, logs.length)}
+                          className="flex-1 flex justify-center items-center gap-1 px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-lg border border-emerald-500/30 text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 transition-colors"
+                        >
+                          <LogIn className="w-3 h-3" />
+                          Зайшов
+                        </button>
+                      )}
+                      {v.status === 'in' && (
+                        <button
+                          onClick={() => markOut(v.id, logs.length - 1)}
+                          className="flex-1 flex justify-center items-center gap-1 px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-lg border border-red-500/30 text-red-600 bg-red-500/10 hover:bg-red-500/20 active:bg-red-500/30 transition-colors"
+                        >
+                          <LogOut className="w-3 h-3" />
+                          Вийшов
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

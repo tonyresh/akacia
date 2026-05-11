@@ -62,6 +62,52 @@ export default function Settings() {
     downloadAnchorNode.remove();
   };
 
+  const exportToCSV = () => {
+    const headers = [
+      'Дата',
+      '№ п/п',
+      'Звання',
+      'Прізвище Ім\'я По батькові',
+      'Звідки прибув',
+      'Група',
+      ...Array.from({length: 4}).flatMap((_, i) => [`Вхід ${i+1}`, `Вихід ${i+1}`]),
+      'Загальний час (хв)'
+    ];
+
+    const rows = visitors.map((v, i) => {
+      const logs = v.logs || (v.lastEntry ? [{ in: v.lastEntry }] : []);
+      const date = logs[0]?.in ? new Date(logs[0].in).toLocaleDateString() : new Date().toLocaleDateString();
+      
+      const timeCols = Array.from({length: 4}).flatMap((_, idx) => {
+        const log = logs[idx];
+        const timeIn = log?.in ? new Date(log.in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+        const timeOut = log?.out ? new Date(log.out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+        return [timeIn, timeOut];
+      });
+      
+      return [
+        date,
+        i + 1,
+        v.category,
+        v.name,
+        v.location || v.locationId || v.group,
+        v.group,
+        ...timeCols,
+        v.totalTimeMinutes
+      ].map(val => `"${val}"`).join(',');
+    });
+
+    const csvContent = [headers.map(h => `"${h}"`).join(','), ...rows].join('\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    link.setAttribute('download', `visitors_export_${new Date().toLocaleDateString()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -106,6 +152,9 @@ export default function Settings() {
           <div className="flex sm:flex-col gap-3 shrink-0 auto-cols-auto flex-wrap">
              <button onClick={handleExportData} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/20 text-sm font-medium">
                <Download className="w-4 h-4"/> Експорт бази (.json)
+             </button>
+             <button onClick={exportToCSV} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-500 text-emerald-950 rounded-xl hover:bg-emerald-400 transition-colors shadow-lg shadow-emerald-500/20 text-sm font-medium">
+               <Download className="w-4 h-4"/> Експорт (.csv)
              </button>
              <button onClick={() => fileInputRef.current?.click()} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-secondary text-secondary-foreground rounded-xl border border-border hover:bg-secondary/80 transition-colors text-sm font-medium">
                <Upload className="w-4 h-4"/> Імпорт бази (.json)

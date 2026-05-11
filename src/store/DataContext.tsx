@@ -100,8 +100,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         
         const timeCols = Array.from({length: 4}).flatMap((_, idx) => {
           const log = logs[idx];
-          const timeIn = log?.in ? new Date(log.in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-          const timeOut = log?.out ? new Date(log.out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+          const timeIn = log?.in ? new Date(log.in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+          const timeOut = log?.out ? new Date(log.out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
           return [timeIn, timeOut];
         });
         

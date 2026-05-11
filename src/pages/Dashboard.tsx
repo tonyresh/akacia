@@ -1,9 +1,15 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useData } from '../store/DataContext';
 import { Users, Clock, ArrowRightCircle } from 'lucide-react';
 
 export default function Dashboard() {
   const { visitors, groups, categories } = useData();
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const commandVisitors = visitors.filter(v => {
     const groupName = groups.find(g => g.id === v.groupId)?.name || v.group;
@@ -30,7 +36,19 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-bold tracking-tight">Оглядова панель</h1>
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 py-2">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Оглядова панель</h1>
+        </div>
+        <div className="text-right">
+          <div className="text-sm font-bold tracking-tight text-muted-foreground uppercase">
+            Зміна: {currentTime.toLocaleDateString()}
+          </div>
+          <div className="text-3xl font-black tracking-tighter text-foreground tabular-nums">
+            {currentTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: false})}
+          </div>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-primary/10 border border-primary/20 rounded-3xl p-6 flex items-center justify-between shadow-sm">
@@ -82,7 +100,7 @@ export default function Dashboard() {
                   </div>
                   {isOnLocation ? (
                     <div className="text-xs font-medium text-emerald-600 bg-emerald-500/10 px-4 py-1.5 rounded-full self-start sm:self-auto border border-emerald-500/20">
-                      На локації з {v.lastEntry ? new Date(v.lastEntry).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
+                      На локації з {v.lastEntry ? new Date(v.lastEntry).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false}) : ''}
                     </div>
                   ) : (
                     <div className="text-xs font-medium text-muted-foreground bg-muted/50 px-4 py-1.5 rounded-full self-start sm:self-auto border border-border/50">

@@ -28,8 +28,29 @@ export default function VisitorManagement() {
   const [editGroupId, setEditGroupId] = useState('');
   const [editColor, setEditColor] = useState('');
 
+  const normalizeForSearch = (str: string) => {
+    return str.toLowerCase()
+      .replace(/['`’ʼ.,!?]/g, '')
+      .replace(/[иіїыi]/g, 'i')
+      .replace(/[еєэe]/g, 'e')
+      .replace(/[гґg]/g, 'g')
+      .replace(/[аa]/g, 'a')
+      .replace(/[оo]/g, 'o')
+      .replace(/[рp]/g, 'p')
+      .replace(/[сc]/g, 'c')
+      .replace(/[хx]/g, 'x')
+      .replace(/[уy]/g, 'y');
+  };
+
+  const matchesSearch = (name: string, searchStr: string) => {
+    const normName = normalizeForSearch(name);
+    const searchWords = normalizeForSearch(searchStr).split(/\s+/).filter(w => w.length > 0);
+    if (searchWords.length === 0) return true;
+    return searchWords.every(word => normName.includes(word));
+  };
+
   const filtered = visitors
-    .filter(v => v.name.toLowerCase().includes(search.toLowerCase()))
+    .filter(v => matchesSearch(v.name, search))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const handleAdd = (e: React.FormEvent) => {

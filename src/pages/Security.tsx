@@ -225,7 +225,7 @@ export default function Security() {
                     <div className="mb-6 text-sm space-y-2 text-muted-foreground bg-muted/30 p-4 rounded-2xl border border-border/50">
                       <div className="flex justify-between items-center">
                         <span className="text-[10px] uppercase font-bold tracking-wider">Початок зміни</span>
-                        <span className="text-foreground font-medium">{new Date(activeWorkSession.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                        <span className="text-foreground font-medium">{new Date(activeWorkSession.startTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false})}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-[10px] uppercase font-bold tracking-wider">Тривалість</span>
