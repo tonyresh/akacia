@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useTheme } from '../store/ThemeContext';
-import { Home, Users, Shield, Settings, Sun, Moon, Database } from 'lucide-react';
+import { Home, Users, Shield, Settings, Sun, Moon, Database, FileText } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 import { Logo } from './Logo';
@@ -16,6 +16,7 @@ export default function Layout() {
     { to: '/visitors', icon: Users, label: 'Відвідувачі' },
     { to: '/database', icon: Database, label: 'База даних' },
     { to: '/security', icon: Shield, label: 'Охорона' },
+    { to: '/reports', icon: FileText, label: 'Звіти' },
     { to: '/settings', icon: Settings, label: 'Налаштування' },
   ];
 

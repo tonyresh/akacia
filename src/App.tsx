@@ -11,22 +11,32 @@ import Dashboard from './pages/Dashboard';
 import Visitors from './pages/Visitors';
 import VisitorManagement from './pages/VisitorManagement';
 import Security from './pages/Security';
+import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import { useAutoReport } from './hooks/useAutoReport';
+
+function AppContent() {
+  useAutoReport();
+  return (
+    <Routes>
+      <Route path="/" element={<Layout />}>
+        <Route index element={<Dashboard />} />
+        <Route path="visitors" element={<Visitors />} />
+        <Route path="database" element={<VisitorManagement />} />
+        <Route path="security" element={<Security />} />
+        <Route path="reports" element={<Reports />} />
+        <Route path="settings" element={<Settings />} />
+      </Route>
+    </Routes>
+  );
+}
 
 export default function App() {
   return (
     <ThemeProvider>
       <DataProvider>
         <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Layout />}>
-              <Route index element={<Dashboard />} />
-              <Route path="visitors" element={<Visitors />} />
-              <Route path="database" element={<VisitorManagement />} />
-              <Route path="security" element={<Security />} />
-              <Route path="settings" element={<Settings />} />
-            </Route>
-          </Routes>
+          <AppContent />
         </BrowserRouter>
       </DataProvider>
     </ThemeProvider>

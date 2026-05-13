@@ -50,3 +50,9 @@ export interface Shift {
   endTime?: string; // ISO string
   restPeriods: RestPeriod[];
 }
+
+export interface DirtySkyEvent {
+  id: string;
+  startTime: string; // ISO string
+  endTime?: string; // ISO string
+}

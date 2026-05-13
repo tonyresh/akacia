@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../store/DataContext';
-import { Users, Clock, ArrowRightCircle, X, Search, Mic, MicOff, LogIn, LogOut } from 'lucide-react';
-import { differenceInMinutes } from 'date-fns';
+import { Users, Clock, ArrowRightCircle, X, Search, Mic, MicOff, LogIn, LogOut, Play, Square, CloudRain, TriangleAlert } from 'lucide-react';
+import { differenceInMinutes, format } from 'date-fns';
 
 export default function Dashboard() {
-  const { visitors, setVisitors, groups, categories, shifts, securityShifts } = useData();
+  const { 
+    visitors, setVisitors, groups, categories, shifts, securityShifts,
+    dirtySkyEvents, startDirtySky, endDirtySky
+  } = useData();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [modalType, setModalType] = useState<'entered' | 'exited' | 'on_location' | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -268,11 +271,20 @@ export default function Dashboard() {
   );
   const activeShiftName = activeSecurityShift?.name;
 
+  const activeDirtySky = dirtySkyEvents.find(e => !e.endTime);
+  const lastCompletedDirtySky = [...dirtySkyEvents].reverse().find(e => e.endTime);
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col md:grid md:grid-cols-3 items-center gap-4 py-4 mb-2 font-roboto font-normal">
-        <div className="md:text-left w-full text-center">
+        <div className="md:text-left w-full text-center flex items-center justify-center md:justify-start gap-3">
           <h1 className="text-2xl font-normal tracking-tight uppercase text-primary">ДАШБОРД</h1>
+          {activeDirtySky && (
+            <div className="flex items-center gap-2 text-red-500 animate-pulse">
+              <TriangleAlert className="w-8 h-8" />
+              <span className="text-sm font-bold uppercase hidden sm:inline">Брудне небо</span>
+            </div>
+          )}
         </div>
         
         <div className="text-center order-first md:order-none flex flex-col items-center">
@@ -335,27 +347,75 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="relative">
-        <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-          <Search className="w-6 h-6 text-muted-foreground" />
+      <div className="bg-card border border-border rounded-3xl p-4 shadow-sm">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className={`p-3 rounded-2xl ${activeDirtySky ? 'bg-red-500/10 text-red-500 animate-pulse' : 'bg-muted text-muted-foreground'}`}>
+              <CloudRain className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-lg font-normal">Брудне небо</h2>
+              {activeDirtySky ? (
+                <p className="text-sm text-red-600 font-normal">
+                  Триває з {format(new Date(activeDirtySky.startTime), 'HH:mm')}
+                </p>
+              ) : lastCompletedDirtySky ? (
+                <p className="text-sm text-muted-foreground font-normal">
+                  Останнє: з {format(new Date(lastCompletedDirtySky.startTime), 'HH:mm')} до {format(new Date(lastCompletedDirtySky.endTime!), 'HH:mm')}
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground font-normal">Облік не ведеться</p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <button
+              onClick={startDirtySky}
+              disabled={!!activeDirtySky}
+              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-normal transition-all ${
+                activeDirtySky 
+                  ? 'bg-muted text-muted-foreground cursor-not-allowed' 
+                  : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/20'
+              }`}
+            >
+              <Play className="w-4 h-4" /> Початок
+            </button>
+            <button
+              onClick={endDirtySky}
+              disabled={!activeDirtySky}
+              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-normal transition-all ${
+                !activeDirtySky 
+                  ? 'bg-muted text-muted-foreground cursor-not-allowed' 
+                  : 'bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-500/20'
+              }`}
+            >
+              <Square className="w-4 h-4" /> Кінець
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="relative group">
+        <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none transition-transform group-focus-within:scale-110">
+          <Search className="w-8 h-8 text-primary/60 group-focus-within:text-primary transition-colors" />
         </div>
         <input
           type="text"
-          placeholder="Пошук..."
+          placeholder="Швидкий пошук за іменем чи позивним..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-14 pr-16 py-4 bg-card border border-border rounded-3xl text-lg focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow shadow-sm"
+          className="w-full pl-18 pr-16 py-6 bg-card border-2 border-primary/20 rounded-3xl text-xl focus:outline-none focus:border-primary focus:ring-8 focus:ring-primary/5 transition-all shadow-xl hover:shadow-2xl placeholder:text-muted-foreground/40 font-normal"
         />
         <button
           onClick={toggleListening}
-          className={`absolute inset-y-0 right-2 my-auto h-12 w-12 flex items-center justify-center rounded-2xl transition-all ${
+          className={`absolute inset-y-0 right-3 my-auto h-14 w-14 flex items-center justify-center rounded-[1.5rem] transition-all ${
             isListening 
               ? 'bg-red-500 text-white shadow-lg shadow-red-500/20 animate-pulse' 
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              : 'text-primary/60 hover:bg-primary/10 hover:text-primary'
           }`}
           title={isListening ? "Зупинити голосовий пошук" : "Голосовий пошук та команди"}
         >
-          {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+          {isListening ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
         </button>
       </div>
 
@@ -394,13 +454,15 @@ export default function Dashboard() {
                         {(() => {
                           const isGuard = (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон');
                           const isGuardOnDuty = isGuard && shifts.some(s => s.guardId === v.id && !s.endTime);
+                          const isOutDisabled = isGuardOnDuty || !!activeDirtySky;
+                          
                           return (
                             <button
-                              onClick={() => !isGuardOnDuty && markOut(v.id)}
-                              disabled={isGuardOnDuty}
-                              title={isGuardOnDuty ? "Не можна вийти до передачі зміни" : undefined}
+                              onClick={() => !isOutDisabled && markOut(v.id)}
+                              disabled={isOutDisabled}
+                              title={isGuardOnDuty ? "Не можна вийти до передачі зміни" : activeDirtySky ? "Вихід заблоковано режимом Брудне небо" : undefined}
                               className={`flex-1 sm:flex-none flex justify-center items-center gap-1.5 px-4 py-1.5 text-[10px] sm:text-xs font-normal uppercase tracking-widest rounded-xl border transition-colors ${
-                                isGuardOnDuty 
+                                isOutDisabled 
                                   ? 'border-muted bg-muted/50 text-muted-foreground cursor-not-allowed'
                                   : 'border-red-500/30 text-red-600 bg-red-500/10 hover:bg-red-500/20 active:bg-red-500/30'
                               }`}

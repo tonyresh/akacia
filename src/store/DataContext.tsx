@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
-import type { Visitor, Guard, Shift, Category, Group, SecurityShift } from '../types';
+import { Visitor, Guard, Shift, Category, Group, SecurityShift, DirtySkyEvent } from '../types';
 
 interface DataContextType {
   visitors: Visitor[];
@@ -16,6 +16,9 @@ interface DataContextType {
   setGroups: React.Dispatch<React.SetStateAction<Group[]>>;
   locations: string[];
   setLocations: React.Dispatch<React.SetStateAction<string[]>>;
+  dirtySkyEvents: DirtySkyEvent[];
+  startDirtySky: () => void;
+  endDirtySky: () => void;
   performShiftBackupAndReset: () => void;
 }
 
@@ -63,6 +66,34 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       { id: '2', name: 'Тимчасові', color: 'rgba(59, 130, 246, 0.1)' },
     ];
   });
+
+  const [dirtySkyEvents, setDirtySkyEvents] = useState<DirtySkyEvent[]>(() => {
+    const saved = localStorage.getItem('dirtySkyEvents');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const startDirtySky = () => {
+    const newEvent: DirtySkyEvent = {
+      id: Date.now().toString(),
+      startTime: new Date().toISOString(),
+    };
+    setDirtySkyEvents(prev => [...prev, newEvent]);
+  };
+
+  const endDirtySky = () => {
+    setDirtySkyEvents(prev => {
+      const lastEvent = prev[prev.length - 1];
+      if (lastEvent && !lastEvent.endTime) {
+        const updated = [...prev];
+        updated[updated.length - 1] = {
+          ...lastEvent,
+          endTime: new Date().toISOString(),
+        };
+        return updated;
+      }
+      return prev;
+    });
+  };
 
   const performShiftBackupAndReset = () => {
     const now = new Date();
@@ -130,13 +161,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     // Clean cells
     setVisitors(prev => prev.map(v => {
-      if (v.status !== 'in') {
+      const nowIso = now.toISOString();
+      if (v.status === 'in') {
+        // Carry over "In" visitors to the new shift
+        // We set their log to a new start at handover time so they are counted in the new shift session
+        return { 
+          ...v, 
+          lastEntry: nowIso, 
+          logs: [{ in: nowIso }], 
+          totalTimeMinutes: 0 
+        };
+      } else {
+        // Reset "Out" visitors
         const newV = { ...v, status: 'out' as const, totalTimeMinutes: 0 };
         delete newV.logs;
         delete newV.lastEntry;
         return newV;
       }
-      return v;
     }));
   };
 
@@ -147,9 +188,49 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { localStorage.setItem('categories', JSON.stringify(categories)); }, [categories]);
   useEffect(() => { localStorage.setItem('locations', JSON.stringify(locations)); }, [locations]);
   useEffect(() => { localStorage.setItem('groups', JSON.stringify(groups)); }, [groups]);
+  useEffect(() => { localStorage.setItem('dirtySkyEvents', JSON.stringify(dirtySkyEvents)); }, [dirtySkyEvents]);
+
+  // Data retention: 60 days
+  useEffect(() => {
+    const sixtyDaysAgo = new Date();
+    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+
+    setVisitors(prev => {
+      let changed = false;
+      const updated = prev.map(v => {
+        if (!v.logs) return v;
+        const filteredLogs = v.logs.filter(log => {
+          const logDate = log.in ? new Date(log.in) : null;
+          return logDate && logDate > sixtyDaysAgo;
+        });
+        if (filteredLogs.length === v.logs.length) return v;
+        changed = true;
+        return { ...v, logs: filteredLogs };
+      });
+      return changed ? updated : prev;
+    });
+
+    setDirtySkyEvents(prev => {
+      const filtered = prev.filter(event => {
+        const eventDate = new Date(event.startTime);
+        return eventDate > sixtyDaysAgo;
+      });
+      return filtered.length === prev.length ? prev : filtered;
+    });
+  }, []);
 
   return (
-    <DataContext.Provider value={{ visitors, setVisitors, guards, setGuards, shifts, setShifts, securityShifts, setSecurityShifts, categories, setCategories, groups, setGroups, locations, setLocations, performShiftBackupAndReset }}>
+    <DataContext.Provider value={{ 
+      visitors, setVisitors, 
+      guards, setGuards, 
+      shifts, setShifts, 
+      securityShifts, setSecurityShifts, 
+      categories, setCategories, 
+      groups, setGroups, 
+      locations, setLocations, 
+      dirtySkyEvents, startDirtySky, endDirtySky,
+      performShiftBackupAndReset 
+    }}>
       {children}
     </DataContext.Provider>
   );
