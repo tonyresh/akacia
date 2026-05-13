@@ -113,6 +113,22 @@ export default function Security() {
     return shifts.find(s => s.guardId === guardId && !s.endTime);
   };
 
+  const startShiftWorkSession = () => {
+    const shiftVisitors = visitors.filter(v => activeShift?.visitorIds.includes(v.id));
+    const now = new Date().toISOString();
+    const newShifts = shiftVisitors
+      .filter(guard => guard.status === 'in' && !getActiveWorkSession(guard.id))
+      .map((guard, i) => ({
+        id: Date.now().toString() + i,
+        guardId: guard.id,
+        startTime: now,
+        restPeriods: []
+      }));
+    if (newShifts.length > 0) {
+      setShifts(prev => [...prev, ...newShifts]);
+    }
+  };
+
   const formatDuration = (start: string, end?: string) => {
     const min = differenceInMinutes(end ? new Date(end) : new Date(), new Date(start));
     return `${Math.floor(min / 60)}г ${min % 60}хв`;
@@ -120,13 +136,14 @@ export default function Security() {
 
   const shiftVisitors = visitors.filter(v => activeShift?.visitorIds.includes(v.id));
   const isShiftOnDuty = shiftVisitors.some(guard => getActiveWorkSession(guard.id));
-  const isAfter730 = currentTime.getHours() > 7 || (currentTime.getHours() === 7 && currentTime.getMinutes() >= 30);
-  const canHandover = isShiftOnDuty && isAfter730;
+  const isAfter700 = currentTime.getHours() >= 7;
+  const allGuardsIn = shiftVisitors.length > 0 && shiftVisitors.every(guard => guard.status === 'in');
+  const canHandover = isShiftOnDuty && isAfter700 && allGuardsIn;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl font-bold tracking-tight">Облік охорони - Чергові зміни</h1>
+        <h1 className="text-2xl font-normal tracking-tight">Облік охорони - Чергові зміни</h1>
       </div>
 
       <div className="flex gap-3 overflow-x-auto pb-4 hide-scrollbar">
@@ -134,7 +151,7 @@ export default function Security() {
           <button
             key={s.id}
             onClick={() => setActiveTab(s.id)}
-            className={`px-5 py-2.5 rounded-2xl text-sm font-semibold whitespace-nowrap transition-all shadow-sm ${
+            className={`px-5 py-2.5 rounded-2xl text-sm font-normal whitespace-nowrap transition-all shadow-sm ${
               activeTab === s.id 
                 ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]' 
                 : 'bg-card text-muted-foreground hover:bg-secondary border border-border'
@@ -145,7 +162,7 @@ export default function Security() {
         ))}
         <button 
           onClick={openAddModal} 
-          className="px-5 py-2.5 rounded-2xl text-sm font-medium bg-card text-muted-foreground border border-border border-dashed hover:bg-secondary whitespace-nowrap flex items-center gap-2 transition-colors"
+          className="px-5 py-2.5 rounded-2xl text-sm font-normal bg-card text-muted-foreground border border-border border-dashed hover:bg-secondary whitespace-nowrap flex items-center gap-2 transition-colors"
         >
           <Plus className="w-4 h-4"/> Створити чергову зміну
         </button>
@@ -156,9 +173,9 @@ export default function Security() {
           <div className="flex flex-col bg-card border border-border rounded-3xl p-6 shadow-sm">
             <div className="flex flex-wrap justify-between items-center">
               <div>
-                <h2 className="text-xl font-bold">{activeShift.name}</h2>
-                <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2">
-                  <Users className="w-4 h-4" /> Чергових: {activeShift.visitorIds.length}
+                <h2 className="text-xl font-normal">{activeShift.name}</h2>
+                <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2 font-normal">
+                  <Users className="w-4 h-4" /> Чергових: {shiftVisitors.filter(v => getActiveWorkSession(v.id)).length} з {activeShift.visitorIds.length}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2 mt-4 sm:mt-0">
@@ -168,18 +185,18 @@ export default function Security() {
                     setIsHandoverModalOpen(true);
                   }}
                   disabled={!canHandover}
-                  className={`flex items-center gap-2 px-4 py-2 font-medium rounded-xl transition-colors text-sm shadow-lg ${
+                  className={`flex items-center gap-2 px-4 py-2 font-normal rounded-xl transition-colors text-sm shadow-lg ${
                     canHandover 
                       ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20'
                       : 'bg-muted text-muted-foreground cursor-not-allowed opacity-50 shadow-none'
                   }`}
-                  title={canHandover ? "Передати чергову зміну іншій групі" : "Передача доступна тільки для активної чергової зміни після 07:30"}
+                  title={canHandover ? "Передати чергову зміну іншій групі" : "Передача доступна тільки для активної чергової зміни після 07:00, при умові що всі охоронці зайшли"}
                 >
                   Передати чергову зміну
                 </button>
                 <button 
                   onClick={() => openEditModal(activeShift)} 
-                  className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground font-medium rounded-xl hover:bg-secondary/80 transition-colors text-sm"
+                  className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground font-normal rounded-xl hover:bg-secondary/80 transition-colors text-sm"
                 >
                   <Settings className="w-4 h-4"/> Налаштування
                 </button>
@@ -209,8 +226,20 @@ export default function Security() {
                          </div>
                       </div>
                     ) : (
-                      <div className="flex w-full justify-between bg-muted/10 p-5 rounded-2xl border border-border/50 border-dashed">
+                      <div className="flex w-full flex-col sm:flex-row items-start sm:items-center justify-between bg-muted/10 p-5 rounded-2xl border border-border/50 border-dashed gap-4 sm:gap-0">
                         <span className="text-sm font-medium text-muted-foreground">Очікування заступлення</span>
+                        <button
+                          onClick={startShiftWorkSession}
+                          disabled={!shiftVisitors.some(g => g.status === 'in')}
+                          className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider transition-colors ${
+                            shiftVisitors.some(g => g.status === 'in')
+                              ? 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/20'
+                              : 'bg-muted text-muted-foreground cursor-not-allowed opacity-50 shadow-none'
+                          }`}
+                        >
+                          <Play className="w-4 h-4" />
+                          Заступити
+                        </button>
                       </div>
                     )}
                   </div>
@@ -226,18 +255,20 @@ export default function Security() {
               return (
                 <div key={guard.id} className="bg-card border border-border rounded-3xl p-6 flex flex-col shadow-sm">
                   <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-3 font-semibold text-lg max-w-[70%]">
+                    <div className="flex items-center gap-3 max-w-full">
                       <div className="w-10 h-10 shrink-0 rounded-xl bg-primary/10 flex items-center justify-center text-primary" style={{ backgroundColor: guard.color ? guard.color : undefined, color: guard.color ? '#fff' : undefined }}>
                         <ShieldAlert className="w-5 h-5" />
                       </div>
-                      <span className="truncate" title={guard.name}>{guard.name}</span>
-                    </div>
-                    <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider whitespace-nowrap ${
-                      activeWorkSession 
-                        ? (activeBreak ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-500')
-                        : 'bg-muted text-muted-foreground'
-                    }`}>
-                      {activeWorkSession ? (activeBreak ? 'На відпочинку' : 'На чергуванні') : 'Поза черговою зміною'}
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-normal text-lg truncate" title={guard.name}>{guard.name}</span>
+                        <div className={`mt-0.5 self-start px-2 py-0.5 rounded-full text-[9px] font-normal uppercase tracking-wider whitespace-nowrap ${
+                          activeWorkSession 
+                            ? (activeBreak ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-500')
+                            : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {activeWorkSession ? (activeBreak ? 'На відпочинку' : 'На чергуванні') : 'Поза черговою зміною'}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

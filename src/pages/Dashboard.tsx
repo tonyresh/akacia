@@ -4,9 +4,9 @@ import { Users, Clock, ArrowRightCircle, X, Search, Mic, MicOff, LogIn, LogOut }
 import { differenceInMinutes } from 'date-fns';
 
 export default function Dashboard() {
-  const { visitors, setVisitors, groups, categories, shifts } = useData();
+  const { visitors, setVisitors, groups, categories, shifts, securityShifts } = useData();
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [modalType, setModalType] = useState<'entered' | 'exited' | null>(null);
+  const [modalType, setModalType] = useState<'entered' | 'exited' | 'on_location' | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
   const [isListening, setIsListening] = useState(false);
@@ -250,49 +250,87 @@ export default function Dashboard() {
   const enteredTodayCount = enteredTodayVisitors.length;
   const exitedTodayCount = exitedTodayVisitors.length;
 
-  const modalVisitors = modalType === 'entered' ? enteredTodayVisitors : exitedTodayVisitors;
-  const modalTitle = modalType === 'entered' ? "Зайшли за зміну" : "Вийшли за зміну";
+  const currentlyInVisitors = visitors.filter(v => v.status === 'in').sort((a,b) => a.name.localeCompare(b.name));
+  const currentlyInCount = currentlyInVisitors.length;
+
+  const modalVisitors = 
+    modalType === 'entered' ? enteredTodayVisitors : 
+    modalType === 'exited' ? exitedTodayVisitors : 
+    currentlyInVisitors;
+
+  const modalTitle = 
+    modalType === 'entered' ? "Зайшли за зміну" : 
+    modalType === 'exited' ? "Вийшли за зміну" : 
+    "Зараз на локації";
+
+  const activeSecurityShift = (securityShifts || []).find(s => 
+    s.visitorIds.some(id => shifts.some((session: any) => session.guardId === id && !session.endTime))
+  );
+  const activeShiftName = activeSecurityShift?.name;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 py-2">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Оглядова панель</h1>
+      <div className="flex flex-col md:grid md:grid-cols-3 items-center gap-4 py-4 mb-2 font-roboto font-normal">
+        <div className="md:text-left w-full text-center">
+          <h1 className="text-2xl font-normal tracking-tight uppercase text-primary">ДАШБОРД</h1>
         </div>
-        <div className="text-right">
-          <div className="text-sm font-bold tracking-tight text-muted-foreground uppercase">
-            Чергова зміна: {currentTime.toLocaleDateString()}
-          </div>
-          <div className="text-3xl font-black tracking-tighter text-foreground tabular-nums">
+        
+        <div className="text-center order-first md:order-none flex flex-col items-center">
+          <div className="text-4xl font-normal tabular-nums leading-none">
             {currentTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: false})}
           </div>
+          <div className="text-[11px] font-normal tracking-[0.1em] text-muted-foreground uppercase mt-2">
+            {currentTime.toLocaleDateString('uk-UA', { day: '2-digit', month: 'long', year: 'numeric' })}
+          </div>
+        </div>
+
+        <div className="md:text-right w-full text-center flex md:justify-end items-center gap-2">
+           <span className="text-xs font-normal tracking-[0.1em] text-muted-foreground uppercase">
+             Чергова зміна:
+           </span>
+           <span className="text-base font-normal text-primary uppercase">
+             {activeShiftName || 'не заступила'}
+           </span>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:gap-6 cursor-pointer">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
         <div 
-          onClick={() => setModalType('entered')}
-          className="bg-primary/10 border border-primary/20 rounded-3xl p-4 sm:p-6 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95"
+          onClick={() => setModalType('on_location')}
+          className="bg-emerald-500/10 border border-emerald-500/20 rounded-3xl p-3 sm:p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
         >
           <div>
-            <div className="text-[10px] sm:text-xs text-primary font-bold uppercase tracking-wider mb-1">Зайшло (з 08:00)</div>
-            <div className="text-2xl sm:text-3xl font-bold">{enteredTodayCount}</div>
+            <div className="text-xs sm:text-sm text-emerald-600 font-normal uppercase tracking-wider mb-1">На локації</div>
+            <div className="text-xl sm:text-2xl font-normal">{currentlyInCount}</div>
           </div>
-          <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 bg-primary rounded-2xl flex items-center justify-center text-primary-foreground font-bold shadow-lg shadow-primary/20">
-             <ArrowRightCircle className="w-5 h-5 sm:w-6 sm:h-6" />
+          <div className="w-8 h-8 sm:w-10 sm:h-10 shrink-0 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-normal shadow-lg shadow-emerald-500/20">
+             <Users className="w-4 h-4 sm:w-5 sm:h-5" />
+          </div>
+        </div>
+
+        <div 
+          onClick={() => setModalType('entered')}
+          className="bg-primary/10 border border-primary/20 rounded-3xl p-3 sm:p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
+        >
+          <div>
+            <div className="text-xs sm:text-sm text-primary font-normal uppercase tracking-wider mb-1">Зайшло (з 08:00)</div>
+            <div className="text-xl sm:text-2xl font-normal">{enteredTodayCount}</div>
+          </div>
+          <div className="w-8 h-8 sm:w-10 sm:h-10 shrink-0 bg-primary rounded-xl flex items-center justify-center text-primary-foreground font-normal shadow-lg shadow-primary/20">
+             <ArrowRightCircle className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
         </div>
 
         <div 
           onClick={() => setModalType('exited')}
-          className="bg-red-500/10 border border-red-500/20 rounded-3xl p-4 sm:p-6 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95"
+          className="bg-red-500/10 border border-red-500/20 rounded-3xl p-3 sm:p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
         >
           <div>
-            <div className="text-[10px] sm:text-xs text-red-500 font-bold uppercase tracking-wider mb-1">Вийшло (з 08:00)</div>
-            <div className="text-2xl sm:text-3xl font-bold">{exitedTodayCount}</div>
+            <div className="text-xs sm:text-sm text-red-500 font-normal uppercase tracking-wider mb-1">Вийшло (з 08:00)</div>
+            <div className="text-xl sm:text-2xl font-normal">{exitedTodayCount}</div>
           </div>
-          <div className="w-10 h-10 sm:w-12 sm:h-12 shrink-0 bg-red-500 rounded-2xl flex items-center justify-center text-white font-bold shadow-lg shadow-red-500/20">
-            <ArrowRightCircle className="w-5 h-5 sm:w-6 sm:h-6 rotate-180" />
+          <div className="w-8 h-8 sm:w-10 sm:h-10 shrink-0 bg-red-500 rounded-xl flex items-center justify-center text-white font-normal shadow-lg shadow-red-500/20">
+            <ArrowRightCircle className="w-4 h-4 sm:w-5 sm:h-5 rotate-180" />
           </div>
         </div>
       </div>
@@ -324,8 +362,8 @@ export default function Dashboard() {
       <div className="bg-card border border-border rounded-3xl p-6 flex flex-col shadow-sm">
         <div className="flex justify-between items-end mb-6">
           <div>
-            <h2 className="text-lg font-semibold">{searchQuery.trim() ? 'Результати пошуку' : 'Командування полку'}</h2>
-            <p className="text-xs text-muted-foreground">{searchQuery.trim() ? 'Знайдені співробітники' : 'Всі співробітники Командування полку'}</p>
+            <h2 className="text-lg font-normal">{searchQuery.trim() ? 'Результати пошуку' : 'Командування'}</h2>
+            {searchQuery.trim() && <p className="text-xs text-muted-foreground">Знайдені співробітники</p>}
           </div>
         </div>
         
@@ -335,14 +373,14 @@ export default function Dashboard() {
               const visitorGroup = groups?.find((g: any) => g.id === v.groupId) || groups?.find((g: any) => g.name === v.group);
               const isOnLocation = v.status === 'in';
               return (
-                <div key={v.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border border-border rounded-2xl bg-muted/20 hover:bg-muted/40 transition-colors">
+                <div key={v.id} className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border border-border rounded-2xl transition-colors ${isOnLocation ? 'bg-muted/20 hover:bg-muted/40' : 'bg-black/5 opacity-50'}`}>
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full border-2 border-background shadow-sm shrink-0 flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: v.color || visitorGroup?.color || '#e2e8f0', color: v.color ? '#fff' : undefined }}>
+                    <div className="w-10 h-10 rounded-full border-2 border-background shadow-sm shrink-0 flex items-center justify-center text-white text-xs font-normal" style={{ backgroundColor: v.color || visitorGroup?.color || '#e2e8f0', color: v.color ? '#fff' : undefined }}>
                       {v.name.charAt(0)}
                     </div>
                     <div>
-                      <div className="font-semibold text-sm">{v.name}</div>
-                      <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mt-0.5">
+                      <div className="font-normal text-sm">{v.name}</div>
+                      <div className="text-[10px] text-muted-foreground uppercase font-normal tracking-wider mt-0.5">
                         {v.category} {v.callsign ? `• ${v.callsign}` : ''} {v.location || v.locationId || v.group ? `• ${v.location || v.locationId || v.group}` : ''}
                       </div>
                     </div>
@@ -350,7 +388,7 @@ export default function Dashboard() {
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                     {isOnLocation ? (
                       <div className="flex items-center gap-3 w-full sm:w-auto">
-                        <div className="text-[10px] sm:text-xs font-medium text-emerald-600 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20 whitespace-nowrap">
+                        <div className="text-[10px] sm:text-xs font-normal text-emerald-600 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20 whitespace-nowrap">
                           з {v.lastEntry ? new Date(v.lastEntry).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false}) : ''}
                         </div>
                         {(() => {
@@ -361,7 +399,7 @@ export default function Dashboard() {
                               onClick={() => !isGuardOnDuty && markOut(v.id)}
                               disabled={isGuardOnDuty}
                               title={isGuardOnDuty ? "Не можна вийти до передачі зміни" : undefined}
-                              className={`flex-1 sm:flex-none flex justify-center items-center gap-1.5 px-4 py-1.5 text-[10px] sm:text-xs font-bold uppercase tracking-widest rounded-xl border transition-colors ${
+                              className={`flex-1 sm:flex-none flex justify-center items-center gap-1.5 px-4 py-1.5 text-[10px] sm:text-xs font-normal uppercase tracking-widest rounded-xl border transition-colors ${
                                 isGuardOnDuty 
                                   ? 'border-muted bg-muted/50 text-muted-foreground cursor-not-allowed'
                                   : 'border-red-500/30 text-red-600 bg-red-500/10 hover:bg-red-500/20 active:bg-red-500/30'
@@ -376,7 +414,7 @@ export default function Dashboard() {
                     ) : (
                       <button
                         onClick={() => markIn(v.id)}
-                        className="w-full sm:w-auto flex justify-center items-center gap-1.5 px-4 py-1.5 text-[10px] sm:text-xs font-bold uppercase tracking-widest rounded-xl border border-emerald-500/30 text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 transition-colors"
+                        className="w-full sm:w-auto flex justify-center items-center gap-1.5 px-4 py-1.5 text-[10px] sm:text-xs font-normal uppercase tracking-widest rounded-xl border border-emerald-500/30 text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 transition-colors"
                       >
                         <LogIn className="w-3.5 h-3.5" />
                         Зайшов
@@ -429,6 +467,11 @@ export default function Dashboard() {
                         </div>
                       </div>
                       <div className="text-right shrink-0 ml-2">
+                        {modalType === 'on_location' && v.lastEntry && (
+                          <div className="text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-lg text-xs font-mono font-medium">
+                            зайшов о {new Date(v.lastEntry).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false})}
+                          </div>
+                        )}
                         {modalType === 'entered' && v.shiftEnterTime && (
                           <div className="text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-lg text-xs font-mono font-medium">
                             {new Date(v.shiftEnterTime).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false})}

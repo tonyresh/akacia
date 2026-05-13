@@ -4,6 +4,8 @@ import { useTheme } from '../store/ThemeContext';
 import { Home, Users, Shield, Settings, Sun, Moon, Database } from 'lucide-react';
 import { cn } from '../lib/utils';
 
+import { Logo } from './Logo';
+
 export default function Layout() {
   const { theme, setTheme } = useTheme();
 
@@ -22,9 +24,8 @@ export default function Layout() {
       {/* Desktop Sidebar */}
       <aside className="hidden md:flex flex-col w-64 border-r border-border bg-card">
         <div className="p-6">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center font-bold text-primary-foreground shadow-lg shadow-primary/20">С</div>
-            <span className="text-xl font-semibold tracking-tight">СКД<span className="font-light opacity-80">Смарт</span></span>
+          <div className="mb-8 p-4 bg-[#0a0a0a] rounded-2xl">
+            <Logo className="w-full" />
           </div>
           <nav className="space-y-2">
             {navItems.map((item) => (

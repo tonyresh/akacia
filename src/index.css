@@ -4,6 +4,7 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
+  --font-roboto: "Roboto", sans-serif;
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -19,6 +20,13 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+}
+
+@layer utilities {
+  .text-justify-width {
+    text-align: justify;
+    text-align-last: justify;
+  }
 }
 
 @layer base {
@@ -71,6 +79,7 @@
     border-color: var(--border);
   }
   body {
+    font-family: var(--font-roboto);
     background-color: var(--background);
     color: var(--foreground);
     /* Transition for smooth theme switching */
