@@ -158,9 +158,7 @@ export default function VisitorManagement() {
             <thead className="bg-muted/50 text-muted-foreground border-b border-border">
               <tr>
                 <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border w-12 text-center">Колір</th>
-                <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Звання</th>
-                <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">ПІБ</th>
-                <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Позивний</th>
+                <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Звання / Ім'я / Позивний</th>
                 <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Звідки прибув</th>
                 <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Група</th>
                 <th className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] text-right">Дії</th>
@@ -169,7 +167,7 @@ export default function VisitorManagement() {
             <tbody className="divide-y divide-border">
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">
+                  <td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">
                     Співробітники не знайдені
                   </td>
                 </tr>
@@ -177,9 +175,15 @@ export default function VisitorManagement() {
               {filtered.map((v) => {
                 const isEditing = editingId === v.id;
                 const visitorGroup = groups.find(g => g.id === v.groupId) || groups.find(g => g.name === v.group);
+                const blockColor = v.color || visitorGroup?.color;
+                const hasGroupColor = !!blockColor && blockColor !== 'transparent';
+                
+                const rowStyles = hasGroupColor ? {
+                  backgroundColor: blockColor.startsWith('#') ? `${blockColor}15` : blockColor,
+                } : {};
                 
                 return (
-                  <tr key={v.id} className="hover:bg-muted/30 transition-colors">
+                  <tr key={v.id} className="hover:bg-muted/30 transition-colors" style={rowStyles}>
                     <td className="px-2 py-2 text-center border-r border-border">
                       {isEditing ? (
                         <div className="flex gap-1 flex-wrap w-24">
@@ -206,39 +210,37 @@ export default function VisitorManagement() {
                     </td>
                     <td className="px-2 py-2 border-r border-border" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
                       {isEditing ? (
-                        <select
-                          value={editCat}
-                          onChange={(e) => setEditCat(e.target.value)}
-                          className="w-full px-2 py-1 bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
-                        >
-                          {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
+                        <div className="flex flex-col gap-2">
+                          <select
+                            value={editCat}
+                            onChange={(e) => setEditCat(e.target.value)}
+                            className="w-full px-2 py-1 bg-background border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                          >
+                            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                          <input
+                            autoFocus
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            className="w-full px-2 py-1 bg-background border border-border rounded text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                          <input
+                            value={editCallsign}
+                            onChange={(e) => setEditCallsign(e.target.value)}
+                            placeholder="Позивний"
+                            className="w-full px-2 py-1 bg-background border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                          />
+                        </div>
                       ) : (
-                        <span className="text-xs text-muted-foreground" style={{ color: visitorGroup?.color ? '#ffffff' : undefined }}>{v.category}</span>
-                      )}
-                    </td>
-                    <td className="px-2 py-2 border-r border-border font-medium" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
-                      {isEditing ? (
-                        <input
-                          autoFocus
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          className="w-full px-2 py-1 bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
-                        />
-                      ) : (
-                        v.name
-                      )}
-                    </td>
-                    <td className="px-2 py-2 border-r border-border font-medium" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>
-                      {isEditing ? (
-                        <input
-                          value={editCallsign}
-                          onChange={(e) => setEditCallsign(e.target.value)}
-                          placeholder="Позивний"
-                          className="w-full px-2 py-1 bg-background border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
-                        />
-                      ) : (
-                        v.callsign ? <span className="text-xs text-muted-foreground" style={{ color: visitorGroup?.color ? '#ffffff' : undefined }}>{v.callsign}</span> : ''
+                        <div className="flex flex-col">
+                          <span className="text-[10px] text-muted-foreground uppercase" style={{ color: visitorGroup?.color ? 'rgba(255,255,255,0.7)' : undefined }}>{v.category}</span>
+                          <span className="font-medium text-sm" style={{ color: visitorGroup?.color ? '#ffffff' : undefined }}>{v.name}</span>
+                          {v.callsign && (
+                            <span className="text-[11px] font-bold text-primary/80 uppercase tracking-widest mt-0.5" style={{ color: visitorGroup?.color ? '#ffffff' : undefined }}>
+                              {v.callsign}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </td>
                     <td className="px-2 py-2 border-r border-border" style={{ backgroundColor: visitorGroup?.color || 'transparent' }}>

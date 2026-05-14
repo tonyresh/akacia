@@ -119,8 +119,17 @@ export default function Dashboard() {
       if (v.id !== id) return v;
       const now = new Date().toISOString();
       const logs = v.logs ? [...v.logs] : (v.lastEntry ? [{ in: v.lastEntry }] : []);
-      const index = logs.length - 1;
-      if (index >= 0 && !logs[index].out) {
+      
+      // Find the last entry without an 'out' time
+      let index = -1;
+      for (let i = logs.length - 1; i >= 0; i--) {
+        if (logs[i].in && !logs[i].out) {
+          index = i;
+          break;
+        }
+      }
+
+      if (index !== -1) {
           logs[index] = { ...logs[index], out: now };
           const diff = logs[index].in ? differenceInMinutes(new Date(now), new Date(logs[index].in!)) : 0;
           return { 
@@ -129,6 +138,18 @@ export default function Dashboard() {
             lastEntry: undefined,
             logs,
             totalTimeMinutes: (v.totalTimeMinutes || 0) + diff 
+          };
+      } else if (v.status === 'in') {
+          // If status is 'in' but no matching log, create a dummy entry and close it
+          const fallbackIn = v.lastEntry || now;
+          logs.push({ in: fallbackIn, out: now });
+          const diff = differenceInMinutes(new Date(now), new Date(fallbackIn));
+          return {
+            ...v,
+            status: 'out',
+            lastEntry: undefined,
+            logs,
+            totalTimeMinutes: (v.totalTimeMinutes || 0) + Math.max(0, diff)
           };
       }
       return v;
@@ -203,7 +224,7 @@ export default function Dashboard() {
       return matchesSearch(v.name, v.callsign, searchQuery);
     }
     const groupName = groups.find(g => g.id === v.groupId)?.name || v.group;
-    return groupName === 'Командування полку';
+    return groupName === 'Командування полку' || groupName === 'Керівництво';
   }).sort((a, b) => {
     if (a.status === 'in' && b.status !== 'in') return -1;
     if (a.status !== 'in' && b.status === 'in') return 1;
@@ -419,7 +440,7 @@ export default function Dashboard() {
         </button>
       </div>
 
-      <div className="bg-card border border-border rounded-3xl p-6 flex flex-col shadow-sm">
+      <div className="bg-card border border-border rounded-3xl p-4 flex flex-col shadow-sm">
         <div className="flex justify-between items-end mb-6">
           <div>
             <h2 className="text-lg font-normal">{searchQuery.trim() ? 'Результати пошуку' : 'Командування'}</h2>
@@ -432,17 +453,34 @@ export default function Dashboard() {
             commandVisitors.map(v => {
               const visitorGroup = groups?.find((g: any) => g.id === v.groupId) || groups?.find((g: any) => g.name === v.group);
               const isOnLocation = v.status === 'in';
+              const blockColor = v.color || visitorGroup?.color;
+              const hasGroupColor = !!blockColor && blockColor !== 'transparent';
+              
+              const rowStyles = hasGroupColor ? {
+                backgroundColor: blockColor.startsWith('#') ? `${blockColor}15` : blockColor,
+                borderColor: blockColor.startsWith('#') ? `${blockColor}60` : blockColor,
+              } : {};
+
               return (
-                <div key={v.id} className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border border-border rounded-2xl transition-colors ${isOnLocation ? 'bg-muted/20 hover:bg-muted/40' : 'bg-black/5 opacity-50'}`}>
+                <div 
+                  key={v.id} 
+                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border border-border rounded-2xl transition-colors ${isOnLocation ? 'opacity-100' : 'opacity-50'} ${hasGroupColor ? (isOnLocation ? 'shadow-md ring-1 ring-inset ring-white/10' : '') : (isOnLocation ? 'bg-muted/20 hover:bg-muted/40' : 'bg-black/5')}`}
+                  style={rowStyles}
+                >
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-full border-2 border-background shadow-sm shrink-0 flex items-center justify-center text-white text-xs font-normal" style={{ backgroundColor: v.color || visitorGroup?.color || '#e2e8f0', color: v.color ? '#fff' : undefined }}>
                       {v.name.charAt(0)}
                     </div>
                     <div>
-                      <div className="font-normal text-sm">{v.name}</div>
-                      <div className="text-[10px] text-muted-foreground uppercase font-normal tracking-wider mt-0.5">
-                        {v.category} {v.callsign ? `• ${v.callsign}` : ''} {v.location || v.locationId || v.group ? `• ${v.location || v.locationId || v.group}` : ''}
+                      <div className="text-[9px] text-muted-foreground uppercase font-normal tracking-wider mb-1 opacity-70">
+                        {v.category} {v.location || v.locationId || v.group ? `• ${v.location || v.locationId || v.group}` : ''}
                       </div>
+                      <div className="font-normal text-sm">{v.name}</div>
+                      {v.callsign && (
+                        <div className="text-[11px] font-bold text-primary/80 uppercase tracking-widest leading-none mt-1">
+                          {v.callsign}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -497,7 +535,7 @@ export default function Dashboard() {
       {modalType && (
         <div className="fixed inset-0 z-50 flex justify-end bg-background/80 backdrop-blur-sm sm:p-4">
           <div className="bg-card w-full sm:w-[480px] h-full sm:h-auto sm:max-h-full sm:rounded-3xl shadow-xl border border-border flex flex-col shrink-0 animate-in slide-in-from-right sm:slide-in-from-bottom duration-200">
-            <div className="flex items-center justify-between p-6 border-b border-border shrink-0">
+            <div className="flex items-center justify-between p-4 border-b border-border shrink-0">
               <h2 className="text-xl font-bold">{modalTitle}</h2>
               <button 
                 onClick={() => setModalType(null)}
@@ -507,7 +545,7 @@ export default function Dashboard() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-3">
+            <div className="p-4 overflow-y-auto flex-1 space-y-3">
               {modalVisitors.length === 0 ? (
                 <div className="py-12 text-center text-muted-foreground border border-border border-dashed rounded-2xl bg-muted/20">
                   Немає даних
@@ -515,17 +553,35 @@ export default function Dashboard() {
               ) : (
                 modalVisitors.map(v => {
                   const visitorGroup = groups?.find(g => g.id === v.groupId) || groups?.find(g => g.name === v.group);
+                  const blockColor = v.color || visitorGroup?.color;
+                  const hasGroupColor = !!blockColor && blockColor !== 'transparent';
+                  
+                  const rowStyles = hasGroupColor ? {
+                    backgroundColor: blockColor.startsWith('#') ? `${blockColor}15` : blockColor,
+                    borderColor: blockColor.startsWith('#') ? `${blockColor}60` : blockColor,
+                  } : {};
+
+                  const isOnLocation = v.status === 'in';
                   return (
-                    <div key={v.id} className="flex justify-between items-center bg-background border border-border p-4 rounded-2xl shadow-sm">
+                    <div 
+                      key={v.id} 
+                      className={`flex justify-between items-center border border-border p-4 rounded-2xl shadow-sm transition-colors ${isOnLocation ? 'opacity-100' : 'opacity-50'} ${hasGroupColor ? '' : 'bg-background'}`}
+                      style={rowStyles}
+                    >
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full border-2 border-background shadow-sm shrink-0 flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: v.color || visitorGroup?.color || '#e2e8f0', color: v.color ? '#fff' : undefined }}>
                           {v.name.charAt(0)}
                         </div>
                         <div>
-                          <div className="font-semibold text-sm">{v.name}</div>
-                          <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mt-0.5">
-                            {v.category} {v.callsign ? `• ${v.callsign}` : ''} {v.location || v.locationId || v.group ? `• ${v.location || v.locationId || v.group}` : ''}
+                          <div className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider mb-1 opacity-70">
+                            {v.category} {v.location || v.locationId || v.group ? `• ${v.location || v.locationId || v.group}` : ''}
                           </div>
+                          <div className="font-semibold text-sm">{v.name}</div>
+                          {v.callsign && (
+                            <div className="text-[11px] font-bold text-primary/80 uppercase tracking-widest leading-none mt-1">
+                              {v.callsign}
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="text-right shrink-0 ml-2">

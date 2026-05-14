@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useTheme } from '../store/ThemeContext';
 import { useData } from '../store/DataContext';
 import { X, Type, AppWindow, Database, Download, Upload } from 'lucide-react';
+import { Visitor } from '../types';
 
 export default function Settings() {
   const { fontSize, setFontSize } = useTheme();
@@ -13,6 +14,7 @@ export default function Settings() {
   const [newGroup, setNewGroup] = useState('');
   const [newGroupColor, setNewGroupColor] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const usersFileInputRef = useRef<HTMLInputElement>(null);
 
   const GUARD_COLORS = [
     'rgba(239, 68, 68, 0.1)', 'rgba(249, 115, 22, 0.1)', 'rgba(245, 158, 11, 0.1)', 
@@ -134,6 +136,88 @@ export default function Settings() {
     reader.readAsText(file);
   };
 
+  const handleImportUsers = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        let importedUsers: any[] = [];
+
+        if (file.name.endsWith('.json')) {
+          const json = JSON.parse(text);
+          importedUsers = Array.isArray(json) ? json : (json.visitors || []);
+        } else if (file.name.endsWith('.csv')) {
+          const lines = text.split('\n').filter(l => l.trim());
+          if (lines.length < 2) return;
+          
+          // Basic CSV parsing safely handles quotes
+          const parseCSVLine = (line: string) => {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            for (let i = 0; i < line.length; i++) {
+              const char = line[i];
+              if (char === '"') {
+                inQuotes = !inQuotes;
+              } else if (char === ',' && !inQuotes) {
+                result.push(current.trim());
+                current = '';
+              } else {
+                current += char;
+              }
+            }
+            result.push(current.trim());
+            return result;
+          };
+
+          const headers = parseCSVLine(lines[0]);
+          importedUsers = lines.slice(1).map(line => {
+            const values = parseCSVLine(line);
+            const obj: any = {};
+            headers.forEach((h, idx) => {
+              const cleanHeader = h.toLowerCase();
+              if (cleanHeader.includes('ім\'я') || cleanHeader.includes('name')) obj.name = values[idx];
+              if (cleanHeader.includes('позивний') || cleanHeader.includes('callsign')) obj.callsign = values[idx];
+              if (cleanHeader.includes('звання') || cleanHeader.includes('rank') || cleanHeader.includes('category')) obj.category = values[idx];
+              if (cleanHeader.includes('група') || cleanHeader.includes('group')) obj.group = values[idx];
+            });
+            return obj;
+          });
+        }
+
+        if (importedUsers.length > 0) {
+          const newVisitors: Visitor[] = importedUsers.map(u => {
+            const groupObj = groups.find(g => g.name === u.group) || groups[0];
+            return {
+              id: u.id || Math.random().toString(36).substr(2, 9),
+              name: u.name || 'Невідомий',
+              callsign: u.callsign || '',
+              category: u.category || categories[0] || 'Рядовий',
+              group: groupObj?.name || u.group || '',
+              groupId: groupObj?.id || 'default',
+              status: 'out',
+              totalTimeMinutes: 0
+            };
+          });
+
+          setVisitors(prev => {
+            const existingNames = new Set(prev.map(v => v.name));
+            const uniqueNew = newVisitors.filter(v => !existingNames.has(v.name));
+            return [...prev, ...uniqueNew];
+          });
+          alert(`Успішно імпортовано ${newVisitors.length} користувачів!`);
+        }
+      } catch (err) {
+        alert('Помилка при читанні файлу');
+      }
+      if (usersFileInputRef.current) usersFileInputRef.current.value = '';
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold tracking-tight">Налаштування</h1>
@@ -161,7 +245,15 @@ export default function Settings() {
              <button onClick={() => fileInputRef.current?.click()} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-secondary text-secondary-foreground rounded-xl border border-border hover:bg-secondary/80 transition-colors text-sm font-medium">
                <Upload className="w-4 h-4"/> Імпорт бази (.json)
              </button>
+             <button 
+               onClick={() => usersFileInputRef.current?.click()} 
+               className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 transition-colors shadow-lg shadow-indigo-500/20 text-sm font-medium"
+               title="Імпортувати лише список особового складу (CSV або JSON)"
+             >
+               <Upload className="w-4 h-4"/> Імпорт користувачів
+             </button>
              <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleImportData} />
+             <input type="file" accept=".json,.csv" className="hidden" ref={usersFileInputRef} onChange={handleImportUsers} />
           </div>
         </div>
       </section>

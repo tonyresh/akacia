@@ -282,29 +282,40 @@ export default function Visitors() {
           {filtered.map((v, index) => {
             const visitorGroup = groups.find(g => g.id === v.groupId) || groups.find(g => g.name === v.group);
             const bgColor = v.color || visitorGroup?.color || 'transparent';
-            const hasColor = bgColor !== 'transparent';
+            const hasGroupColor = bgColor !== 'transparent';
             
             const logs = v.logs || (v.lastEntry ? [{ in: v.lastEntry }] : []);
+            
+            const cardStyles = hasGroupColor ? {
+              backgroundColor: bgColor.startsWith('#') ? `${bgColor}15` : bgColor,
+              borderColor: bgColor.startsWith('#') ? `${bgColor}60` : bgColor,
+            } : {};
             
             return (
               <div 
                 key={v.id} 
-                className="flex flex-col relative bg-card border border-border rounded-xl overflow-hidden shadow-sm hover:shadow transition-shadow"
+                className={`flex flex-col relative border border-border rounded-xl overflow-hidden shadow-sm hover:shadow transition-all ${hasGroupColor ? 'opacity-100 ring-1 ring-inset ring-white/10' : 'bg-card'}`}
+                style={cardStyles}
               >
                 <div 
                   className="absolute left-0 top-0 bottom-0 w-1.5"
-                  style={{ backgroundColor: hasColor ? bgColor : 'var(--border)' }}
+                  style={{ backgroundColor: hasGroupColor ? bgColor : 'var(--border)' }}
                 />
                 
                 <div className="p-3 pl-4 flex-1 flex flex-col gap-2">
                   <div className="flex justify-between items-start gap-2">
                     <div className="flex flex-col">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">
-                        {v.category} {v.callsign ? `• ${v.callsign}` : ''}
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-1">
+                        {v.category}
                       </span>
                       <h3 className="font-bold text-foreground leading-tight text-sm" style={{ fontFamily: 'Roboto, sans-serif' }}>
                         {v.name}
                       </h3>
+                      {v.callsign && (
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-primary/80 leading-none mt-1">
+                          {v.callsign}
+                        </span>
+                      )}
                     </div>
                     <div className="text-[10px] font-mono font-bold text-muted-foreground bg-muted/50 border border-border px-1.5 py-0.5 rounded-md">
                       #{index + 1}
@@ -318,7 +329,7 @@ export default function Visitors() {
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span className="font-semibold text-foreground text-[10px] uppercase tracking-wider opacity-70">Група:</span>
-                      <span className="truncate px-1 py-0.5 rounded text-[10px] font-medium" style={{ backgroundColor: hasColor ? `${bgColor}15` : 'var(--muted)', color: hasColor ? bgColor : 'inherit' }}>
+                      <span className="truncate px-1 py-0.5 rounded text-[10px] font-medium" style={{ backgroundColor: hasGroupColor ? `${bgColor}15` : 'var(--muted)', color: hasGroupColor ? bgColor : 'inherit' }}>
                         {visitorGroup?.name || v.group}
                       </span>
                     </div>

@@ -260,8 +260,16 @@ export default function Security() {
                         <ShieldAlert className="w-5 h-5" />
                       </div>
                       <div className="flex flex-col min-w-0">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-1">
+                          {guard.category || 'Співробітник'}
+                        </span>
                         <span className="font-normal text-lg truncate" title={guard.name}>{guard.name}</span>
-                        <div className={`mt-0.5 self-start px-2 py-0.5 rounded-full text-[9px] font-normal uppercase tracking-wider whitespace-nowrap ${
+                        {guard.callsign && (
+                          <div className="text-[11px] font-bold text-primary/80 uppercase tracking-widest leading-none mt-1">
+                            {guard.callsign}
+                          </div>
+                        )}
+                        <div className={`mt-2 self-start px-2 py-0.5 rounded-full text-[9px] font-normal uppercase tracking-wider whitespace-nowrap ${
                           activeWorkSession 
                             ? (activeBreak ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-500')
                             : 'bg-muted text-muted-foreground'
@@ -327,9 +335,9 @@ export default function Security() {
                         onChange={() => toggleRosterSelection(v.id)}
                         className="w-4 h-4 rounded text-primary focus:ring-primary/50"
                       />
-                      <div className="flex-1 flex justify-between items-center">
+                      <div className="flex-1 flex flex-col items-start">
+                        <span className="text-[9px] font-bold text-muted-foreground uppercase">{v.category}</span>
                         <span className="font-medium text-sm">{v.name}</span>
-                        <span className="text-[10px] font-bold text-muted-foreground bg-secondary px-2 py-0.5 rounded-full uppercase">{v.category}</span>
                       </div>
                     </label>
                   ))}

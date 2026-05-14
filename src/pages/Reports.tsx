@@ -252,8 +252,7 @@ export default function Reports() {
                   <thead>
                     <tr className="bg-muted/30 text-[10px] font-normal uppercase tracking-wider text-muted-foreground">
                       <th className="px-6 py-3 border-b border-border">Дата</th>
-                      <th className="px-6 py-3 border-b border-border">Звання / Ім'я</th>
-                      <th className="px-6 py-3 border-b border-border">Позивний</th>
+                      <th className="px-6 py-3 border-b border-border">Звання / Ім'я / Позивний</th>
                       <th className="px-6 py-3 border-b border-border">Група</th>
                       <th className="px-6 py-3 border-b border-border">Вхід</th>
                       <th className="px-6 py-3 border-b border-border">Вихід</th>
@@ -271,7 +270,6 @@ export default function Reports() {
                             <div className="text-sm font-normal text-amber-700">Брудне небо</div>
                             <div className="text-[10px] text-muted-foreground uppercase">Спеціальна подія</div>
                           </td>
-                          <td className="px-6 py-4 border-b border-border text-xs text-muted-foreground italic">—</td>
                           <td className="px-6 py-4 border-b border-border text-xs">Спец. події</td>
                           <td className="px-6 py-4 border-b border-border text-xs tabular-nums text-amber-600 font-normal">
                             {format(logDate, 'HH:mm')}
@@ -287,17 +285,26 @@ export default function Reports() {
                         const logs = v.logs || (v.lastEntry ? [{ in: v.lastEntry }] : []);
                         const rangeLogs = logs.filter(log => log.in && parseISO(log.in) >= dateRange.start && parseISO(log.in) <= dateRange.end);
                         
+                        const visitorGroup = groups.find(g => g.name === v.group);
+                        const blockColor = v.color || visitorGroup?.color;
+                        const hasGroupColor = !!blockColor && blockColor !== 'transparent';
+                        const rowStyles = hasGroupColor ? {
+                          backgroundColor: blockColor.startsWith('#') ? `${blockColor}15` : blockColor,
+                        } : {};
+
                         return rangeLogs.map((log, lIdx) => (
-                          <tr key={`${v.id}-${lIdx}`} className="hover:bg-secondary/30 transition-colors">
+                          <tr key={`${v.id}-${lIdx}`} className="hover:bg-secondary/30 transition-colors" style={rowStyles}>
                             <td className="px-6 py-4 border-b border-border text-xs">
                               {format(parseISO(log.in!), 'dd.MM.yyyy')}
                             </td>
                             <td className="px-6 py-4 border-b border-border">
+                              <div className="text-[10px] text-muted-foreground uppercase mb-0.5">{v.category}</div>
                               <div className="text-sm font-normal">{v.name}</div>
-                              <div className="text-[10px] text-muted-foreground uppercase">{v.category}</div>
-                            </td>
-                            <td className="px-6 py-4 border-b border-border text-xs text-muted-foreground italic">
-                              {v.callsign || '—'}
+                              {v.callsign && (
+                                <div className="text-[11px] font-bold text-primary/80 uppercase tracking-widest mt-0.5">
+                                  {v.callsign}
+                                </div>
+                              )}
                             </td>
                             <td className="px-6 py-4 border-b border-border text-xs">
                               {v.group || '—'}
@@ -313,7 +320,7 @@ export default function Reports() {
                       })
                     ) : (
                       <tr>
-                        <td colSpan={6} className="px-6 py-12 text-center text-muted-foreground italic text-sm">
+                        <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground italic text-sm">
                           Даних за обраний період не знайдено
                         </td>
                       </tr>
