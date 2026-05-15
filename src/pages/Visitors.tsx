@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../store/DataContext';
+import { useTheme } from '../store/ThemeContext';
 import { Search, LogIn, LogOut, Download, Mic, MicOff, Star, User } from 'lucide-react';
 import { useToast } from '../store/ToastContext';
 import { differenceInMinutes } from 'date-fns';
@@ -7,6 +8,7 @@ import { formatNameAbbreviated, splitNameTwoLines } from '../utils/nameUtils';
 
 export default function Visitors() {
   const { visitors, setVisitors, categories, groups, locations, shifts } = useData();
+  const { visitorsColumns } = useTheme();
   const { showToast } = useToast();
   const [search, setSearch] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -255,25 +257,27 @@ export default function Visitors() {
 
       <div className="flex flex-col">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-          <div className="flex gap-2 w-full flex-wrap pb-2">
+          <div className="flex gap-1.5 w-full overflow-x-auto pb-4 hide-scrollbar snap-x h-14 items-center">
             <button
                onClick={() => setShowOnlyIn(!showOnlyIn)}
-               className={`px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition-colors border ${
+               className={`h-10 px-5 rounded-xl text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all border snap-start flex items-center justify-center gap-2 ${
                  showOnlyIn
-                   ? 'bg-green-600 text-white border-transparent shadow-md'
-                   : 'bg-background hover:bg-muted border-border text-foreground'
+                   ? 'bg-emerald-600 text-white border-transparent shadow-lg shadow-emerald-600/20 active:scale-95'
+                   : 'bg-card hover:bg-muted border-border text-muted-foreground'
                }`}
              >
+               <div className={`w-2 h-2 rounded-full ${showOnlyIn ? 'bg-white animate-pulse' : 'bg-emerald-500'}`} />
                Тільки зайшли
              </button>
+            <div className="w-px h-6 bg-border/60 mx-1 shrink-0" />
             {[{ id: 'all', name: 'Всі', color: '' }, ...groups].map(g => (
               <button
                 key={g.id}
                 onClick={() => setActiveGroup(g.id)}
-                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors border ${
+                className={`h-10 px-5 rounded-xl text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all border snap-start ${
                   activeGroup === g.id 
-                    ? 'bg-foreground text-background border-transparent shadow-md' 
-                    : 'bg-background hover:bg-muted border-border text-foreground'
+                    ? 'bg-primary text-primary-foreground border-transparent shadow-lg shadow-primary/20 scale-[1.02]' 
+                    : 'bg-card hover:bg-muted border-border text-muted-foreground'
                 }`}
               >
                 {g.name}
@@ -282,7 +286,15 @@ export default function Visitors() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+        <style>{`
+          @media (min-width: 1024px) {
+            .visitors-grid {
+              grid-template-columns: repeat(${visitorsColumns}, minmax(0, 1fr)) !important;
+            }
+          }
+        `}</style>
+        
+        <div className="visitors-grid grid grid-cols-1 sm:grid-cols-2 gap-3">
           {filtered.length === 0 && (
             <div className="col-span-full py-16 text-center text-muted-foreground border border-border rounded-2xl bg-muted/20">
               Немає даних для відображення
@@ -311,64 +323,64 @@ export default function Visitors() {
                   style={{ backgroundColor: hasGroupColor ? bgColor : 'var(--border)' }}
                 />
                 
-                <div className="p-3 pl-4 flex-1 flex flex-col gap-2">
-                  <div className="flex justify-between items-start gap-3">
-                    <div className="flex gap-3 items-center min-w-0">
-                      <div className="w-10 h-10 rounded-full border-2 border-background shadow-sm shrink-0 flex items-center justify-center text-white" style={{ backgroundColor: v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984') }}>
+                <div className="p-2.5 pl-3.5 flex-1 flex flex-col gap-1.5 min-w-0">
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="flex gap-2.5 items-center min-w-0">
+                      <div className="w-9 h-9 rounded-full border-2 border-background shadow-sm shrink-0 flex items-center justify-center text-white" style={{ backgroundColor: v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984') }}>
                         {v.isSpecial ? (
-                          <Star className="w-6 h-6 text-white fill-white" />
+                          <Star className="w-5 h-5 text-white fill-white" />
                         ) : (
-                          <User className="w-5 h-5 text-[#e5e9ec]" />
+                          <User className="w-4 h-4 text-[#e5e9ec]" />
                         )}
                       </div>
                       <div className="flex flex-col min-w-0">
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-1">
+                        <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground/60 mb-0.5">
                           {v.category}
                         </span>
-                        <h3 className="font-bold text-foreground leading-tight text-sm flex flex-col uppercase tracking-tight min-w-0" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                        <h3 className="font-bold text-foreground leading-tight text-[13px] flex flex-col uppercase tracking-tight min-w-0" style={{ fontFamily: 'Roboto, sans-serif' }}>
                           {(() => {
                             const { first, second } = splitNameTwoLines(v.name);
                             return (
                               <>
-                                <span className="truncate w-full">{first}</span>
-                                <span className="truncate w-full italic text-muted-foreground/80">{second}</span>
+                                <span className="truncate block w-full">{first}</span>
+                                <span className="truncate block w-full opacity-100">{second}</span>
                               </>
                             );
                           })()}
                         </h3>
                         {v.callsign && (
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-primary/80 leading-none mt-1">
+                          <span className="text-[9px] font-bold uppercase tracking-widest text-primary/80 leading-none mt-1 truncate">
                             {v.callsign}
                           </span>
                         )}
                       </div>
                     </div>
-                    <div className="text-[10px] font-mono font-bold text-muted-foreground bg-muted/50 border border-border px-1.5 py-0.5 rounded-md">
+                    <div className="text-[9px] font-mono font-bold text-muted-foreground bg-muted/50 border border-border px-1.5 py-0.5 rounded-md shrink-0">
                       #{index + 1}
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-1 text-xs text-muted-foreground mt-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-foreground text-[10px] uppercase tracking-wider opacity-70">Звідки:</span>
+                  <div className="flex flex-col gap-0.5 text-[11px] text-muted-foreground mt-0.5">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="font-semibold text-foreground text-[9px] uppercase tracking-wider opacity-60 shrink-0">Звідки:</span>
                       <span className="truncate">{v.location || v.locationId || v.group}</span>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-foreground text-[10px] uppercase tracking-wider opacity-70">Група:</span>
-                      <span className="truncate px-1 py-0.5 rounded text-[10px] font-medium" style={{ backgroundColor: hasGroupColor ? `${bgColor}15` : 'var(--muted)', color: hasGroupColor ? bgColor : 'inherit' }}>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="font-semibold text-foreground text-[9px] uppercase tracking-wider opacity-60 shrink-0">Група:</span>
+                      <span className="truncate px-1 py-0.5 rounded text-[9px] font-medium" style={{ backgroundColor: hasGroupColor ? `${bgColor}15` : 'var(--muted)', color: hasGroupColor ? bgColor : 'inherit' }}>
                         {visitorGroup?.name || v.group}
                       </span>
                     </div>
                   </div>
 
-                  <div className="mt-auto pt-2 border-t border-border flex flex-col gap-2">
+                  <div className="mt-auto pt-2 border-t border-border/50 flex flex-col gap-1.5">
                     {logs.length > 0 && (
                       <div className="flex flex-wrap gap-1">
-                        <div className="flex items-center text-[10px] font-mono font-medium bg-muted/50 border border-border rounded px-1.5 py-0.5">
+                        <div className="flex items-center text-[9px] font-mono font-medium bg-muted/50 border border-border/50 rounded px-1.5 py-0.5 w-full justify-between">
                           <span className="text-emerald-600" title="Перший захід">
                             {logs[0].in ? new Date(logs[0].in).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false}) : '--:--'}
                           </span>
-                          <span className="mx-1.5 text-muted-foreground/30">➜</span>
+                          <span className="text-muted-foreground/30">➜</span>
                           <span className="text-red-500" title="Останній вихід">
                             {logs[logs.length - 1].out 
                               ? new Date(logs[logs.length - 1].out!).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false}) 
@@ -378,11 +390,11 @@ export default function Visitors() {
                       </div>
                     )}
                     
-                    <div className="flex gap-2 w-full mt-1">
+                    <div className="flex gap-1.5 w-full">
                       {v.status !== 'in' && logs.length < 4 && (
                         <button
                           onClick={() => markIn(v.id, logs.length)}
-                          className="flex-1 flex justify-center items-center gap-1 px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-lg border border-emerald-500/30 text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 transition-colors"
+                          className="flex-1 flex justify-center items-center gap-1 px-1.5 py-1.5 text-[9px] font-bold uppercase tracking-wider rounded-lg border border-emerald-500/30 text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 transition-colors"
                         >
                           <LogIn className="w-3 h-3" />
                           Зайшов
@@ -396,7 +408,7 @@ export default function Visitors() {
                             onClick={() => !isGuardOnDuty && markOut(v.id, logs.length - 1)}
                             disabled={isGuardOnDuty}
                             title={isGuardOnDuty ? "Не можна вийти до передачі зміни" : undefined}
-                            className={`flex-1 flex justify-center items-center gap-1 px-2 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-lg border transition-colors ${
+                            className={`flex-1 flex justify-center items-center gap-1 px-1.5 py-1.5 text-[9px] font-bold uppercase tracking-wider rounded-lg border transition-colors ${
                               isGuardOnDuty 
                                 ? 'border-muted bg-muted/50 text-muted-foreground cursor-not-allowed'
                                 : 'border-red-500/30 text-red-600 bg-red-500/10 hover:bg-red-500/20 active:bg-red-500/30'

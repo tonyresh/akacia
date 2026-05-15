@@ -14,6 +14,8 @@ interface ThemeContextType {
   setSoundsEnabled: (enabled: boolean) => void;
   toastDuration: number;
   setToastDuration: (seconds: number) => void;
+  visitorsColumns: number;
+  setVisitorsColumns: (cols: number) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -45,6 +47,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       return 3;
     }
   });
+  const [visitorsColumns, setVisitorsColumns] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('visitorsColumns');
+      return saved === null ? 5 : parseInt(saved, 10);
+    } catch {
+      return 5;
+    }
+  });
 
   useEffect(() => {
     localStorage.setItem('theme', theme);
@@ -68,6 +78,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [toastDuration]);
 
   useEffect(() => {
+    localStorage.setItem('visitorsColumns', String(visitorsColumns));
+  }, [visitorsColumns]);
+
+  useEffect(() => {
     localStorage.setItem('fontSize', fontSize);
     let size = '16px';
     if (fontSize === 'large') size = '18px';
@@ -80,7 +94,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       theme, setTheme, fontSize, setFontSize, 
       toastsEnabled, setToastsEnabled,
       soundsEnabled, setSoundsEnabled,
-      toastDuration, setToastDuration
+      toastDuration, setToastDuration,
+      visitorsColumns, setVisitorsColumns
     }}>
       {children}
     </ThemeContext.Provider>

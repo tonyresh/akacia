@@ -13,7 +13,8 @@ export default function Settings() {
     fontSize, setFontSize, 
     toastsEnabled, setToastsEnabled,
     soundsEnabled, setSoundsEnabled,
-    toastDuration, setToastDuration
+    toastDuration, setToastDuration,
+    visitorsColumns, setVisitorsColumns
   } = useTheme();
   const { showToast } = useToast();
   const dataContext = useData();
@@ -778,6 +779,26 @@ export default function Settings() {
                         </div>
                       </div>
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-4">Кількість колонок на сторінці відвідувачів</label>
+                    <div className="flex flex-wrap gap-2">
+                      {[3, 4, 5, 6, 7, 8].map(cols => (
+                        <button
+                          key={cols}
+                          onClick={() => setVisitorsColumns(cols)}
+                          className={`w-12 h-12 rounded-xl text-sm font-bold transition-all ${
+                            visitorsColumns === cols 
+                              ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-105' 
+                              : 'bg-muted text-muted-foreground hover:bg-secondary/50 border border-border/50'
+                          }`}
+                        >
+                          {cols}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground opacity-70">Виберіть скільки карток відображати в одному рядку на великих екранах</p>
                   </div>
 
                   <div>
