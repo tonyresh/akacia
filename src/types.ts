@@ -25,6 +25,7 @@ export interface Visitor {
   totalTimeMinutes: number;
   logs?: TimeLog[];
   color?: string;
+  isSpecial?: boolean;
 }
 
 export interface SecurityShift {

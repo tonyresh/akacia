@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../store/DataContext';
-import { Search, LogIn, LogOut, Download, Mic, MicOff } from 'lucide-react';
+import { Search, LogIn, LogOut, Download, Mic, MicOff, Star, User } from 'lucide-react';
 import { useToast } from '../store/ToastContext';
 import { differenceInMinutes } from 'date-fns';
 import { formatNameAbbreviated, splitNameTwoLines } from '../utils/nameUtils';
@@ -181,6 +181,10 @@ export default function Visitors() {
     .filter(v => activeGroup === 'all' || v.groupId === activeGroup || v.group === activeGroup)
     .filter(v => showOnlyIn ? v.status === 'in' : true)
     .sort((a, b) => {
+      const specialA = a.isSpecial ? 1 : 0;
+      const specialB = b.isSpecial ? 1 : 0;
+      if (specialA !== specialB) return specialB - specialA;
+      
       if (a.status === 'in' && b.status !== 'in') return -1;
       if (a.status !== 'in' && b.status === 'in') return 1;
       return a.name.localeCompare(b.name);
@@ -308,27 +312,36 @@ export default function Visitors() {
                 />
                 
                 <div className="p-3 pl-4 flex-1 flex flex-col gap-2">
-                  <div className="flex justify-between items-start gap-2">
-                    <div className="flex flex-col">
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-1">
-                        {v.category}
-                      </span>
-                      <h3 className="font-bold text-foreground leading-tight text-sm flex flex-col uppercase tracking-tight" style={{ fontFamily: 'Roboto, sans-serif' }}>
-                        {(() => {
-                          const { first, second } = splitNameTwoLines(v.name);
-                          return (
-                            <>
-                              <span>{first}</span>
-                              <span>{second}</span>
-                            </>
-                          );
-                        })()}
-                      </h3>
-                      {v.callsign && (
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-primary/80 leading-none mt-1">
-                          {v.callsign}
+                  <div className="flex justify-between items-start gap-3">
+                    <div className="flex gap-3 items-center">
+                      <div className="w-10 h-10 rounded-full border-2 border-background shadow-sm shrink-0 flex items-center justify-center text-white" style={{ backgroundColor: v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984') }}>
+                        {v.isSpecial ? (
+                          <Star className="w-6 h-6 text-white fill-white" />
+                        ) : (
+                          <User className="w-5 h-5 text-[#e5e9ec]" />
+                        )}
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-1">
+                          {v.category}
                         </span>
-                      )}
+                        <h3 className="font-bold text-foreground leading-tight text-sm flex flex-col uppercase tracking-tight" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                          {(() => {
+                            const { first, second } = splitNameTwoLines(v.name);
+                            return (
+                              <>
+                                <span>{first}</span>
+                                <span>{second}</span>
+                              </>
+                            );
+                          })()}
+                        </h3>
+                        {v.callsign && (
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-primary/80 leading-none mt-1">
+                            {v.callsign}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="text-[10px] font-mono font-bold text-muted-foreground bg-muted/50 border border-border px-1.5 py-0.5 rounded-md">
                       #{index + 1}

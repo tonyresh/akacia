@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../store/DataContext';
 import { useToast } from '../store/ToastContext';
-import { Users, Clock, ArrowRightCircle, X, Search, Mic, MicOff, LogIn, LogOut, Play, Square, CloudRain, TriangleAlert } from 'lucide-react';
+import { Users, User, Clock, ArrowRightCircle, X, Search, Mic, MicOff, LogIn, LogOut, Play, Square, CloudRain, TriangleAlert, Star } from 'lucide-react';
 import { differenceInMinutes, format } from 'date-fns';
 import { formatNameAbbreviated } from '../utils/nameUtils';
 
@@ -256,6 +256,10 @@ export default function Dashboard() {
     const groupName = groups.find(g => g.id === v.groupId)?.name || v.group;
     return groupName === 'Командування полку' || groupName === 'Керівництво';
   }).sort((a, b) => {
+    const specialA = a.isSpecial ? 1 : 0;
+    const specialB = b.isSpecial ? 1 : 0;
+    if (specialA !== specialB) return specialB - specialA;
+    
     if (a.status === 'in' && b.status !== 'in') return -1;
     if (a.status !== 'in' && b.status === 'in') return 1;
     return a.name.localeCompare(b.name);
@@ -504,8 +508,12 @@ export default function Dashboard() {
                   style={rowStyles}
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full border-2 border-background shadow-sm shrink-0 flex items-center justify-center text-white text-xs font-normal" style={{ backgroundColor: v.color || visitorGroup?.color || '#e2e8f0', color: v.color ? '#fff' : undefined }}>
-                      {v.name.charAt(0)}
+                    <div className="w-10 h-10 rounded-full border-2 border-background shadow-sm shrink-0 flex items-center justify-center text-white" style={{ backgroundColor: v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984') }}>
+                      {v.isSpecial ? (
+                        <Star className="w-6 h-6 text-white fill-white" />
+                      ) : (
+                        <User className="w-5 h-5 text-[#e5e9ec]" />
+                      )}
                     </div>
                     <div>
                       <div className="text-[9px] text-muted-foreground uppercase font-normal tracking-wider mb-1 opacity-70">
@@ -605,8 +613,12 @@ export default function Dashboard() {
                       style={rowStyles}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full border-2 border-background shadow-sm shrink-0 flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: v.color || visitorGroup?.color || '#e2e8f0', color: v.color ? '#fff' : undefined }}>
-                          {v.name.charAt(0)}
+                        <div className="w-10 h-10 rounded-full border-2 border-background shadow-sm shrink-0 flex items-center justify-center text-white" style={{ backgroundColor: v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984') }}>
+                          {v.isSpecial ? (
+                            <Star className="w-6 h-6 text-white fill-white" />
+                          ) : (
+                            <User className="w-5 h-5 text-[#e5e9ec]" />
+                          )}
                         </div>
                         <div>
                           <div className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider mb-1 opacity-70">

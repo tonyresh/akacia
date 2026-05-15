@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useData } from '../store/DataContext';
-import { Search, Pencil, Trash2, X, Check, Plus, ChevronDown } from 'lucide-react';
+import { Search, User, Pencil, Trash2, X, Check, Plus, ChevronDown, Star } from 'lucide-react';
 import { useToast } from '../store/ToastContext';
 
 const COLORS = [
@@ -23,6 +23,7 @@ export default function VisitorManagement() {
   const [newLocation, setNewLocation] = useState(locations[0] || '');
   const [newGroup, setNewGroup] = useState(groups[0]?.id || '');
   const [newColor, setNewColor] = useState('');
+  const [newIsSpecial, setNewIsSpecial] = useState(false);
 
   // Edit form state
   const [editName, setEditName] = useState('');
@@ -31,6 +32,7 @@ export default function VisitorManagement() {
   const [editLocation, setEditLocation] = useState('');
   const [editGroupId, setEditGroupId] = useState('');
   const [editColor, setEditColor] = useState('');
+  const [editIsSpecial, setEditIsSpecial] = useState(false);
 
   const normalizeForSearch = (str: string) => {
     return str.toLowerCase()
@@ -56,7 +58,12 @@ export default function VisitorManagement() {
 
   const filtered = visitors
     .filter(v => matchesSearch(v.name, v.callsign, search))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => {
+      const specialA = a.isSpecial ? 1 : 0;
+      const specialB = b.isSpecial ? 1 : 0;
+      if (specialA !== specialB) return specialB - specialA;
+      return a.name.localeCompare(b.name);
+    });
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,12 +98,14 @@ export default function VisitorManagement() {
         group: groups.find(g => g.id === (newGroup || groups[0]?.id))?.name || '',
         status: 'out',
         totalTimeMinutes: 0,
-        color: newColor
+        color: newColor,
+        isSpecial: newIsSpecial
       }]);
       showToast(`Успішно додано співробітника: ${trimmedName}`, 'success');
       setNewName('');
       setNewCallsign('');
       setNewColor('');
+      setNewIsSpecial(false);
       setIsAdding(false);
     } catch (error) {
       showToast(`Помилка при додаванні: ${error instanceof Error ? error.message : String(error)}`, 'error');
@@ -111,6 +120,7 @@ export default function VisitorManagement() {
     setEditLocation(v.location || v.locationId || locations[0] || '');
     setEditGroupId(v.groupId || groups.find(g => g.name === v.group)?.id || groups[0]?.id || '');
     setEditColor(v.color || '');
+    setEditIsSpecial(v.isSpecial || false);
   };
 
   const saveEdit = () => {
@@ -128,7 +138,8 @@ export default function VisitorManagement() {
             location: editLocation, 
             groupId: editGroupId, 
             group: foundGroup?.name || v.group, 
-            color: editColor 
+            color: editColor,
+            isSpecial: editIsSpecial
           };
         }
         return v;
@@ -238,7 +249,13 @@ export default function VisitorManagement() {
                         </div>
                       </div>
                     ) : (
-                      <div className="w-8 h-8 md:w-6 md:h-6 rounded-full shadow-sm" style={{ backgroundColor: v.color || visitorGroup?.color || '#e2e8f0' }} />
+                      <div className="w-8 h-8 md:w-6 md:h-6 rounded-full shadow-sm flex items-center justify-center text-white" style={{ backgroundColor: v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984') }}>
+                        {v.isSpecial ? (
+                          <Star className="w-4 h-4 text-white fill-white" />
+                        ) : (
+                          <User className="w-4 h-4 text-[#e5e9ec]" />
+                        )}
+                      </div>
                     )}
                   </div>
 
@@ -266,11 +283,22 @@ export default function VisitorManagement() {
                           placeholder="Позивний"
                           className="w-full px-2 py-1 bg-background border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                         />
+                        <label className="flex items-center gap-2 mt-1 cursor-pointer">
+                          <input 
+                            type="checkbox"
+                            checked={editIsSpecial}
+                            onChange={e => setEditIsSpecial(e.target.checked)}
+                            className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+                          />
+                          <span className="text-[10px] font-bold text-muted-foreground uppercase">Особливий</span>
+                        </label>
                       </div>
                     ) : (
                       <div className="flex flex-col">
                         <span className="text-[10px] text-muted-foreground uppercase" style={{ color: visitorGroup?.color ? 'rgba(255,255,255,0.7)' : undefined }}>{v.category}</span>
-                        <span className="font-medium text-sm" style={{ color: visitorGroup?.color ? '#ffffff' : undefined }}>{v.name}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-medium text-sm" style={{ color: visitorGroup?.color ? '#ffffff' : undefined }}>{v.name}</span>
+                        </div>
                         {v.callsign && (
                           <span className="text-[11px] font-bold text-primary/80 uppercase tracking-widest mt-0.5" style={{ color: visitorGroup?.color ? '#ffffff' : undefined }}>
                             {v.callsign}
@@ -427,6 +455,25 @@ export default function VisitorManagement() {
                   <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full border border-border" style={{ backgroundColor: newColor || 'transparent' }} />
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-2xl border border-border/50">
+                <div className={`p-2 rounded-lg ${newIsSpecial ? 'bg-yellow-500/10 text-yellow-500' : 'bg-muted text-muted-foreground'}`}>
+                  <Star className={`w-4 h-4 ${newIsSpecial ? 'fill-yellow-500' : ''}`} />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">Особливий статус</p>
+                  <p className="text-xs text-muted-foreground">Буде відображатись на початку списку із золотою зіркою</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setNewIsSpecial(!newIsSpecial)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${newIsSpecial ? 'bg-yellow-500' : 'bg-muted'}`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${newIsSpecial ? 'translate-x-6' : 'translate-x-1'}`}
+                  />
+                </button>
               </div>
               
               <div className="flex justify-end gap-3 mt-8">
