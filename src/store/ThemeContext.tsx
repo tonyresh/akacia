@@ -8,6 +8,12 @@ interface ThemeContextType {
   setTheme: (theme: Theme) => void;
   fontSize: FontSize;
   setFontSize: (size: FontSize) => void;
+  toastsEnabled: boolean;
+  setToastsEnabled: (enabled: boolean) => void;
+  soundsEnabled: boolean;
+  setSoundsEnabled: (enabled: boolean) => void;
+  toastDuration: number;
+  setToastDuration: (seconds: number) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -15,6 +21,30 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('theme') as Theme) || 'light');
   const [fontSize, setFontSize] = useState<FontSize>(() => (localStorage.getItem('fontSize') as FontSize) || 'normal');
+  const [toastsEnabled, setToastsEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('toastsEnabled');
+      return saved === null ? true : saved === 'true';
+    } catch {
+      return true;
+    }
+  });
+  const [soundsEnabled, setSoundsEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('soundsEnabled');
+      return saved === null ? true : saved === 'true';
+    } catch {
+      return true;
+    }
+  });
+  const [toastDuration, setToastDuration] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('toastDuration');
+      return saved === null ? 3 : parseInt(saved, 10);
+    } catch {
+      return 3;
+    }
+  });
 
   useEffect(() => {
     localStorage.setItem('theme', theme);
@@ -26,6 +56,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [theme]);
 
   useEffect(() => {
+    localStorage.setItem('toastsEnabled', String(toastsEnabled));
+  }, [toastsEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem('soundsEnabled', String(soundsEnabled));
+  }, [soundsEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem('toastDuration', String(toastDuration));
+  }, [toastDuration]);
+
+  useEffect(() => {
     localStorage.setItem('fontSize', fontSize);
     let size = '16px';
     if (fontSize === 'large') size = '18px';
@@ -34,7 +76,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [fontSize]);
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, fontSize, setFontSize }}>
+    <ThemeContext.Provider value={{ 
+      theme, setTheme, fontSize, setFontSize, 
+      toastsEnabled, setToastsEnabled,
+      soundsEnabled, setSoundsEnabled,
+      toastDuration, setToastDuration
+    }}>
       {children}
     </ThemeContext.Provider>
   );

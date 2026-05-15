@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../store/DataContext';
 import { Search, LogIn, LogOut, Download, Mic, MicOff } from 'lucide-react';
+import { useToast } from '../store/ToastContext';
 import { differenceInMinutes } from 'date-fns';
+import { formatNameAbbreviated, splitNameTwoLines } from '../utils/nameUtils';
 
 export default function Visitors() {
   const { visitors, setVisitors, categories, groups, locations, shifts } = useData();
+  const { showToast } = useToast();
   const [search, setSearch] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -189,6 +192,7 @@ export default function Visitors() {
       const now = new Date().toISOString();
       const logs = v.logs ? [...v.logs] : (v.lastEntry ? [{ in: v.lastEntry }] : []);
       logs[index] = { in: now };
+      showToast(`${v.name}: ЗАЙШОВ`, 'success');
       return { ...v, status: 'in', lastEntry: now, logs };
     }));
     setSearch('');
@@ -203,6 +207,7 @@ export default function Visitors() {
       logs[index] = { ...logs[index], out: now };
       
       const diff = logs[index].in ? differenceInMinutes(new Date(now), new Date(logs[index].in!)) : 0;
+      showToast(`${v.name}: ВИЙШОВ`, 'info');
       return { 
         ...v, 
         status: 'out', 
@@ -308,8 +313,16 @@ export default function Visitors() {
                       <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-1">
                         {v.category}
                       </span>
-                      <h3 className="font-bold text-foreground leading-tight text-sm" style={{ fontFamily: 'Roboto, sans-serif' }}>
-                        {v.name}
+                      <h3 className="font-bold text-foreground leading-tight text-sm flex flex-col uppercase tracking-tight" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                        {(() => {
+                          const { first, second } = splitNameTwoLines(v.name);
+                          return (
+                            <>
+                              <span>{first}</span>
+                              <span>{second}</span>
+                            </>
+                          );
+                        })()}
                       </h3>
                       {v.callsign && (
                         <span className="text-[10px] font-bold uppercase tracking-widest text-primary/80 leading-none mt-1">

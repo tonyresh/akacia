@@ -14,7 +14,6 @@ export default function Layout() {
   const navItems = [
     { to: '/', icon: Home, label: 'Дашборд' },
     { to: '/visitors', icon: Users, label: 'Відвідувачі' },
-    { to: '/database', icon: Database, label: 'База даних' },
     { to: '/security', icon: Shield, label: 'Охорона' },
     { to: '/reports', icon: FileText, label: 'Звіти' },
     { to: '/settings', icon: Settings, label: 'Налаштування' },

@@ -6,10 +6,10 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ThemeProvider } from './store/ThemeContext';
 import { DataProvider } from './store/DataContext';
+import { ToastProvider } from './store/ToastContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Visitors from './pages/Visitors';
-import VisitorManagement from './pages/VisitorManagement';
 import Security from './pages/Security';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
@@ -22,7 +22,6 @@ function AppContent() {
       <Route path="/" element={<Layout />}>
         <Route index element={<Dashboard />} />
         <Route path="visitors" element={<Visitors />} />
-        <Route path="database" element={<VisitorManagement />} />
         <Route path="security" element={<Security />} />
         <Route path="reports" element={<Reports />} />
         <Route path="settings" element={<Settings />} />
@@ -34,11 +33,13 @@ function AppContent() {
 export default function App() {
   return (
     <ThemeProvider>
-      <DataProvider>
-        <BrowserRouter>
-          <AppContent />
-        </BrowserRouter>
-      </DataProvider>
+      <ToastProvider>
+        <DataProvider>
+          <BrowserRouter>
+            <AppContent />
+          </BrowserRouter>
+        </DataProvider>
+      </ToastProvider>
     </ThemeProvider>
   );
 }

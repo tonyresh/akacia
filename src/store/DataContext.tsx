@@ -26,46 +26,119 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
   const [visitors, setVisitors] = useState<Visitor[]>(() => {
-    const saved = localStorage.getItem('visitors');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('visitors');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
   const [guards, setGuards] = useState<Guard[]>(() => {
-    const saved = localStorage.getItem('guards');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('guards');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
   const [shifts, setShifts] = useState<Shift[]>(() => {
-    const saved = localStorage.getItem('shifts');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('shifts');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
   const [securityShifts, setSecurityShifts] = useState<SecurityShift[]>(() => {
-    const saved = localStorage.getItem('securityShifts');
-    return saved ? JSON.parse(saved) : [
-      { id: 'shift-1', name: 'Денна зміна', visitorIds: [] },
-      { id: 'shift-2', name: 'Нічна зміна', visitorIds: [] }
-    ];
+    try {
+      const saved = localStorage.getItem('securityShifts');
+      return saved ? JSON.parse(saved) : [
+        { id: 'shift-1', name: 'Денна зміна', visitorIds: [] },
+        { id: 'shift-2', name: 'Нічна зміна', visitorIds: [] }
+      ];
+    } catch {
+      return [
+        { id: 'shift-1', name: 'Денна зміна', visitorIds: [] },
+        { id: 'shift-2', name: 'Нічна зміна', visitorIds: [] }
+      ];
+    }
   });
   const [categories, setCategories] = useState<Category[]>(() => {
-    const saved = localStorage.getItem('categories');
-    return saved ? JSON.parse(saved) : ['Рядовий', 'Сержант', 'Лейтенант', 'Капітан', 'Майор', 'Полковник'];
+    try {
+      const saved = localStorage.getItem('categories');
+      return saved ? JSON.parse(saved) : ['Рядовий', 'Сержант', 'Лейтенант', 'Капітан', 'Майор', 'Полковник'];
+    } catch {
+      return ['Рядовий', 'Сержант', 'Лейтенант', 'Капітан', 'Майор', 'Полковник'];
+    }
   });
   const [locations, setLocations] = useState<string[]>(() => {
-    const saved = localStorage.getItem('locations');
-    return saved ? JSON.parse(saved) : ['Штаб', 'КПП', 'Казарма №1', 'Навчальна частина'];
+    try {
+      const saved = localStorage.getItem('locations');
+      return saved ? JSON.parse(saved) : ['Штаб', 'КПП', 'Казарма №1', 'Навчальна бригада'];
+    } catch {
+      return ['Штаб', 'КПП', 'Казарма №1', 'Навчальна бригада'];
+    }
   });
   const [groups, setGroups] = useState<Group[]>(() => {
-    const saved = localStorage.getItem('groups');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (parsed.length > 0 && typeof parsed[0] === 'string') {
-        return [{ id: 'g-default', name: 'Постійні відвідувачі', color: 'rgba(34, 197, 94, 0.1)' }];
+    try {
+      const saved = localStorage.getItem('groups');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.length > 0 && typeof parsed[0] === 'string') {
+          return [
+            { id: '1', name: 'Постійні відвідувачі', color: 'rgba(34, 197, 94, 0.1)' },
+            { id: '2', name: 'Тимчасові', color: 'rgba(59, 130, 246, 0.1)' },
+            { id: '3', name: 'Рота охорони', color: 'rgba(239, 68, 68, 0.1)' },
+          ];
+        }
+        return parsed;
       }
-      return parsed;
-    }
+    } catch {}
     return [
       { id: '1', name: 'Постійні відвідувачі', color: 'rgba(34, 197, 94, 0.1)' },
       { id: '2', name: 'Тимчасові', color: 'rgba(59, 130, 246, 0.1)' },
+      { id: '3', name: 'Рота охорони', color: 'rgba(239, 68, 68, 0.1)' },
     ];
   });
+
+  // Migration: Move "Рота охорони" from locations to groups and de-duplicate
+  useEffect(() => {
+    // Migration from old location to group
+    const hasSecurityLocation = locations.some(loc => loc === 'Рота охорони');
+    if (hasSecurityLocation) {
+      setLocations(prev => prev.filter(loc => loc !== 'Рота охорони'));
+    }
+    
+    // Always check for duplicates and ensure Рота охорони exists
+    setGroups(prev => {
+      const seen = new Set();
+      const unique: Group[] = [];
+      
+      // First ensure core groups exist if missing
+      const coreGroups = [
+        { id: '1', name: 'Постійні відвідувачі', color: 'rgba(34, 197, 94, 0.1)' },
+        { id: '2', name: 'Тимчасові', color: 'rgba(59, 130, 246, 0.1)' },
+        { id: '3', name: 'Рота охорони', color: 'rgba(239, 68, 68, 0.1)' },
+      ];
+
+      // Use a combined list to filter
+      const allPossible = [...prev];
+      coreGroups.forEach(cg => {
+        if (!allPossible.some(g => g.name === cg.name)) {
+          allPossible.push(cg);
+        }
+      });
+
+      allPossible.forEach(g => {
+        if (!seen.has(g.name)) {
+          seen.add(g.name);
+          unique.push(g);
+        }
+      });
+
+      return unique.length === prev.length && prev.length > 0 ? prev : unique;
+    });
+  }, [locations]);
 
   const [dirtySkyEvents, setDirtySkyEvents] = useState<DirtySkyEvent[]>(() => {
     const saved = localStorage.getItem('dirtySkyEvents');

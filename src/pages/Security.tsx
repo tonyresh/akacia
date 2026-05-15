@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useData } from '../store/DataContext';
+import { useToast } from '../store/ToastContext';
 import { ShieldAlert, Plus, Play, Square, Coffee, Trash2, Settings, Users } from 'lucide-react';
 import { differenceInMinutes } from 'date-fns';
+import { formatNameAbbreviated } from '../utils/nameUtils';
 
 export default function Security() {
   const { visitors, securityShifts, setSecurityShifts, shifts, setShifts, performShiftBackupAndReset } = useData();
+  const { showToast } = useToast();
   
   const [activeTab, setActiveTab] = useState<string>('');
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -57,6 +60,7 @@ export default function Security() {
         setTimeout(() => {
           setShifts(prev => [...prev, ...newShifts]);
           setActiveTab(targetGroup.id);
+          showToast(`Чергову зміну передано групі: ${targetGroup.name}`, 'success');
         }, 50);
     }
     
@@ -84,10 +88,12 @@ export default function Security() {
     
     if (editingShiftId) {
       setSecurityShifts(prev => prev.map(s => s.id === editingShiftId ? { ...s, name: shiftNameInput, visitorIds: rosterSelection } : s));
+      showToast('Зміни в черговій зміні збережено', 'success');
     } else {
       const newId = Date.now().toString();
       setSecurityShifts(prev => [...prev, { id: newId, name: shiftNameInput, visitorIds: rosterSelection }]);
       setActiveTab(newId);
+      showToast(`Чергову зміну "${shiftNameInput}" створено`, 'success');
     }
     setIsShiftModalOpen(false);
   };
@@ -98,7 +104,9 @@ export default function Security() {
 
   const confirmDeleteShift = () => {
     if (shiftToDelete) {
+      const shift = securityShifts.find(s => s.id === shiftToDelete);
       setSecurityShifts(prev => prev.filter(s => s.id !== shiftToDelete));
+      showToast(`Чергову зміну "${shift?.name || ''}" видалено`, 'info');
       setShiftToDelete(null);
     }
   };
@@ -126,6 +134,9 @@ export default function Security() {
       }));
     if (newShifts.length > 0) {
       setShifts(prev => [...prev, ...newShifts]);
+      showToast('Група заступила на чергову зміну', 'success');
+    } else {
+      showToast('Неможливо заступити: співробітники не на локації', 'error');
     }
   };
 
@@ -263,7 +274,7 @@ export default function Security() {
                         <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-1">
                           {guard.category || 'Співробітник'}
                         </span>
-                        <span className="font-normal text-lg truncate" title={guard.name}>{guard.name}</span>
+                        <span className="font-normal text-lg truncate" title={guard.name}>{formatNameAbbreviated(guard.name)}</span>
                         {guard.callsign && (
                           <div className="text-[11px] font-bold text-primary/80 uppercase tracking-widest leading-none mt-1">
                             {guard.callsign}
@@ -325,9 +336,9 @@ export default function Security() {
               <div className="flex-1 min-h-0 flex flex-col">
                 <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1.5">Склад чергових</label>
                 <div className="flex-1 overflow-y-auto border border-border rounded-xl bg-background/50 p-2 space-y-1 relative max-h-80">
-                  {visitors.filter(v => (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон')).length === 0 ? (
+                  {visitors.filter(v => (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') && v.name !== 'Невідомий').length === 0 ? (
                     <p className="text-sm text-muted-foreground p-4 text-center">Немає доданих співробітників з Роти охорони</p>
-                  ) : visitors.filter(v => (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон')).map(v => (
+                  ) : visitors.filter(v => (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') && v.name !== 'Невідомий').map(v => (
                     <label key={v.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors border border-transparent hover:border-border/50">
                       <input 
                         type="checkbox" 
@@ -337,7 +348,7 @@ export default function Security() {
                       />
                       <div className="flex-1 flex flex-col items-start">
                         <span className="text-[9px] font-bold text-muted-foreground uppercase">{v.category}</span>
-                        <span className="font-medium text-sm">{v.name}</span>
+                        <span className="font-medium text-sm">{formatNameAbbreviated(v.name)}</span>
                       </div>
                     </label>
                   ))}
@@ -348,15 +359,17 @@ export default function Security() {
                 <button 
                   type="button" 
                   onClick={() => setIsShiftModalOpen(false)}
-                  className="px-5 py-2 border border-border rounded-full hover:bg-muted text-sm font-medium transition-colors"
+                  title="Скасувати"
+                  className="p-3 border border-border rounded-2xl hover:bg-muted text-muted-foreground transition-all"
                 >
-                  Скасувати
+                  <X className="w-5 h-5" />
                 </button>
                 <button 
                   type="submit"
-                  className="px-5 py-2 bg-primary text-primary-foreground rounded-full hover:bg-primary/90 text-sm font-medium transition-colors shadow-lg shadow-primary/20"
+                  title="Зберегти"
+                  className="p-3 bg-primary text-primary-foreground rounded-2xl hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
                 >
-                  {editingShiftId ? 'Зберегти зміни' : 'Зберегти чергову зміну'}
+                  <Check className="w-5 h-5" />
                 </button>
               </div>
             </form>
@@ -388,7 +401,7 @@ export default function Security() {
                 {handoverTarget && (() => {
                   const targetShift = securityShifts.find(s => s.id === handoverTarget);
                   if (!targetShift) return null;
-                  const missingGuards = targetShift.visitorIds.filter(id => visitors.find(v => v.id === id)?.status !== 'in').map(id => visitors.find(v => v.id === id)?.name || 'Невідомий');
+                  const missingGuards = targetShift.visitorIds.filter(id => visitors.find(v => v.id === id)?.status !== 'in').map(id => formatNameAbbreviated(visitors.find(v => v.id === id)?.name || 'Невідомий'));
                   if (missingGuards.length > 0) {
                     return (
                       <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-600 space-y-1">
@@ -411,16 +424,18 @@ export default function Security() {
                 <button 
                   type="button" 
                   onClick={() => setIsHandoverModalOpen(false)}
-                  className="px-5 py-2 border border-border rounded-full hover:bg-muted text-sm font-medium transition-colors"
+                  title="Скасувати"
+                  className="p-3 border border-border rounded-2xl hover:bg-muted text-muted-foreground transition-all"
                 >
-                  Скасувати
+                  <X className="w-5 h-5" />
                 </button>
                 <button 
                   type="submit"
+                  title="Підтвердити"
                   disabled={!handoverTarget || (handoverTarget && securityShifts.find(s => s.id === handoverTarget)?.visitorIds.some(id => visitors.find(v => v.id === id)?.status !== 'in'))}
-                  className="px-5 py-2 bg-primary text-primary-foreground rounded-full hover:bg-primary/90 text-sm font-medium transition-colors shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="p-3 bg-primary text-primary-foreground rounded-2xl hover:bg-primary/90 shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
-                  Підтвердити
+                  <Check className="w-5 h-5" />
                 </button>
               </div>
             </form>
@@ -439,15 +454,17 @@ export default function Security() {
             <div className="flex justify-end gap-3">
               <button 
                 onClick={() => setShiftToDelete(null)}
-                className="px-5 py-2 border border-border rounded-full hover:bg-muted text-sm font-medium transition-colors"
+                title="Скасувати"
+                className="p-3 border border-border rounded-2xl hover:bg-muted text-muted-foreground transition-all"
               >
-                Скасувати
+                <X className="w-5 h-5" />
               </button>
               <button 
                 onClick={confirmDeleteShift}
-                className="px-5 py-2 bg-red-500 text-white rounded-full hover:bg-red-600 text-sm font-medium transition-colors shadow-lg shadow-red-500/20"
+                title="Видалити"
+                className="p-3 bg-red-500 text-white rounded-2xl hover:bg-red-600 shadow-lg shadow-red-500/20 transition-all"
               >
-                Видалити
+                <Trash2 className="w-5 h-5" />
               </button>
             </div>
           </div>

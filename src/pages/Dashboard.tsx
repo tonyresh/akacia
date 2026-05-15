@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../store/DataContext';
+import { useToast } from '../store/ToastContext';
 import { Users, Clock, ArrowRightCircle, X, Search, Mic, MicOff, LogIn, LogOut, Play, Square, CloudRain, TriangleAlert } from 'lucide-react';
 import { differenceInMinutes, format } from 'date-fns';
+import { formatNameAbbreviated } from '../utils/nameUtils';
 
 export default function Dashboard() {
   const { 
     visitors, setVisitors, groups, categories, shifts, securityShifts,
     dirtySkyEvents, startDirtySky, endDirtySky
   } = useData();
+  const { showToast } = useToast();
   const [currentTime, setCurrentTime] = useState(new Date());
   const [modalType, setModalType] = useState<'entered' | 'exited' | 'on_location' | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -50,77 +53,93 @@ export default function Dashboard() {
         if (matching.length === 0) return prev;
         
         const v = matching[0];
-        const logs = v.logs ? [...v.logs] : (v.lastEntry ? [{ in: v.lastEntry }] : []);
-        
         if (action === 'in') {
-             let targetIndex = -1;
-             for (let i = 0; i < 4; i++) {
-                const isNextIn = (v.status === 'out' && logs.filter(l => l.out).length === i) || (logs.length === 0 && i === 0 && (!v.lastEntry || v.status === 'out'));
-                if (isNextIn) {
-                   targetIndex = i;
-                   break;
-                }
-             }
-             if (targetIndex !== -1) {
-                 const now = new Date().toISOString();
-                 logs[targetIndex] = { in: now };
-                 const newVisitors = prev.map(visitor => visitor.id === v.id ? { ...visitor, status: 'in' as const, lastEntry: now, logs } : visitor);
-                 return newVisitors;
-             }
+          if (v.status !== 'in') {
+            const now = new Date().toISOString();
+            const logs = v.logs ? [...v.logs] : (v.lastEntry ? [{ in: v.lastEntry }] : []);
+            if (logs.length === 0 || logs[logs.length - 1].out) {
+              logs.push({ in: now });
+            }
+            return prev.map(visitor => visitor.id === v.id ? { ...visitor, status: 'in' as const, lastEntry: now, logs } : visitor);
+          }
         } else if (action === 'out') {
-             const isGuard = (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон');
-             const isGuardOnDuty = isGuard && shifts.some(s => s.guardId === v.id && !s.endTime);
-             
-             if (isGuardOnDuty) {
-               return prev; // Prevent mark out if guard is on duty
-             }
+          const isGuard = (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон');
+          const isGuardOnDuty = isGuard && shifts.some(s => s.guardId === v.id && !s.endTime);
+          
+          if (isGuardOnDuty) return prev;
 
-             let targetIndex = -1;
-             for (let i = 0; i < 4; i++) {
-                const log = logs[i];
-                const isNextOut = v.status === 'in' && logs.length === i + 1 && !log?.out;
-                if (isNextOut) {
-                   targetIndex = i;
-                   break;
-                }
-             }
-             if (targetIndex !== -1) {
-                 const now = new Date().toISOString();
-                 logs[targetIndex] = { ...logs[targetIndex], out: now };
-                 const diff = logs[targetIndex].in ? differenceInMinutes(new Date(now), new Date(logs[targetIndex].in!)) : 0;
-                 return prev.map(visitor => visitor.id === v.id ? { 
-                     ...visitor, 
-                     status: 'out' as const, 
-                     lastEntry: undefined,
-                     logs,
-                     totalTimeMinutes: (visitor.totalTimeMinutes || 0) + diff 
-                 } : visitor);
-             }
+          if (v.status === 'in') {
+            const now = new Date().toISOString();
+            const logs = v.logs ? [...v.logs] : (v.lastEntry ? [{ in: v.lastEntry }] : []);
+            let index = -1;
+            for (let i = logs.length - 1; i >= 0; i--) {
+              if (logs[i] && logs[i].in && !logs[i].out) { index = i; break; }
+            }
+            
+            if (index !== -1) {
+                logs[index] = { ...logs[index], out: now };
+                const startTime = logs[index].in;
+                const diff = startTime ? differenceInMinutes(new Date(now), new Date(startTime)) : 0;
+                return prev.map(visitor => visitor.id === v.id ? { 
+                    ...visitor, 
+                    status: 'out' as const, 
+                    lastEntry: undefined,
+                    logs,
+                    totalTimeMinutes: (visitor.totalTimeMinutes || 0) + Math.max(0, diff)
+                } : visitor);
+            } else {
+                const fallbackIn = v.lastEntry || now;
+                logs.push({ in: fallbackIn, out: now });
+                const diff = differenceInMinutes(new Date(now), new Date(fallbackIn));
+                return prev.map(visitor => visitor.id === v.id ? { 
+                  ...visitor, 
+                  status: 'out' as const, 
+                  lastEntry: undefined,
+                  logs,
+                  totalTimeMinutes: (visitor.totalTimeMinutes || 0) + Math.max(0, diff)
+                } : visitor);
+            }
+          }
         }
         return prev;
     });
   };
 
-  const markIn = (id: string) => {
+  const markIn = (id: string | string[]) => {
+    const ids = Array.isArray(id) ? id : [id];
+    const now = new Date().toISOString();
+    let count = 0;
     setVisitors(prev => prev.map(v => {
-      if (v.id !== id) return v;
-      const now = new Date().toISOString();
+      if (!ids.includes(v.id)) return v;
+      if (v.status === 'in') return v;
+      
       const logs = v.logs ? [...v.logs] : (v.lastEntry ? [{ in: v.lastEntry }] : []);
-      const index = logs.length;
-      if (index < 4) {
-          logs[index] = { in: now };
+      // Push new entry if last one is complete
+      if (logs.length === 0 || logs[logs.length - 1].out) {
+        logs.push({ in: now });
+      }
+      
+      count++;
+      if (count === 1 && ids.length === 1) {
+        showToast(`${v.name}: ЗАЙШОВ`, 'success');
       }
       return { ...v, status: 'in', lastEntry: now, logs };
     }));
+    if (ids.length > 1) {
+      showToast(`Успішно зайшло: ${ids.length} осіб`, 'success');
+    }
   };
 
-  const markOut = (id: string) => {
+  const markOut = (id: string | string[]) => {
+    const ids = Array.isArray(id) ? id : [id];
+    const now = new Date().toISOString();
+    let count = 0;
     setVisitors(prev => prev.map(v => {
-      if (v.id !== id) return v;
-      const now = new Date().toISOString();
+      if (!ids.includes(v.id)) return v;
+      if (v.status === 'out' && !v.lastEntry) return v;
+
       const logs = v.logs ? [...v.logs] : (v.lastEntry ? [{ in: v.lastEntry }] : []);
       
-      // Find the last entry without an 'out' time
       let index = -1;
       for (let i = logs.length - 1; i >= 0; i--) {
         if (logs[i].in && !logs[i].out) {
@@ -129,18 +148,23 @@ export default function Dashboard() {
         }
       }
 
+      count++;
+      if (count === 1 && ids.length === 1) {
+        showToast(`${v.name}: ВИЙШОВ`, 'info');
+      }
+
       if (index !== -1) {
           logs[index] = { ...logs[index], out: now };
-          const diff = logs[index].in ? differenceInMinutes(new Date(now), new Date(logs[index].in!)) : 0;
+          const startTime = logs[index].in;
+          const diff = startTime ? differenceInMinutes(new Date(now), new Date(startTime)) : 0;
           return { 
             ...v, 
             status: 'out', 
             lastEntry: undefined,
             logs,
-            totalTimeMinutes: (v.totalTimeMinutes || 0) + diff 
+            totalTimeMinutes: (v.totalTimeMinutes || 0) + Math.max(0, diff) 
           };
-      } else if (v.status === 'in') {
-          // If status is 'in' but no matching log, create a dummy entry and close it
+      } else {
           const fallbackIn = v.lastEntry || now;
           logs.push({ in: fallbackIn, out: now });
           const diff = differenceInMinutes(new Date(now), new Date(fallbackIn));
@@ -152,8 +176,10 @@ export default function Dashboard() {
             totalTimeMinutes: (v.totalTimeMinutes || 0) + Math.max(0, diff)
           };
       }
-      return v;
     }));
+    if (ids.length > 1) {
+      showToast(`Успішно вийшло: ${ids.length} осіб`, 'info');
+    }
   };
   const latestSearch = useRef(searchQuery);
   useEffect(() => {
@@ -193,11 +219,12 @@ export default function Dashboard() {
       const transcript = event.results[resultIndex][0].transcript.toLowerCase();
       
       let text = transcript.trim();
-      const isPlus = /(плюс|заш|зайш|ввійш|увійш|прийш)/i.test(text);
-      const isMinus = /(минус|мінус|выш|вийш|піш)/i.test(text);
+      // Improved regex with word boundaries for action detection
+      const isPlus = /\b(плюс|заш|зайш|ввійш|увійш|прийш|заход)/i.test(text);
+      const isMinus = /\b(минус|мінус|выш|вийш|піш|виход)/i.test(text);
 
       let searchName = text
-        .replace(/(плюс|минус|мінус|зашел|зашла|зайшов|зайшла|ввійшов|ввійшла|увійшов|увійшла|прийшов|прийшла|зайшли|прийшли|вышел|вышла|вийшов|вийшла|пішов|пішла|вийшли|пішли|заш|зайш|ввійш|увійш|прийш|выш|вийш|піш)[а-яіїєґ]*/gi, '')
+        .replace(/\b(плюс|минус|мінус|зашел|зашла|зайшов|зайшла|ввійшов|ввійшла|увійшов|увійшла|прийшов|прийшла|зайшли|прийшли|вышел|вышла|вийшов|вийшла|пішов|пішла|вийшли|пішли|заш|зайш|ввійш|увійш|прийш|выш|вийш|піш|заход|виход)[а-яіїєґ/]*\b/gi, '')
         .replace(/[.,!?]/g, '')
         .trim();
 
@@ -208,10 +235,13 @@ export default function Dashboard() {
       }
 
       if (isPlus || isMinus) {
+        // Find matching visitor first to give better feedback if needed
         executeCommand(searchName, isPlus ? 'in' : 'out');
+        
+        // Provide visual feedback by clearing search after a delay
         setTimeout(() => {
           setSearchQuery('');
-        }, 1000);
+        }, 1500);
       }
     };
 
@@ -391,7 +421,10 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <button
-              onClick={startDirtySky}
+              onClick={() => {
+                startDirtySky();
+                showToast('РЕЖИМ БРУДНЕ НЕБО АКТИВОВАНО!', 'error');
+              }}
               disabled={!!activeDirtySky}
               className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-normal transition-all ${
                 activeDirtySky 
@@ -402,7 +435,10 @@ export default function Dashboard() {
               <Play className="w-4 h-4" /> Початок
             </button>
             <button
-              onClick={endDirtySky}
+              onClick={() => {
+                endDirtySky();
+                showToast('Режим Брудне небо завершено', 'success');
+              }}
               disabled={!activeDirtySky}
               className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-normal transition-all ${
                 !activeDirtySky 
@@ -475,7 +511,7 @@ export default function Dashboard() {
                       <div className="text-[9px] text-muted-foreground uppercase font-normal tracking-wider mb-1 opacity-70">
                         {v.category} {v.location || v.locationId || v.group ? `• ${v.location || v.locationId || v.group}` : ''}
                       </div>
-                      <div className="font-normal text-sm">{v.name}</div>
+                      <div className="font-normal text-sm">{formatNameAbbreviated(v.name)}</div>
                       {v.callsign && (
                         <div className="text-[11px] font-bold text-primary/80 uppercase tracking-widest leading-none mt-1">
                           {v.callsign}
@@ -576,7 +612,7 @@ export default function Dashboard() {
                           <div className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider mb-1 opacity-70">
                             {v.category} {v.location || v.locationId || v.group ? `• ${v.location || v.locationId || v.group}` : ''}
                           </div>
-                          <div className="font-semibold text-sm">{v.name}</div>
+                          <div className="font-semibold text-sm">{formatNameAbbreviated(v.name)}</div>
                           {v.callsign && (
                             <div className="text-[11px] font-bold text-primary/80 uppercase tracking-widest leading-none mt-1">
                               {v.callsign}

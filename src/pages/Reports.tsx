@@ -20,9 +20,12 @@ import {
   subMonths, 
   addMonths,
   parseISO,
-  differenceInMinutes
+  differenceInMinutes,
+  isWithinInterval
 } from 'date-fns';
 import { uk } from 'date-fns/locale';
+
+import { formatNameAbbreviated } from '../utils/nameUtils';
 
 export default function Reports() {
   const { visitors, groups, dirtySkyEvents } = useData();
@@ -100,51 +103,90 @@ export default function Reports() {
     return vVisits + dsVisits;
   }, [visitors, dirtySkyEvents, dateRange]);
 
-  const uniqueVisitors = filteredData.length;
+  const reportRows = useMemo(() => {
+    const rows: any[] = [];
+    
+    visitors.forEach(v => {
+      const matchesSearch = v.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                           v.callsign?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesGroup = filterGroup === 'all' || v.group === filterGroup;
+      if (!matchesSearch || !matchesGroup) return;
 
-  const downloadCSV = () => {
-    const headers = [
-      'Дата', 'Звання', 'ПІБ', 'Позивний', 'Група', 'Час входу', 'Час виходу', 'Тривалість (хв)'
-    ];
-
-    const rows: string[][] = [];
-    filteredData.forEach(v => {
       const logs = v.logs || (v.lastEntry ? [{ in: v.lastEntry }] : []);
+      
+      const logsByDay: Record<string, typeof logs> = {};
       logs.forEach(log => {
         if (!log.in) return;
         const logDate = parseISO(log.in);
         if (logDate >= dateRange.start && logDate <= dateRange.end) {
-          rows.push([
-            format(logDate, 'dd.MM.yyyy'),
-            v.category,
-            v.name,
-            v.callsign || '',
-            v.group || '',
-            format(logDate, 'HH:mm'),
-            log.out ? format(parseISO(log.out), 'HH:mm') : '',
-            v.totalTimeMinutes ? v.totalTimeMinutes.toString() : '0'
-          ]);
+          const dateKey = format(logDate, 'yyyy-MM-dd');
+          if (!logsByDay[dateKey]) logsByDay[dateKey] = [];
+          logsByDay[dateKey].push(log);
         }
+      });
+
+      Object.entries(logsByDay).forEach(([dateKey, dayLogs]) => {
+        rows.push({
+          type: 'visitor',
+          visitor: v,
+          date: parseISO(dateKey),
+          logs: dayLogs
+        });
       });
     });
 
     dirtySkyVisits.forEach(e => {
-      const logDate = parseISO(e.startTime);
-      rows.push([
-        format(logDate, 'dd.MM.yyyy'),
-        '—',
-        'Брудне небо',
-        '—',
-        'Спец. події',
-        format(logDate, 'HH:mm'),
-        e.endTime ? format(parseISO(e.endTime), 'HH:mm') : 'триває',
-        e.endTime ? differenceInMinutes(parseISO(e.endTime), logDate).toString() : '0'
-      ]);
+      rows.push({
+        type: 'dirtySky',
+        event: e,
+        date: parseISO(e.startTime),
+        logs: [{ in: e.startTime, out: e.endTime }]
+      });
+    });
+
+    return rows.sort((a, b) => b.date.getTime() - a.date.getTime());
+  }, [visitors, dirtySkyVisits, dateRange, searchQuery, filterGroup]);
+
+  const uniqueVisitors = filteredData.length;
+
+  const downloadCSV = () => {
+    const headers = [
+      'Дата', 'Звання', 'ПІБ', 'Позивний', 'Група', 'Бригада', 'Час входу', 'Час виходу'
+    ];
+
+    const csvRows = reportRows.map(row => {
+      const dateStr = format(row.date, 'dd.MM.yyyy');
+      if (row.type === 'dirtySky') {
+        return [
+          dateStr,
+          '—',
+          'Брудне небо',
+          '—',
+          'Спец. події',
+          '—',
+          format(parseISO(row.event.startTime), 'HH:mm'),
+          row.event.endTime ? format(parseISO(row.event.endTime), 'HH:mm') : 'триває'
+        ];
+      } else {
+        const v = row.visitor;
+        const ins = row.logs.map((l: any) => format(parseISO(l.in), 'HH:mm')).join('; ');
+        const outs = row.logs.map((l: any) => l.out ? format(parseISO(l.out), 'HH:mm') : '—').join('; ');
+        return [
+          dateStr,
+          v.category || '',
+          formatNameAbbreviated(v.name),
+          v.callsign || '',
+          v.group || '',
+          v.location || '',
+          ins,
+          outs
+        ];
+      }
     });
 
     const csvContent = [
       headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ...csvRows.map(row => row.map(cell => `"${cell}"`).join(','))
     ].join('\n');
 
     const fileName = `Звіт_відвідування_${startDate}_${endDate}.csv`;
@@ -247,86 +289,108 @@ export default function Reports() {
                 </div>
               </div>
 
-              <div className="overflow-x-auto -mx-6">
-                <table className="w-full text-left border-collapse min-w-[800px]">
-                  <thead>
-                    <tr className="bg-muted/30 text-[10px] font-normal uppercase tracking-wider text-muted-foreground">
-                      <th className="px-6 py-3 border-b border-border">Дата</th>
-                      <th className="px-6 py-3 border-b border-border">Звання / Ім'я / Позивний</th>
-                      <th className="px-6 py-3 border-b border-border">Група</th>
-                      <th className="px-6 py-3 border-b border-border">Вхід</th>
-                      <th className="px-6 py-3 border-b border-border">Вихід</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dirtySkyVisits.map((e, idx) => {
-                      const logDate = parseISO(e.startTime);
-                      return (
-                        <tr key={`ds-${e.id}`} className="hover:bg-amber-500/5 bg-amber-500/5 transition-colors">
-                          <td className="px-6 py-4 border-b border-border text-xs">
-                            {format(logDate, 'dd.MM.yyyy')}
-                          </td>
-                          <td className="px-6 py-4 border-b border-border">
-                            <div className="text-sm font-normal text-amber-700">Брудне небо</div>
-                            <div className="text-[10px] text-muted-foreground uppercase">Спеціальна подія</div>
-                          </td>
-                          <td className="px-6 py-4 border-b border-border text-xs">Спец. події</td>
-                          <td className="px-6 py-4 border-b border-border text-xs tabular-nums text-amber-600 font-normal">
-                            {format(logDate, 'HH:mm')}
-                          </td>
-                          <td className="px-6 py-4 border-b border-border text-xs tabular-nums text-red-600 font-normal">
-                            {e.endTime ? format(parseISO(e.endTime), 'HH:mm') : 'триває'}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    {filteredData.length > 0 || dirtySkyVisits.length > 0 ? (
-                      filteredData.map((v) => {
-                        const logs = v.logs || (v.lastEntry ? [{ in: v.lastEntry }] : []);
-                        const rangeLogs = logs.filter(log => log.in && parseISO(log.in) >= dateRange.start && parseISO(log.in) <= dateRange.end);
-                        
-                        const visitorGroup = groups.find(g => g.name === v.group);
-                        const blockColor = v.color || visitorGroup?.color;
-                        const hasGroupColor = !!blockColor && blockColor !== 'transparent';
-                        const rowStyles = hasGroupColor ? {
-                          backgroundColor: blockColor.startsWith('#') ? `${blockColor}15` : blockColor,
-                        } : {};
+              <div className="border border-border rounded-2xl overflow-hidden mt-4">
+                {/* Desktop Header */}
+                <div className="hidden md:grid md:grid-cols-[100px_1fr_120px_100px_80px_100px] bg-muted/30 text-[10px] font-normal uppercase tracking-wider text-muted-foreground border-b border-border">
+                  <div className="px-6 py-3 border-r border-border">Дата</div>
+                  <div className="px-6 py-3 border-r border-border">Співробітник</div>
+                  <div className="px-6 py-3 border-r border-border">Звідки (Бригада)</div>
+                  <div className="px-6 py-3 border-r border-border">Група</div>
+                  <div className="px-6 py-3 border-r border-border">Вхід</div>
+                  <div className="px-6 py-3 text-right">Вихід</div>
+                </div>
 
-                        return rangeLogs.map((log, lIdx) => (
-                          <tr key={`${v.id}-${lIdx}`} className="hover:bg-secondary/30 transition-colors" style={rowStyles}>
-                            <td className="px-6 py-4 border-b border-border text-xs">
-                              {format(parseISO(log.in!), 'dd.MM.yyyy')}
-                            </td>
-                            <td className="px-6 py-4 border-b border-border">
-                              <div className="text-[10px] text-muted-foreground uppercase mb-0.5">{v.category}</div>
-                              <div className="text-sm font-normal">{v.name}</div>
-                              {v.callsign && (
-                                <div className="text-[11px] font-bold text-primary/80 uppercase tracking-widest mt-0.5">
-                                  {v.callsign}
-                                </div>
-                              )}
-                            </td>
-                            <td className="px-6 py-4 border-b border-border text-xs">
-                              {v.group || '—'}
-                            </td>
-                            <td className="px-6 py-4 border-b border-border text-xs tabular-nums text-emerald-600 font-normal">
-                              {format(parseISO(log.in!), 'HH:mm')}
-                            </td>
-                            <td className="px-6 py-4 border-b border-border text-xs tabular-nums text-red-600 font-normal">
-                              {log.out ? format(parseISO(log.out), 'HH:mm') : 'на посту'}
-                            </td>
-                          </tr>
-                        ));
-                      })
-                    ) : (
-                      <tr>
-                        <td colSpan={5} className="px-6 py-12 text-center text-muted-foreground italic text-sm">
-                          Даних за обраний період не знайдено
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                <div className="divide-y divide-border">
+                  {reportRows.length > 0 ? (
+                    reportRows.map((row, idx) => {
+                      const dateStr = format(row.date, 'dd.MM.yyyy');
+                      
+                      if (row.type === 'dirtySky') {
+                        const e = row.event;
+                        return (
+                          <div key={`ds-${e.id}-${idx}`} className="grid grid-cols-1 md:grid-cols-[100px_1fr_120px_100px_80px_100px] hover:bg-amber-500/5 bg-amber-500/5 transition-colors p-4 md:p-0">
+                            <div className="px-0 md:px-6 md:py-4 md:border-r md:border-border text-xs flex justify-between md:block mb-2 md:mb-0">
+                              <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground">Дата</span>
+                              {dateStr}
+                            </div>
+                            <div className="px-0 md:px-6 md:py-4 md:border-r md:border-border mb-3 md:mb-0">
+                              <div className="md:hidden text-[9px] font-bold text-muted-foreground uppercase mb-1">Подія</div>
+                              <div className="text-sm font-normal text-amber-700">Брудне небо</div>
+                              <div className="text-[10px] text-muted-foreground uppercase">Спеціальна подія</div>
+                            </div>
+                            <div className="px-0 md:px-6 md:py-4 md:border-r md:border-border text-xs flex justify-between md:block mb-2 md:mb-0">
+                              <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground">Звідки</span>
+                              —
+                            </div>
+                            <div className="px-0 md:px-6 md:py-4 md:border-r md:border-border text-xs flex justify-between md:block mb-2 md:mb-0">
+                              <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground">Група</span>
+                              Спец. події
+                            </div>
+                            <div className="px-0 md:px-6 md:py-4 md:border-r md:border-border text-xs tabular-nums text-amber-600 font-normal flex justify-between md:block mb-2 md:mb-0">
+                              <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground">Вхід</span>
+                              {format(parseISO(e.startTime), 'HH:mm')}
+                            </div>
+                            <div className="px-0 md:px-6 md:py-4 text-xs tabular-nums text-red-600 font-normal flex justify-between md:block">
+                              <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground">Вихід</span>
+                              <span className="md:w-full md:text-right md:block">{e.endTime ? format(parseISO(e.endTime), 'HH:mm') : 'триває'}</span>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      const v = row.visitor;
+                      const visitorGroup = groups.find(g => g.name === v.group);
+                      const blockColor = v.color || visitorGroup?.color;
+                      const hasGroupColor = !!blockColor && blockColor !== 'transparent';
+                      const rowStyles = hasGroupColor ? {
+                        backgroundColor: blockColor.startsWith('#') ? `${blockColor}15` : blockColor,
+                      } : {};
+
+                      return (
+                        <div key={`${v.id}-${dateStr}-${idx}`} className="grid grid-cols-1 md:grid-cols-[100px_1fr_120px_100px_80px_100px] hover:bg-secondary/30 transition-colors p-4 md:p-0" style={rowStyles}>
+                          <div className="px-0 md:px-6 md:py-4 md:border-r md:border-border text-xs flex justify-between md:block mb-2 md:mb-0">
+                            <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground">Дата</span>
+                            {dateStr}
+                          </div>
+                          <div className="px-0 md:px-6 md:py-4 md:border-r md:border-border mb-3 md:mb-0">
+                            <div className="md:hidden text-[9px] font-bold text-muted-foreground uppercase mb-1">Співробітник</div>
+                            <div className="text-[10px] text-muted-foreground uppercase mb-0.5">{v.category}</div>
+                            <div className="text-sm font-normal">{formatNameAbbreviated(v.name)}</div>
+                            {v.callsign && (
+                              <div className="text-[11px] font-bold text-primary/80 uppercase tracking-widest mt-0.5">
+                                {v.callsign}
+                              </div>
+                            )}
+                          </div>
+                          <div className="px-0 md:px-6 md:py-4 md:border-r md:border-border text-xs flex justify-between md:block mb-2 md:mb-0">
+                            <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground">Звідки</span>
+                            {v.location || '—'}
+                          </div>
+                          <div className="px-0 md:px-6 md:py-4 md:border-r md:border-border text-xs flex justify-between md:block mb-2 md:mb-0">
+                            <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground">Група</span>
+                            {v.group || '—'}
+                          </div>
+                          <div className="px-0 md:px-6 md:py-4 md:border-r md:border-border text-xs tabular-nums text-emerald-600 font-normal flex justify-between md:block mb-2 md:mb-0">
+                            <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground">Вхід</span>
+                            <div className="flex flex-col gap-1 md:items-start items-end">
+                              {row.logs.map((l: any) => format(parseISO(l.in), 'HH:mm')).join('; ')}
+                            </div>
+                          </div>
+                          <div className="px-0 md:px-6 md:py-4 text-xs tabular-nums text-red-600 font-normal flex justify-between md:block">
+                            <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground">Вихід</span>
+                            <div className="flex flex-col gap-1 md:items-end items-end w-full">
+                              {row.logs.map((l: any) => l.out ? format(parseISO(l.out), 'HH:mm') : 'на посту').join('; ')}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="px-6 py-12 text-center text-muted-foreground italic text-sm">
+                      Даних за обраний період не знайдено
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
         </div>
