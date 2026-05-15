@@ -313,7 +313,7 @@ export default function Visitors() {
                 
                 <div className="p-3 pl-4 flex-1 flex flex-col gap-2">
                   <div className="flex justify-between items-start gap-3">
-                    <div className="flex gap-3 items-center">
+                    <div className="flex gap-3 items-center min-w-0">
                       <div className="w-10 h-10 rounded-full border-2 border-background shadow-sm shrink-0 flex items-center justify-center text-white" style={{ backgroundColor: v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984') }}>
                         {v.isSpecial ? (
                           <Star className="w-6 h-6 text-white fill-white" />
@@ -321,17 +321,17 @@ export default function Visitors() {
                           <User className="w-5 h-5 text-[#e5e9ec]" />
                         )}
                       </div>
-                      <div className="flex flex-col">
+                      <div className="flex flex-col min-w-0">
                         <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-1">
                           {v.category}
                         </span>
-                        <h3 className="font-bold text-foreground leading-tight text-sm flex flex-col uppercase tracking-tight" style={{ fontFamily: 'Roboto, sans-serif' }}>
+                        <h3 className="font-bold text-foreground leading-tight text-sm flex flex-col uppercase tracking-tight min-w-0" style={{ fontFamily: 'Roboto, sans-serif' }}>
                           {(() => {
                             const { first, second } = splitNameTwoLines(v.name);
                             return (
                               <>
-                                <span>{first}</span>
-                                <span>{second}</span>
+                                <span className="truncate w-full">{first}</span>
+                                <span className="truncate w-full italic text-muted-foreground/80">{second}</span>
                               </>
                             );
                           })()}

@@ -294,13 +294,13 @@ export default function VisitorManagement() {
                         </label>
                       </div>
                     ) : (
-                      <div className="flex flex-col">
-                        <span className="text-[10px] text-muted-foreground uppercase" style={{ color: visitorGroup?.color ? 'rgba(255,255,255,0.7)' : undefined }}>{v.category}</span>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-medium text-sm" style={{ color: visitorGroup?.color ? '#ffffff' : undefined }}>{v.name}</span>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-[10px] text-muted-foreground uppercase truncate" style={{ color: visitorGroup?.color ? 'rgba(255,255,255,0.7)' : undefined }}>{v.category}</span>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="font-medium text-sm truncate" style={{ color: visitorGroup?.color ? '#ffffff' : undefined }}>{v.name}</span>
                         </div>
                         {v.callsign && (
-                          <span className="text-[11px] font-bold text-primary/80 uppercase tracking-widest mt-0.5" style={{ color: visitorGroup?.color ? '#ffffff' : undefined }}>
+                          <span className="text-[11px] font-bold text-primary/80 uppercase tracking-widest mt-0.5 truncate" style={{ color: visitorGroup?.color ? '#ffffff' : undefined }}>
                             {v.callsign}
                           </span>
                         )}
