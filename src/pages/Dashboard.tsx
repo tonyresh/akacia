@@ -484,7 +484,7 @@ export default function Dashboard() {
           </div>
         </div>
         
-        <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2 hide-scrollbar">
+        <div className="space-y-2 pr-2 hide-scrollbar">
           {commandVisitors.length > 0 ? (
             commandVisitors.map(v => {
               const visitorGroup = groups?.find((g: any) => g.id === v.groupId) || groups?.find((g: any) => g.name === v.group);

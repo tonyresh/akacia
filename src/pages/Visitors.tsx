@@ -351,13 +351,17 @@ export default function Visitors() {
                   <div className="mt-auto pt-2 border-t border-border flex flex-col gap-2">
                     {logs.length > 0 && (
                       <div className="flex flex-wrap gap-1">
-                        {logs.map((log, i) => (
-                          <div key={i} className="flex items-center text-[10px] font-mono font-medium bg-muted/50 border border-border rounded px-1.5 py-0.5">
-                            <span className="text-emerald-600">{log.in ? new Date(log.in).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false}) : '--:--'}</span>
-                            <span className="mx-0.5 text-muted-foreground/30">-</span>
-                            <span className="text-red-500">{log.out ? new Date(log.out).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false}) : '--:--'}</span>
-                          </div>
-                        ))}
+                        <div className="flex items-center text-[10px] font-mono font-medium bg-muted/50 border border-border rounded px-1.5 py-0.5">
+                          <span className="text-emerald-600" title="Перший захід">
+                            {logs[0].in ? new Date(logs[0].in).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false}) : '--:--'}
+                          </span>
+                          <span className="mx-1.5 text-muted-foreground/30">➜</span>
+                          <span className="text-red-500" title="Останній вихід">
+                            {logs[logs.length - 1].out 
+                              ? new Date(logs[logs.length - 1].out!).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false}) 
+                              : (v.status === 'in' ? 'на посту' : '--:--')}
+                          </span>
+                        </div>
                       </div>
                     )}
                     

@@ -20,6 +20,7 @@ interface DataContextType {
   startDirtySky: () => void;
   endDirtySky: () => void;
   performShiftBackupAndReset: () => void;
+  cleanLogsByPeriod: (minutes: number) => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -259,6 +260,29 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     
     // Do NOT clear dirtySkyEvents anymore, they are filtered by date in reports and dashboard
   };
+  
+  const cleanLogsByPeriod = (minutes: number) => {
+    const cutOff = new Date();
+    cutOff.setMinutes(cutOff.getMinutes() - minutes);
+
+    setVisitors(prev => prev.map(v => {
+      const logs = v.logs || [];
+      const newLogs = logs.filter(log => {
+        const entryTime = log.in ? new Date(log.in) : null;
+        return entryTime && entryTime < cutOff;
+      });
+
+      let status = v.status;
+      let lastEntry = v.lastEntry;
+
+      if (v.lastEntry && new Date(v.lastEntry) >= cutOff) {
+          status = 'out';
+          lastEntry = undefined;
+      }
+
+      return { ...v, status, lastEntry, logs: newLogs };
+    }));
+  };
 
   useEffect(() => { localStorage.setItem('visitors', JSON.stringify(visitors)); }, [visitors]);
   useEffect(() => { localStorage.setItem('guards', JSON.stringify(guards)); }, [guards]);
@@ -308,7 +332,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       groups, setGroups, 
       locations, setLocations, 
       dirtySkyEvents, startDirtySky, endDirtySky,
-      performShiftBackupAndReset 
+      performShiftBackupAndReset, cleanLogsByPeriod 
     }}>
       {children}
     </DataContext.Provider>

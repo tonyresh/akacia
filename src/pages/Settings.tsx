@@ -2,11 +2,11 @@ import React, { useState, useRef } from 'react';
 import { useTheme } from '../store/ThemeContext';
 import { useData } from '../store/DataContext';
 import { useToast } from '../store/ToastContext';
-import { X, Check, Type, AppWindow, Database, Download, Upload, MapPin, Users, UserRound, Archive, Palette, LayoutDashboard, Bell, BellOff, Volume2, Clock, Pencil, Trash2 } from 'lucide-react';
+import { X, Check, Type, AppWindow, Database, Download, Upload, MapPin, Users, UserRound, Archive, Palette, LayoutDashboard, Bell, BellOff, Volume2, Clock, Pencil, Trash2, Sliders } from 'lucide-react';
 import { Visitor } from '../types';
 import VisitorManagement from '../components/VisitorManagement';
 
-type SettingsTab = 'database' | 'ranks' | 'locations' | 'groups' | 'backup' | 'appearance';
+type SettingsTab = 'database' | 'ranks' | 'locations' | 'groups' | 'backup' | 'appearance' | 'other';
 
 export default function Settings() {
   const { 
@@ -349,6 +349,7 @@ export default function Settings() {
     { id: 'groups', label: 'Групи', icon: Users, color: 'text-amber-500' },
     { id: 'backup', label: 'База даних (Резерв)', icon: Archive, color: 'text-indigo-500' },
     { id: 'appearance', label: 'Зовнішній вигляд', icon: Palette, color: 'text-primary' },
+    { id: 'other', label: 'Інше', icon: Sliders, color: 'text-rose-500' },
   ];
 
   return (
@@ -793,6 +794,56 @@ export default function Settings() {
                           }`}
                         >
                           {size === 'normal' ? 'Стандартний' : size === 'large' ? 'Великий' : 'Дуже великий'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'other' && (
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-500">
+                    <Sliders className="w-5 h-5" />
+                  </div>
+                  <h2 className="text-xl font-semibold">Додаткові функції</h2>
+                </div>
+
+                <div className="space-y-8">
+                  <div className="p-6 bg-rose-500/5 border border-rose-500/10 rounded-2xl">
+                    <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
+                       <Trash2 className="w-4 h-4 text-rose-500" /> 
+                       Очищення помилкових записів
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
+                      Виберіть період часу. Всі записи про вхід, які були створені за цей період, будуть видалені. 
+                      Це корисно, якщо ви помилково відмітили людей або хочете скасувати останні дії.
+                    </p>
+                    
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {[
+                        { label: '5 хв', value: 5 },
+                        { label: '15 хв', value: 15 },
+                        { label: '30 хв', value: 30 },
+                        { label: '1 год', value: 60 },
+                        { label: '3 год', value: 180 },
+                        { label: '6 год', value: 360 },
+                        { label: '12 год', value: 720 },
+                        { label: '24 год', value: 1440 },
+                      ].map((period) => (
+                        <button
+                          key={period.value}
+                          onClick={() => {
+                            if (confirm(`Ви впевнені, що хочете видалити всі записи за останні ${period.label}?`)) {
+                              dataContext.cleanLogsByPeriod(period.value);
+                              showToast(`Записи за останні ${period.label} очищено`, 'info');
+                            }
+                          }}
+                          className="px-4 py-3 bg-muted border border-border rounded-xl text-xs font-bold hover:bg-rose-500 hover:text-white transition-all active:scale-95"
+                        >
+                          {period.label}
                         </button>
                       ))}
                     </div>
