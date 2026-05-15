@@ -51,8 +51,8 @@ export default function Reports() {
   const filteredData = useMemo(() => {
     const visitorVisits = visitors.filter(v => {
       const logs = v.logs || (v.lastEntry ? [{ in: v.lastEntry }] : []);
-      const matchesSearch = v.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                           v.callsign?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = (v.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                           (v.callsign || '').toLowerCase().includes(searchQuery.toLowerCase());
       const matchesGroup = filterGroup === 'all' || v.group === filterGroup;
       
       const hasVisitInRange = logs.some(log => {
@@ -107,8 +107,8 @@ export default function Reports() {
     const rows: any[] = [];
     
     visitors.forEach(v => {
-      const matchesSearch = v.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                           v.callsign?.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesSearch = (v.name || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                           (v.callsign || '').toLowerCase().includes(searchQuery.toLowerCase());
       const matchesGroup = filterGroup === 'all' || v.group === filterGroup;
       if (!matchesSearch || !matchesGroup) return;
 

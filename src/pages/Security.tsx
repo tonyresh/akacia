@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useData } from '../store/DataContext';
 import { useToast } from '../store/ToastContext';
-import { ShieldAlert, Plus, Play, Square, Coffee, Trash2, Settings, Users } from 'lucide-react';
+import { ShieldAlert, Plus, Play, Square, Coffee, Trash2, Settings, Users, X, Check } from 'lucide-react';
 import { differenceInMinutes } from 'date-fns';
 import { formatNameAbbreviated } from '../utils/nameUtils';
 

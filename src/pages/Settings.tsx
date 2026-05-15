@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useTheme } from '../store/ThemeContext';
 import { useData } from '../store/DataContext';
 import { useToast } from '../store/ToastContext';
-import { X, Check, Type, AppWindow, Database, Download, Upload, MapPin, Users, UserRound, Archive, Palette, LayoutDashboard, Bell, BellOff, Volume2, Clock } from 'lucide-react';
+import { X, Check, Type, AppWindow, Database, Download, Upload, MapPin, Users, UserRound, Archive, Palette, LayoutDashboard, Bell, BellOff, Volume2, Clock, Pencil, Trash2 } from 'lucide-react';
 import { Visitor } from '../types';
 import VisitorManagement from '../components/VisitorManagement';
 
@@ -25,6 +25,14 @@ export default function Settings() {
   const [newLocation, setNewLocation] = useState('');
   const [newGroup, setNewGroup] = useState('');
   const [newGroupColor, setNewGroupColor] = useState('');
+  
+  const [editingRank, setEditingRank] = useState<string | null>(null);
+  const [editRankValue, setEditRankValue] = useState('');
+
+  const [editingGroup, setEditingGroup] = useState<any | null>(null);
+  const [editGroupValue, setEditGroupValue] = useState('');
+  const [editGroupColor, setEditGroupColor] = useState('');
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const usersFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -45,6 +53,30 @@ export default function Settings() {
     showToast(`Звання "${newCat.trim()}" успішно додано`, 'success');
     setNewCat('');
   }
+
+  const saveRankEdit = (oldValue: string) => {
+    const trimmed = editRankValue.trim();
+    if (!trimmed || trimmed === oldValue) {
+      setEditingRank(null);
+      return;
+    }
+    if (categories.includes(trimmed)) {
+      alert(`Звання "${trimmed}" вже є в довіднику!`);
+      return;
+    }
+    setCategories(prev => prev.map(c => c === oldValue ? trimmed : c));
+    showToast(`Звання за замінено на "${trimmed}"`, 'success');
+    
+    // Propagate change to visitors
+    setVisitors(prev => prev.map(v => {
+      if (v.category === oldValue) {
+        return { ...v, category: trimmed };
+      }
+      return v;
+    }));
+    
+    setEditingRank(null);
+  };
 
   const [editingLocation, setEditingLocation] = useState<string | null>(null);
   const [editLocationValue, setEditLocationValue] = useState('');
@@ -97,6 +129,26 @@ export default function Settings() {
     setNewGroup('');
     setNewGroupColor('');
   }
+
+  const saveGroupEdit = () => {
+    if (!editingGroup || !editGroupValue.trim()) return;
+    
+    const trimmed = editGroupValue.trim();
+    setGroups(prev => prev.map(g => g.id === editingGroup.id ? { ...g, name: trimmed, color: editGroupColor } : g));
+    
+    // Propagate name change to visitors
+    if (trimmed !== editingGroup.name) {
+      setVisitors(prev => prev.map(v => {
+        if (v.groupId === editingGroup.id || v.group === editingGroup.name) {
+          return { ...v, group: trimmed, groupId: editingGroup.id };
+        }
+        return v;
+      }));
+    }
+    
+    showToast(`Групу "${trimmed}" оновлено`, 'success');
+    setEditingGroup(null);
+  };
 
   const removeCat = (cat: string) => {
     setCategories(categories.filter(c => c !== cat));

@@ -232,26 +232,32 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       document.body.removeChild(aReport);
     }, 500);
 
-    // Clean cells
+    // Clean cells for new shift visibility while preserving history
     setVisitors(prev => prev.map(v => {
       const nowIso = now.toISOString();
       if (v.status === 'in') {
-        // Carry over "In" visitors to the new shift
-        // We set their log to a new start at handover time so they are counted in the new shift session
+        // Close current log for the report but keep history
+        const logs = [...(v.logs || [])];
+        const lastLog = logs[logs.length - 1];
+        if (lastLog && !lastLog.out) {
+          lastLog.out = nowIso;
+        }
+        // Start new log segment for the new shift
+        logs.push({ in: nowIso });
+        
         return { 
           ...v, 
           lastEntry: nowIso, 
-          logs: [{ in: nowIso }], 
-          totalTimeMinutes: 0 
+          logs, 
+          totalTimeMinutes: 0 // Reset daily counter
         };
       } else {
-        // Reset "Out" visitors
-        const newV = { ...v, status: 'out' as const, totalTimeMinutes: 0 };
-        delete newV.logs;
-        delete newV.lastEntry;
-        return newV;
+        // Reset "Out" visitors status but keep their logs!
+        return { ...v, status: 'out' as const, totalTimeMinutes: 0 };
       }
     }));
+    
+    // Do NOT clear dirtySkyEvents anymore, they are filtered by date in reports and dashboard
   };
 
   useEffect(() => { localStorage.setItem('visitors', JSON.stringify(visitors)); }, [visitors]);
