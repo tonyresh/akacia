@@ -63,7 +63,7 @@ export default function Dashboard() {
             return prev.map(visitor => visitor.id === v.id ? { ...visitor, status: 'in' as const, lastEntry: now, logs } : visitor);
           }
         } else if (action === 'out') {
-          const isGuard = (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') || (v.location || v.locationId || v.group || '').toLowerCase().includes('рота');
+          const isGuard = v.groupId === '3' || (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') || (v.location || v.locationId || v.group || '').toLowerCase().includes('рота');
           const isGuardOnDuty = isGuard && shifts.some(s => s.guardId === v.id && !s.endTime);
           
           if (isGuardOnDuty) return prev;
@@ -108,7 +108,17 @@ export default function Dashboard() {
   const markIn = (id: string | string[]) => {
     const ids = Array.isArray(id) ? id : [id];
     const now = new Date().toISOString();
-    let count = 0;
+    
+    // Find visitors to show toast for
+    if (ids.length === 1) {
+      const v = visitors.find(vis => vis.id === ids[0]);
+      if (v && v.status !== 'in') {
+        showToast(`${v.name}: ЗАЙШОВ`, 'success');
+      }
+    } else if (ids.length > 1) {
+      showToast(`Успішно зайшло: ${ids.length} осіб`, 'success');
+    }
+
     setVisitors(prev => prev.map(v => {
       if (!ids.includes(v.id)) return v;
       if (v.status === 'in') return v;
@@ -119,21 +129,24 @@ export default function Dashboard() {
         logs.push({ in: now });
       }
       
-      count++;
-      if (count === 1 && ids.length === 1) {
-        showToast(`${v.name}: ЗАЙШОВ`, 'success');
-      }
       return { ...v, status: 'in', lastEntry: now, logs };
     }));
-    if (ids.length > 1) {
-      showToast(`Успішно зайшло: ${ids.length} осіб`, 'success');
-    }
   };
 
   const markOut = (id: string | string[]) => {
     const ids = Array.isArray(id) ? id : [id];
     const now = new Date().toISOString();
-    let count = 0;
+    
+    // Find visitors to show toast for
+    if (ids.length === 1) {
+      const v = visitors.find(vis => vis.id === ids[0]);
+      if (v && (v.status === 'in' || v.lastEntry)) {
+        showToast(`${v.name}: ВИЙШОВ`, 'info');
+      }
+    } else if (ids.length > 1) {
+      showToast(`Успішно вийшло: ${ids.length} осіб`, 'info');
+    }
+
     setVisitors(prev => prev.map(v => {
       if (!ids.includes(v.id)) return v;
       if (v.status === 'out' && !v.lastEntry) return v;
@@ -146,11 +159,6 @@ export default function Dashboard() {
           index = i;
           break;
         }
-      }
-
-      count++;
-      if (count === 1 && ids.length === 1) {
-        showToast(`${v.name}: ВИЙШОВ`, 'info');
       }
 
       if (index !== -1) {
@@ -177,9 +185,6 @@ export default function Dashboard() {
           };
       }
     }));
-    if (ids.length > 1) {
-      showToast(`Успішно вийшло: ${ids.length} осіб`, 'info');
-    }
   };
   const latestSearch = useRef(searchQuery);
   useEffect(() => {
@@ -551,7 +556,7 @@ export default function Dashboard() {
                           з {v.lastEntry ? new Date(v.lastEntry).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false}) : ''}
                         </div>
                         {(() => {
-                          const isGuard = (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') || (v.location || v.locationId || v.group || '').toLowerCase().includes('рота');
+                          const isGuard = v.groupId === '3' || (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') || (v.location || v.locationId || v.group || '').toLowerCase().includes('рота');
                           const isGuardOnDuty = isGuard && shifts.some(s => s.guardId === v.id && !s.endTime);
                           const isOutDisabled = isGuardOnDuty || !!activeDirtySky;
                           

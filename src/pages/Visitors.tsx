@@ -95,7 +95,7 @@ export default function Visitors() {
             return prev.map(visitor => visitor.id === v.id ? { ...visitor, status: 'in' as const, lastEntry: now, logs } : visitor);
           }
         } else if (action === 'out') {
-          const isGuard = (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') || (v.location || v.locationId || v.group || '').toLowerCase().includes('рота');
+          const isGuard = v.groupId === '3' || (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') || (v.location || v.locationId || v.group || '').toLowerCase().includes('рота');
           const isGuardOnDuty = isGuard && shifts.some(s => s.guardId === v.id && !s.endTime);
           
           if (isGuardOnDuty) return prev;
@@ -224,18 +224,27 @@ export default function Visitors() {
     });
 
   const markIn = (id: string, index: number) => {
+    const v = visitors.find(vis => vis.id === id);
+    if (v) {
+      showToast(`${v.name}: ЗАЙШОВ`, 'success');
+    }
+
     setVisitors(prev => prev.map(v => {
       if (v.id !== id) return v;
       const now = new Date().toISOString();
       const logs = v.logs ? [...v.logs] : (v.lastEntry ? [{ in: v.lastEntry }] : []);
       logs[index] = { in: now };
-      showToast(`${v.name}: ЗАЙШОВ`, 'success');
       return { ...v, status: 'in', lastEntry: now, logs };
     }));
     setSearch('');
   };
 
   const markOut = (id: string, index: number) => {
+    const v = visitors.find(vis => vis.id === id);
+    if (v) {
+      showToast(`${v.name}: ВИЙШОВ`, 'info');
+    }
+
     setVisitors(prev => prev.map(v => {
       if (v.id !== id) return v;
       const now = new Date().toISOString();
@@ -244,7 +253,6 @@ export default function Visitors() {
       logs[index] = { ...logs[index], out: now };
       
       const diff = logs[index].in ? differenceInMinutes(new Date(now), new Date(logs[index].in!)) : 0;
-      showToast(`${v.name}: ВИЙШОВ`, 'info');
       return { 
         ...v, 
         status: 'out', 
@@ -493,7 +501,7 @@ export default function Visitors() {
                         </button>
                       )}
                       {v.status === 'in' && (() => {
-                        const isGuard = (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') || (v.location || v.locationId || v.group || '').toLowerCase().includes('рота');
+                        const isGuard = v.groupId === '3' || (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') || (v.location || v.locationId || v.group || '').toLowerCase().includes('рота');
                         const isGuardOnDuty = isGuard && shifts.some(s => s.guardId === v.id && !s.endTime);
                         const isOutDisabled = isGuardOnDuty || !!activeDirtySky;
                         return (
