@@ -380,9 +380,9 @@ export default function Dashboard() {
           onClick={() => setModalType('on_location')}
           className="bg-emerald-500/10 rounded-3xl p-3 sm:p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
         >
-          <div>
-            <div className="text-xs sm:text-sm text-emerald-600 font-normal uppercase tracking-wider mb-1">На локації</div>
-            <div className="text-xl sm:text-2xl font-normal">{currentlyInCount}</div>
+          <div className="flex items-center gap-2">
+            <div className="text-sm sm:text-base text-emerald-600 font-bold uppercase tracking-wider">На локації:</div>
+            <div className="text-sm sm:text-base font-bold text-emerald-700">{currentlyInCount}</div>
           </div>
           <div className="w-8 h-8 sm:w-10 sm:h-10 shrink-0 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-normal shadow-lg shadow-emerald-500/20">
              <Users className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -393,9 +393,9 @@ export default function Dashboard() {
           onClick={() => setModalType('entered')}
           className="bg-primary/10 rounded-3xl p-3 sm:p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
         >
-          <div>
-            <div className="text-xs sm:text-sm text-primary font-normal uppercase tracking-wider mb-1">Зайшло (з 08:00)</div>
-            <div className="text-xl sm:text-2xl font-normal">{enteredTodayCount}</div>
+          <div className="flex items-center gap-2">
+            <div className="text-sm sm:text-base text-primary font-bold uppercase tracking-wider">Зайшло (з 08:00):</div>
+            <div className="text-sm sm:text-base font-bold text-primary">{enteredTodayCount}</div>
           </div>
           <div className="w-8 h-8 sm:w-10 sm:h-10 shrink-0 bg-primary rounded-xl flex items-center justify-center text-primary-foreground font-normal shadow-lg shadow-primary/20">
              <ArrowRightCircle className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -406,9 +406,9 @@ export default function Dashboard() {
           onClick={() => setModalType('exited')}
           className="bg-red-500/10 rounded-3xl p-3 sm:p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
         >
-          <div>
-            <div className="text-xs sm:text-sm text-red-500 font-normal uppercase tracking-wider mb-1">Вийшло (з 08:00)</div>
-            <div className="text-xl sm:text-2xl font-normal">{exitedTodayCount}</div>
+          <div className="flex items-center gap-2">
+            <div className="text-sm sm:text-base text-red-500 font-bold uppercase tracking-wider">Вийшло (з 08:00):</div>
+            <div className="text-sm sm:text-base font-bold text-red-600">{exitedTodayCount}</div>
           </div>
           <div className="w-8 h-8 sm:w-10 sm:h-10 shrink-0 bg-red-500 rounded-xl flex items-center justify-center text-white font-normal shadow-lg shadow-red-500/20">
             <ArrowRightCircle className="w-4 h-4 sm:w-5 sm:h-5 rotate-180" />

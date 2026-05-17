@@ -462,7 +462,7 @@ export default function Visitors() {
                   <div className="mt-auto pt-2 border-t border-border/50 flex flex-col gap-1.5">
                     {displayLogs.length > 0 && (
                       <div className="flex flex-wrap gap-1">
-                        <div className="flex items-center text-[9px] font-mono font-medium bg-muted/50 border border-border/50 rounded px-1.5 py-0.5 w-full justify-between">
+                        <div className="flex items-center text-[11px] sm:text-xs font-mono font-bold bg-muted/50 border border-border/50 rounded px-2 py-1 w-full justify-between">
                           <span className="text-emerald-600" title="Перший захід (в цій зміні)">
                             {displayLogs[0].in ? new Date(displayLogs[0].in).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false}) : '--:--'}
                           </span>
