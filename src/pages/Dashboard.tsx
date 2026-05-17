@@ -16,7 +16,12 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   
   const [isListening, setIsListening] = useState(false);
+  const isListeningRef = useRef(false);
   const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    isListeningRef.current = isListening;
+  }, [isListening]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -48,61 +53,18 @@ export default function Dashboard() {
   const executeCommand = (nameQuery: string, action: 'in' | 'out') => {
     if (!nameQuery || !!activeDirtySky) return;
     
-    setVisitors(prev => {
-        const matching = prev.filter(v => matchesSearch(v.name, v.callsign, nameQuery));
-        if (matching.length === 0) return prev;
-        
-        const v = matching[0];
-        if (action === 'in') {
-          if (v.status !== 'in') {
-            const now = new Date().toISOString();
-            const logs = v.logs ? [...v.logs] : (v.lastEntry ? [{ in: v.lastEntry }] : []);
-            if (logs.length === 0 || logs[logs.length - 1].out) {
-              logs.push({ in: now });
-            }
-            return prev.map(visitor => visitor.id === v.id ? { ...visitor, status: 'in' as const, lastEntry: now, logs } : visitor);
-          }
-        } else if (action === 'out') {
-          const isGuard = v.groupId === '3' || (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') || (v.location || v.locationId || v.group || '').toLowerCase().includes('рота');
-          const isGuardOnDuty = isGuard && shifts.some(s => s.guardId === v.id && !s.endTime);
-          
-          if (isGuardOnDuty) return prev;
-
-          if (v.status === 'in') {
-            const now = new Date().toISOString();
-            const logs = v.logs ? [...v.logs] : (v.lastEntry ? [{ in: v.lastEntry }] : []);
-            let index = -1;
-            for (let i = logs.length - 1; i >= 0; i--) {
-              if (logs[i] && logs[i].in && !logs[i].out) { index = i; break; }
-            }
-            
-            if (index !== -1) {
-                logs[index] = { ...logs[index], out: now };
-                const startTime = logs[index].in;
-                const diff = startTime ? differenceInMinutes(new Date(now), new Date(startTime)) : 0;
-                return prev.map(visitor => visitor.id === v.id ? { 
-                    ...visitor, 
-                    status: 'out' as const, 
-                    lastEntry: undefined,
-                    logs,
-                    totalTimeMinutes: (visitor.totalTimeMinutes || 0) + Math.max(0, diff)
-                } : visitor);
-            } else {
-                const fallbackIn = v.lastEntry || now;
-                logs.push({ in: fallbackIn, out: now });
-                const diff = differenceInMinutes(new Date(now), new Date(fallbackIn));
-                return prev.map(visitor => visitor.id === v.id ? { 
-                  ...visitor, 
-                  status: 'out' as const, 
-                  lastEntry: undefined,
-                  logs,
-                  totalTimeMinutes: (visitor.totalTimeMinutes || 0) + Math.max(0, diff)
-                } : visitor);
-            }
-          }
-        }
-        return prev;
-    });
+    const matching = visitors.filter(v => matchesSearch(v.name, v.callsign, nameQuery));
+    if (matching.length === 0) {
+      showToast(`Користувача "${nameQuery}" не знайдено`, 'info');
+      return;
+    }
+    
+    const v = matching[0];
+    if (action === 'in') {
+      markIn(v.id);
+    } else {
+      markOut(v.id);
+    }
   };
 
   const markIn = (id: string | string[]) => {
@@ -149,6 +111,11 @@ export default function Dashboard() {
 
     setVisitors(prev => prev.map(v => {
       if (!ids.includes(v.id)) return v;
+      
+      const isGuard = v.groupId === '3' || (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') || (v.location || v.locationId || v.group || '').toLowerCase().includes('рота');
+      const isGuardOnDuty = isGuard && shifts.some(s => s.guardId === v.id && !s.endTime);
+      if (isGuardOnDuty) return v;
+
       if (v.status === 'out' && !v.lastEntry) return v;
 
       const logs = v.logs ? [...v.logs] : (v.lastEntry ? [{ in: v.lastEntry }] : []);
@@ -208,10 +175,20 @@ export default function Dashboard() {
     const recognition = new SpeechRecognition();
     recognition.lang = 'uk-UA'; 
     recognition.continuous = true;
-    recognition.interimResults = false;
+    recognition.interimResults = true;
 
     recognition.onstart = () => setIsListening(true);
-    recognition.onend = () => setIsListening(false);
+    recognition.onend = () => {
+      if (isListeningRef.current) {
+        try {
+          recognition.start();
+        } catch (e) {
+          setIsListening(false);
+        }
+      } else {
+        setIsListening(false);
+      }
+    };
     recognition.onerror = (event: any) => { 
       console.error('Speech recognition error:', event.error);
       setIsListening(false);
@@ -220,30 +197,37 @@ export default function Dashboard() {
       }
     };
     recognition.onresult = (event: any) => {
-      const resultIndex = event.results.length - 1;
-      const transcript = event.results[resultIndex][0].transcript.toLowerCase();
-      
-      let text = transcript.trim();
-      // Improved regex with word boundaries for action detection
-      const isPlus = /\b(плюс|заш|зайш|ввійш|увійш|прийш|заход)/i.test(text);
-      const isMinus = /\b(минус|мінус|выш|вийш|піш|виход)/i.test(text);
+      let interimTranscript = '';
+      let finalTranscript = '';
+
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          interimTranscript += event.results[i][0].transcript;
+        }
+      }
+
+      const text = (finalTranscript || interimTranscript).toLowerCase().trim();
+      if (!text) return;
+
+      // Detection with word boundaries
+      const isPlus = /\b(плюс|заш|зайш|ввійш|увійш|прийш|заход|зайди|заходь|плюсани|додай)[а-яіїєґ]*\b/i.test(text);
+      const isMinus = /\b(минус|мінус|выш|вийш|піш|виход|вийди|виходь|мінусани|відніми)[а-яіїєґ]*\b/i.test(text);
 
       let searchName = text
-        .replace(/\b(плюс|минус|мінус|зашел|зашла|зайшов|зайшла|ввійшов|ввійшла|увійшов|увійшла|прийшов|прийшла|зайшли|прийшли|вышел|вышла|вийшов|вийшла|пішов|пішла|вийшли|пішли|заш|зайш|ввійш|увійш|прийш|выш|вийш|піш|заход|виход)[а-яіїєґ/]*\b/gi, '')
+        .replace(/\b(плюс|минус|мінус|зашел|зашла|зайшов|зайшла|ввійшов|ввійшла|увійшов|увійшла|прийшов|прийшла|зайшли|прийшли|вышел|вышла|вийшов|вийшла|пішов|пішла|вийшли|пішли|заш|зайш|ввійш|увійш|прийш|выш|вийш|піш|заход|виход|зайди|заходь|плюсани|додай|вийди|виходь|мінусани|відніми)[а-яіїєґ/]*\b/gi, '')
         .replace(/[.,!?]/g, '')
         .trim();
 
       if (searchName) {
         setSearchQuery(searchName);
-      } else {
-        searchName = latestSearch.current;
       }
 
-      if (isPlus || isMinus) {
-        // Find matching visitor first to give better feedback if needed
-        executeCommand(searchName, isPlus ? 'in' : 'out');
+      if (event.results[event.results.length - 1].isFinal && (isPlus || isMinus)) {
+        const finalSearchName = searchName || latestSearch.current;
+        executeCommand(finalSearchName, isPlus ? 'in' : 'out');
         
-        // Provide visual feedback by clearing search after a delay
         setTimeout(() => {
           setSearchQuery('');
         }, 1500);

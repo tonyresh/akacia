@@ -2,5 +2,5 @@
   "name": "Система Учёта (СКУД)",
   "description": "Браузерная система учёта посещения сотрудников и работы пункта охраны.",
   "requestFramePermissions": ["microphone"],
-  "majorCapabilities": []
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
