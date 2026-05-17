@@ -10,7 +10,7 @@ const COLORS = [
 ];
 
 export default function VisitorManagement() {
-  const { visitors, setVisitors, categories, groups, locations } = useData();
+  const { visitors, setVisitors, categories, groups, locations, customIcons } = useData();
   const { showToast } = useToast();
   const [search, setSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -24,6 +24,7 @@ export default function VisitorManagement() {
   const [newGroup, setNewGroup] = useState(groups[0]?.id || '');
   const [newColor, setNewColor] = useState('');
   const [newIsSpecial, setNewIsSpecial] = useState(false);
+  const [newCustomIconId, setNewCustomIconId] = useState<string>('');
 
   // Edit form state
   const [editName, setEditName] = useState('');
@@ -33,6 +34,7 @@ export default function VisitorManagement() {
   const [editGroupId, setEditGroupId] = useState('');
   const [editColor, setEditColor] = useState('');
   const [editIsSpecial, setEditIsSpecial] = useState(false);
+  const [editCustomIconId, setEditCustomIconId] = useState<string>('');
 
   const normalizeForSearch = (str: string) => {
     return str.toLowerCase()
@@ -74,14 +76,14 @@ export default function VisitorManagement() {
 
     const isDuplicateName = visitors.some(v => v.name.toLowerCase() === trimmedName.toLowerCase());
     if (isDuplicateName) {
-      alert(`Співробітник з ім'ям "${trimmedName}" вже є в базі!`);
+      alert(`Користувач з ім'ям "${trimmedName}" вже є в базі!`);
       return;
     }
 
     if (trimmedCallsign) {
       const isDuplicateCallsign = visitors.some(v => v.callsign?.toLowerCase() === trimmedCallsign.toLowerCase());
       if (isDuplicateCallsign) {
-        alert(`Співробітник з позивним "${trimmedCallsign}" вже є в базі!`);
+        alert(`Користувач з позивним "${trimmedCallsign}" вже є в базі!`);
         return;
       }
     }
@@ -99,13 +101,15 @@ export default function VisitorManagement() {
         status: 'out',
         totalTimeMinutes: 0,
         color: newColor,
-        isSpecial: newIsSpecial
+        isSpecial: newIsSpecial,
+        customIconId: newCustomIconId || undefined
       }]);
-      showToast(`Успішно додано співробітника: ${trimmedName}`, 'success');
+      showToast(`Успішно додано користувача: ${trimmedName}`, 'success');
       setNewName('');
       setNewCallsign('');
       setNewColor('');
       setNewIsSpecial(false);
+      setNewCustomIconId('');
       setIsAdding(false);
     } catch (error) {
       showToast(`Помилка при додаванні: ${error instanceof Error ? error.message : String(error)}`, 'error');
@@ -121,6 +125,7 @@ export default function VisitorManagement() {
     setEditGroupId(v.groupId || groups.find(g => g.name === v.group)?.id || groups[0]?.id || '');
     setEditColor(v.color || '');
     setEditIsSpecial(v.isSpecial || false);
+    setEditCustomIconId(v.customIconId || '');
   };
 
   const saveEdit = () => {
@@ -139,7 +144,8 @@ export default function VisitorManagement() {
             groupId: editGroupId, 
             group: foundGroup?.name || v.group, 
             color: editColor,
-            isSpecial: editIsSpecial
+            isSpecial: editIsSpecial,
+            customIconId: editCustomIconId || undefined
           };
         }
         return v;
@@ -163,7 +169,7 @@ export default function VisitorManagement() {
     if (visitorToDelete) {
       const visitor = visitors.find(v => v.id === visitorToDelete);
       setVisitors(prev => prev.filter(v => v.id !== visitorToDelete));
-      showToast(`Співробітника ${visitor?.name || ''} видалено`, 'info');
+      showToast(`Користувача ${visitor?.name || ''} видалено`, 'info');
       setVisitorToDelete(null);
     }
   };
@@ -179,7 +185,7 @@ export default function VisitorManagement() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input 
               type="text"
-              placeholder="Пошук співробітника..."
+              placeholder="Пошук користувача..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2 bg-background border border-border rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow"
@@ -194,11 +200,11 @@ export default function VisitorManagement() {
           </button>
         </div>
 
-        <div className="border border-border rounded-2xl overflow-hidden">
+        <div className="border border-border rounded-2xl overflow-hidden bg-card">
           {/* Desktop Table Header */}
-          <div className="hidden md:grid md:grid-cols-[60px_1fr_120px_120px_120px] bg-muted/50 text-muted-foreground border-b border-border">
-            <div className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border text-center">Колір</div>
-            <div className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Співробітник</div>
+          <div className="hidden lg:grid lg:grid-cols-[80px_1fr_150px_150px_140px] bg-muted/50 text-muted-foreground border-b border-border">
+            <div className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border text-center">Іконка / Колір</div>
+            <div className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Користувач</div>
             <div className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Бригада</div>
             <div className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] border-r border-border">Група</div>
             <div className="px-3 py-2.5 font-semibold uppercase tracking-wider text-[10px] text-right">Дії</div>
@@ -207,12 +213,13 @@ export default function VisitorManagement() {
           <div className="divide-y divide-border">
             {filtered.length === 0 && (
               <div className="px-6 py-12 text-center text-muted-foreground">
-                Співробітники не знайдені
+                Користувачі не знайдені
               </div>
             )}
             {filtered.map((v) => {
               const isEditing = editingId === v.id;
               const visitorGroup = groups.find(g => g.id === v.groupId) || groups.find(g => g.name === v.group);
+              const customIcon = customIcons.find(icon => icon.id === v.customIconId);
               const blockColor = v.color || visitorGroup?.color;
               const hasGroupColor = !!blockColor && blockColor !== 'transparent';
               
@@ -223,18 +230,37 @@ export default function VisitorManagement() {
               return (
                 <div 
                   key={v.id} 
-                  className={`grid grid-cols-1 md:grid-cols-[60px_1fr_120px_120px_120px] hover:bg-muted/30 transition-colors p-4 md:p-0 ${isEditing ? 'bg-muted/10' : ''}`}
+                  className={`flex flex-col lg:grid lg:grid-cols-[80px_1fr_150px_150px_140px] hover:bg-muted/30 transition-colors p-4 lg:p-0 ${isEditing ? 'bg-muted/10' : ''}`}
                   style={rowStyles}
                 >
-                  {/* Color Column */}
-                  <div className="flex items-center justify-center md:border-r md:border-border mb-4 md:mb-0">
+                  {/* Icon Column */}
+                  <div className="flex items-center justify-center lg:border-r lg:border-border mb-4 lg:mb-0 pt-2 lg:pt-0">
                     {isEditing ? (
                       <div className="flex flex-col gap-2 items-center w-full px-2">
                         <div className="relative w-full">
                           <select
+                            value={editCustomIconId}
+                            onChange={(e) => setEditCustomIconId(e.target.value)}
+                            className="w-full h-10 px-3 bg-background border border-border rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary pl-10"
+                          >
+                            <option value="">Стандартна</option>
+                            {customIcons.map(icon => (
+                              <option key={icon.id} value={icon.id}>{icon.name}</option>
+                            ))}
+                          </select>
+                          <div className="absolute left-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center overflow-hidden">
+                            {editCustomIconId ? (
+                              <img src={customIcons.find(i => i.id === editCustomIconId)?.data} className="w-full h-full object-cover" />
+                            ) : (
+                              <User className="w-4 h-4" />
+                            )}
+                          </div>
+                        </div>
+                        <div className="relative w-full">
+                          <select
                             value={editColor}
                             onChange={(e) => setEditColor(e.target.value)}
-                            className="w-full appearance-none px-3 py-1.5 bg-background border border-border rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary pl-8"
+                            className="w-full h-10 px-3 bg-background border border-border rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary pl-10"
                             style={{ borderLeft: editColor ? `4px solid ${editColor}` : undefined }}
                           >
                             <option value="">Без кольору</option>
@@ -245,127 +271,148 @@ export default function VisitorManagement() {
                             ))}
                           </select>
                           <div className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border border-border/50" style={{ backgroundColor: editColor || 'transparent' }} />
-                          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
                         </div>
                       </div>
                     ) : (
-                      <div className="w-8 h-8 md:w-6 md:h-6 rounded-full shadow-sm flex items-center justify-center text-white" style={{ backgroundColor: v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984') }}>
-                        {v.isSpecial ? (
-                          <Star className="w-4 h-4 text-white fill-white" />
+                    <div className={`w-12 h-12 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984')) }}>
+                        {customIcon ? (
+                          <img src={customIcon.data} alt="user icon" className="w-full h-full object-cover" />
+                        ) : v.isSpecial ? (
+                          <Star className="w-6 h-6 lg:w-5 lg:h-5 text-white fill-white" />
                         ) : (
-                          <User className="w-4 h-4 text-[#e5e9ec]" />
+                          <User className="w-6 h-6 lg:w-5 lg:h-5 text-[#e5e9ec]" />
                         )}
                       </div>
                     )}
                   </div>
 
                   {/* Info Column */}
-                  <div className="flex flex-col px-0 md:px-3 md:py-2 md:border-r md:border-border mb-3 md:mb-0" style={{ backgroundColor: (isEditing || !visitorGroup?.color) ? 'transparent' : visitorGroup.color }}>
-                    <div className="md:hidden text-[9px] font-bold text-muted-foreground uppercase mb-1">Інформація</div>
+                  <div className="flex flex-col px-0 lg:px-4 lg:py-3 lg:border-r lg:border-border mb-4 lg:mb-0">
+                    <div className="lg:hidden text-[9px] font-bold text-muted-foreground uppercase mb-1">Інформація</div>
                     {isEditing ? (
-                      <div className="flex flex-col gap-2">
-                        <select
-                          value={editCat}
-                          onChange={(e) => setEditCat(e.target.value)}
-                          className="w-full px-2 py-1 bg-background border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                        >
-                          {categories.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                        <input
-                          autoFocus
-                          value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          className="w-full px-2 py-1 bg-background border border-border rounded text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary"
-                        />
-                        <input
-                          value={editCallsign}
-                          onChange={(e) => setEditCallsign(e.target.value)}
-                          placeholder="Позивний"
-                          className="w-full px-2 py-1 bg-background border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                        />
-                        <label className="flex items-center gap-2 mt-1 cursor-pointer">
-                          <input 
-                            type="checkbox"
-                            checked={editIsSpecial}
-                            onChange={e => setEditIsSpecial(e.target.checked)}
-                            className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
-                          />
-                          <span className="text-[10px] font-bold text-muted-foreground uppercase">Особливий</span>
-                        </label>
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-muted-foreground ml-1">Звання</label>
+                            <select
+                              value={editCat}
+                              onChange={(e) => setEditCat(e.target.value)}
+                              className="w-full px-3 py-2 bg-background border border-border rounded-xl text-xs focus:ring-1 focus:ring-primary"
+                            >
+                              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-muted-foreground ml-1">ПІБ</label>
+                            <input
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                              className="w-full px-3 py-2 bg-background border border-border rounded-xl text-sm font-medium focus:ring-1 focus:ring-primary"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[9px] uppercase font-bold text-muted-foreground ml-1">Позивний</label>
+                            <input
+                              value={editCallsign}
+                              onChange={(e) => setEditCallsign(e.target.value)}
+                              placeholder="Позивний"
+                              className="w-full px-3 py-2 bg-background border border-border rounded-xl text-xs focus:ring-1 focus:ring-primary"
+                            />
+                          </div>
+                          <div className="flex items-center gap-3 pt-4 px-1">
+                            <label className="flex items-center gap-2 cursor-pointer group">
+                              <div className={`w-5 h-5 rounded border border-border flex items-center justify-center transition-colors ${editIsSpecial ? 'bg-primary border-primary' : 'bg-background'}`}>
+                                {editIsSpecial && <Check className="w-3 h-3 text-white" />}
+                              </div>
+                              <input 
+                                type="checkbox"
+                                checked={editIsSpecial}
+                                onChange={e => setEditIsSpecial(e.target.checked)}
+                                className="hidden"
+                              />
+                              <span className="text-[10px] font-bold text-muted-foreground uppercase group-hover:text-primary transition-colors">Особливий</span>
+                            </label>
+                          </div>
+                        </div>
                       </div>
                     ) : (
                       <div className="flex flex-col min-w-0">
-                        <span className="text-[10px] text-muted-foreground uppercase truncate" style={{ color: visitorGroup?.color ? 'rgba(255,255,255,0.7)' : undefined }}>{v.category}</span>
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="font-medium text-sm truncate" style={{ color: visitorGroup?.color ? '#ffffff' : undefined }}>{v.name}</span>
-                        </div>
+                        <span className="text-[9px] text-muted-foreground uppercase tracking-wider mb-0.5">{v.category}</span>
+                        <div className="font-semibold text-base leading-tight mb-1">{v.name}</div>
                         {v.callsign && (
-                          <span className="text-[11px] font-bold text-primary/80 uppercase tracking-widest mt-0.5 truncate" style={{ color: visitorGroup?.color ? '#ffffff' : undefined }}>
-                            {v.callsign}
-                          </span>
+                          <div className="text-[10px] font-bold text-primary/80 uppercase tracking-[0.2em]">{v.callsign}</div>
                         )}
                       </div>
                     )}
                   </div>
 
                   {/* Brigade Column */}
-                  <div className="flex flex-col px-0 md:px-3 md:py-2 md:border-r md:border-border mb-3 md:mb-0" style={{ backgroundColor: (isEditing || !visitorGroup?.color) ? 'transparent' : visitorGroup.color }}>
-                    <div className="md:hidden text-[9px] font-bold text-muted-foreground uppercase mb-1">Бригада</div>
+                  <div className="flex flex-col px-0 lg:px-4 lg:py-3 lg:border-r lg:border-border mb-4 lg:mb-0">
+                    <div className="lg:hidden text-[9px] font-bold text-muted-foreground uppercase mb-1">Бригада</div>
                     {isEditing ? (
                       <select
                         value={editLocation}
                         onChange={(e) => setEditLocation(e.target.value)}
-                        className="w-full px-2 py-1 bg-background border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                        className="w-full px-3 py-2 bg-background border border-border rounded-xl text-sm focus:ring-1 focus:ring-primary"
                       >
                         {locations.map(l => <option key={l} value={l}>{l}</option>)}
                       </select>
                     ) : (
-                      <span className="text-xs text-muted-foreground" style={{ color: visitorGroup?.color ? '#ffffff' : undefined }}>{v.location || v.locationId || v.group}</span>
+                      <span className="text-sm font-medium text-muted-foreground lg:text-foreground">{v.location || v.locationId || v.group}</span>
                     )}
                   </div>
 
                   {/* Group Column */}
-                  <div className="flex flex-col px-0 md:px-3 md:py-2 md:border-r md:border-border mb-4 md:mb-0" style={{ backgroundColor: (isEditing || !visitorGroup?.color) ? 'transparent' : visitorGroup.color }}>
-                    <div className="md:hidden text-[9px] font-bold text-muted-foreground uppercase mb-1">Група</div>
+                  <div className="flex flex-col px-0 lg:px-4 lg:py-3 lg:border-r lg:border-border mb-6 lg:mb-0">
+                    <div className="lg:hidden text-[9px] font-bold text-muted-foreground uppercase mb-1">Група</div>
                     {isEditing ? (
                       <select
                         value={editGroupId}
                         onChange={(e) => setEditGroupId(e.target.value)}
-                        className="w-full px-2 py-1 bg-background border border-border rounded text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                        className="w-full px-3 py-2 bg-background border border-border rounded-xl text-sm focus:ring-1 focus:ring-primary"
                       >
                         {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                       </select>
                     ) : (
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground" style={{ color: visitorGroup?.color ? 'rgba(255,255,255,0.7)' : undefined }}>{visitorGroup?.name}</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: visitorGroup?.color || 'currentColor' }} />
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground truncate">{visitorGroup?.name}</span>
+                      </div>
                     )}
                   </div>
 
                   {/* Actions Column */}
-                  <div className="flex items-center justify-center md:px-3 md:py-2">
+                  <div className="flex items-center justify-center lg:px-4 lg:py-3 pt-4 border-t lg:border-t-0 border-border/50">
                     {isEditing ? (
-                      <div className="flex flex-row items-center justify-center gap-2 w-full">
+                      <div className="flex items-center justify-center gap-3 w-full">
                         <button 
                           onClick={saveEdit} 
                           title="Зберегти"
-                          className="flex items-center justify-center p-2.5 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/20"
+                          className="flex-1 lg:flex-none flex items-center justify-center p-3 bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/20"
                         >
-                          <Check className="w-5 h-5" />
+                          <Check className="w-5 h-5 lg:w-4 lg:h-4" />
+                          <span className="lg:hidden ml-2 font-medium">Зберегти</span>
                         </button>
                         <button 
                           onClick={cancelEdit} 
                           title="Скасувати"
-                          className="flex items-center justify-center p-2.5 bg-muted text-muted-foreground rounded-xl hover:bg-muted/80 transition-colors border border-border"
+                          className="flex-1 lg:flex-none flex items-center justify-center p-3 bg-muted text-muted-foreground rounded-2xl hover:bg-muted/80 transition-colors border border-border"
                         >
-                          <X className="w-5 h-5" />
+                          <X className="w-5 h-5 lg:w-4 lg:h-4" />
+                          <span className="lg:hidden ml-2 font-medium">Скасувати</span>
                         </button>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => startEditing(v)} className="p-2 text-blue-500 hover:bg-blue-500/10 rounded-md transition-colors" title="Редагувати">
-                          <Pencil className="w-4 h-4" />
+                      <div className="flex items-center justify-end gap-2 w-full">
+                        <button onClick={() => startEditing(v)} className="flex-1 lg:flex-none flex items-center justify-center gap-2 p-3 lg:p-2 lg:bg-blue-500/10 lg:text-blue-500 text-blue-600 bg-blue-50 rounded-2xl lg:rounded-md transition-all font-medium text-sm" title="Редагувати">
+                          <Pencil className="w-5 h-5 lg:w-4 lg:h-4" />
+                          <span className="lg:hidden">Редагувати</span>
                         </button>
-                        <button onClick={() => confirmDeleteVisitor(v.id)} className="p-2 text-red-500 hover:bg-red-500/10 rounded-md transition-colors" title="Видалити">
-                          <Trash2 className="w-4 h-4" />
+                        <button onClick={() => confirmDeleteVisitor(v.id)} className="flex-1 lg:flex-none flex items-center justify-center gap-2 p-3 lg:p-2 lg:bg-red-500/10 lg:text-red-500 text-red-600 bg-red-50 rounded-2xl lg:rounded-md transition-all font-medium text-sm" title="Видалити">
+                          <Trash2 className="w-5 h-5 lg:w-4 lg:h-4" />
+                          <span className="lg:hidden">Видалити</span>
                         </button>
                       </div>
                     )}
@@ -381,7 +428,7 @@ export default function VisitorManagement() {
       {isAdding && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
           <div className="bg-card w-full max-w-md p-6 rounded-3xl shadow-xl border border-border">
-            <h2 className="text-xl font-bold mb-6">Додати співробітника</h2>
+            <h2 className="text-xl font-bold mb-6">Додати користувача</h2>
             <form onSubmit={handleAdd} className="space-y-4">
               <div>
                 <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1.5">Звання</label>
@@ -457,6 +504,29 @@ export default function VisitorManagement() {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1.5">Власна іконка</label>
+                <div className="grid grid-cols-5 gap-2 max-h-32 overflow-y-auto p-2 border border-border rounded-xl bg-background">
+                  <button
+                    type="button"
+                    onClick={() => setNewCustomIconId('')}
+                    className={`aspect-square rounded-lg border-2 flex items-center justify-center transition-all ${!newCustomIconId ? 'border-primary bg-primary/10' : 'border-transparent bg-muted/50'}`}
+                  >
+                    <User className="w-5 h-5" />
+                  </button>
+                      {customIcons.map(icon => (
+                        <button
+                          key={icon.id}
+                          type="button"
+                          onClick={() => setNewCustomIconId(icon.id)}
+                          className={`aspect-square rounded-lg border-2 overflow-hidden transition-all ${newCustomIconId === icon.id ? 'border-primary bg-primary/10' : 'border-transparent bg-muted/50'}`}
+                        >
+                          <img src={icon.data} alt={icon.name} className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                </div>
+              </div>
+
               <div className="flex items-center gap-3 p-4 bg-muted/30 rounded-2xl border border-border/50">
                 <div className={`p-2 rounded-lg ${newIsSpecial ? 'bg-yellow-500/10 text-yellow-500' : 'bg-muted text-muted-foreground'}`}>
                   <Star className={`w-4 h-4 ${newIsSpecial ? 'fill-yellow-500' : ''}`} />
@@ -502,9 +572,9 @@ export default function VisitorManagement() {
       {visitorToDelete && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
           <div className="bg-card w-full max-w-md p-6 rounded-3xl shadow-xl border border-border">
-            <h2 className="text-xl font-bold mb-4 text-red-500">Видалити співробітника?</h2>
+            <h2 className="text-xl font-bold mb-4 text-red-500">Видалити користувача?</h2>
             <p className="text-muted-foreground mb-6">
-              Ви впевнені, що хочете видалити цього співробітника з бази? Буде видалена також вся історія відвідувань. Цю дію неможливо скасувати.
+              Ви впевнені, що хочете видалити цього користувача з бази? Буде видалена також вся історія відвідувань. Цю дію неможливо скасувати.
             </p>
             <div className="flex justify-end gap-3">
               <button 

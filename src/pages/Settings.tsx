@@ -18,7 +18,7 @@ export default function Settings() {
   } = useTheme();
   const { showToast } = useToast();
   const dataContext = useData();
-  const { categories, setCategories, groups, setGroups, visitors, setVisitors, guards, setGuards, shifts, setShifts, securityShifts, setSecurityShifts, locations, setLocations } = dataContext;
+  const { categories, setCategories, groups, setGroups, visitors, setVisitors, guards, setGuards, shifts, setShifts, securityShifts, setSecurityShifts, locations, setLocations, customIcons, setCustomIcons, cleanCurrentShiftLogs, cleanLogsByPeriod } = dataContext;
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('database');
 
@@ -36,6 +36,7 @@ export default function Settings() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const usersFileInputRef = useRef<HTMLInputElement>(null);
+  const iconInputRef = useRef<HTMLInputElement>(null);
 
   const GUARD_COLORS = [
     'rgba(239, 68, 68, 0.1)', 'rgba(249, 115, 22, 0.1)', 'rgba(245, 158, 11, 0.1)', 
@@ -81,6 +82,34 @@ export default function Settings() {
 
   const [editingLocation, setEditingLocation] = useState<string | null>(null);
   const [editLocationValue, setEditLocationValue] = useState('');
+
+  const [selectedCleanGroups, setSelectedCleanGroups] = useState<string[]>([]);
+  const [selectedPeriod, setSelectedPeriod] = useState<number | null>(null);
+  const [showConfirmModal, setShowConfirmModal] = useState<'period' | 'shift' | null>(null);
+
+  const CLEAN_PERIODS = [
+    { label: '5 хв', value: 5 },
+    { label: '15 хв', value: 15 },
+    { label: '30 хв', value: 30 },
+    { label: '1 год', value: 60 },
+    { label: '3 год', value: 180 },
+    { label: '6 год', value: 360 },
+    { label: '12 год', value: 720 },
+  ];
+
+  const handlePeriodClean = () => {
+    if (selectedPeriod === null) return;
+    cleanLogsByPeriod(selectedPeriod, selectedCleanGroups);
+    showToast(`Записи за останні ${CLEAN_PERIODS.find(p => p.value === selectedPeriod)?.label} успішно очищено`, 'success');
+    setShowConfirmModal(null);
+    setSelectedPeriod(null);
+  };
+
+  const handleShiftClean = () => {
+    cleanCurrentShiftLogs(selectedCleanGroups);
+    showToast(`Дані про вхід/вихід за зміну успішно очищено`, 'success');
+    setShowConfirmModal(null);
+  };
 
   const addLocation = () => {
     if (!newLocation.trim()) return;
@@ -343,12 +372,41 @@ export default function Settings() {
     reader.readAsText(file);
   };
 
+  const handleIconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 500000) { // 500kb limit
+      showToast('Файл занадто великий (макс 500КБ)', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      const newIcon = {
+        id: 'icon-' + Date.now(),
+        name: file.name,
+        data: base64
+      };
+      setCustomIcons(prev => [...prev, newIcon]);
+      showToast('Іконку успішно завантажено', 'success');
+    };
+    reader.readAsDataURL(file);
+    if (iconInputRef.current) iconInputRef.current.value = '';
+  };
+
+  const removeIcon = (id: string) => {
+    setCustomIcons(prev => prev.filter(icon => icon.id !== id));
+    showToast('Іконку видалено', 'info');
+  };
+
   const menuItems: { id: SettingsTab; label: string; icon: any; color: string }[] = [
-    { id: 'database', label: 'Співробітники', icon: Database, color: 'text-blue-500' },
+    { id: 'database', label: 'Користувачі', icon: Database, color: 'text-blue-500' },
     { id: 'ranks', label: 'Військові звання', icon: UserRound, color: 'text-emerald-500' },
     { id: 'locations', label: 'Бригада', icon: MapPin, color: 'text-orange-500' },
     { id: 'groups', label: 'Групи', icon: Users, color: 'text-amber-500' },
-    { id: 'backup', label: 'База даних (Резерв)', icon: Archive, color: 'text-indigo-500' },
+    { id: 'backup', label: 'Бэкап', icon: Archive, color: 'text-indigo-500' },
     { id: 'appearance', label: 'Зовнішній вигляд', icon: Palette, color: 'text-primary' },
     { id: 'other', label: 'Інше', icon: Sliders, color: 'text-rose-500' },
   ];
@@ -380,14 +438,14 @@ export default function Settings() {
 
         {/* Content Area */}
         <main className="flex-1 min-w-0">
-          <div className="bg-card border border-border rounded-3xl p-6 md:p-8 shadow-sm min-h-[500px]">
+          <div className="bg-card rounded-3xl p-6 md:p-8 shadow-sm min-h-[500px]">
             {activeTab === 'database' && (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500">
                     <Database className="w-5 h-5" />
                   </div>
-                  <h2 className="text-xl font-semibold">Співробітники</h2>
+                  <h2 className="text-xl font-semibold">Користувачі</h2>
                 </div>
                 <VisitorManagement />
               </div>
@@ -650,10 +708,10 @@ export default function Settings() {
                   <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-500">
                     <Archive className="w-5 h-5" />
                   </div>
-                  <h2 className="text-xl font-semibold">Резервне копіювання та імпорт</h2>
+                  <h2 className="text-xl font-semibold">Бэкап та імпорт</h2>
                 </div>
                 <div className="space-y-8">
-                  <div className="p-6 bg-blue-500/5 border border-blue-500/10 rounded-2xl">
+                  <div className="p-6 bg-blue-500/5 rounded-2xl">
                     <h3 className="text-sm font-semibold mb-2">Зберігання даних</h3>
                     <p className="text-sm text-muted-foreground leading-relaxed">
                       Ваш додаток працює <strong>автономно</strong>. Дані зберігаються локально в браузері. Ми рекомендуємо регулярно робити експорт бази даних для запобігання втраті інформації.
@@ -782,6 +840,36 @@ export default function Settings() {
                   </div>
 
                   <div>
+                    <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-4">Користувацькі іконки</label>
+                    <div className="p-6 bg-muted/30 rounded-2xl border border-border/50">
+                      <p className="text-xs text-muted-foreground mb-4">Завантажте власні іконки, щоб використовувати їх замість стандартних для користувачів.</p>
+                      
+                      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4 mb-6">
+                        {customIcons.map(icon => (
+                          <div key={icon.id} className="relative group aspect-square bg-background rounded-xl border border-border overflow-hidden flex items-center justify-center">
+                            <img src={icon.data} alt={icon.name} className="w-full h-full object-cover" />
+                            <button 
+                              onClick={() => removeIcon(icon.id)}
+                              className="absolute inset-0 bg-red-500/80 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                              title="Видалити іконку"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          </div>
+                        ))}
+                        <button 
+                          onClick={() => iconInputRef.current?.click()}
+                          className="aspect-square bg-background border border-border border-dashed rounded-xl flex flex-col items-center justify-center text-muted-foreground hover:bg-muted/50 transition-colors"
+                        >
+                          <Upload className="w-5 h-5 mb-2" />
+                          <span className="text-[10px]">Завантажити</span>
+                        </button>
+                      </div>
+                      <input type="file" accept="image/*,.svg,image/svg+xml" className="hidden" ref={iconInputRef} onChange={handleIconUpload} />
+                    </div>
+                  </div>
+
+                  <div>
                     <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-4">Кількість колонок на сторінці відвідувачів</label>
                     <div className="flex flex-wrap gap-2">
                       {[3, 4, 5, 6, 7, 8].map(cols => (
@@ -833,41 +921,112 @@ export default function Settings() {
                 </div>
 
                 <div className="space-y-8">
-                  <div className="p-6 bg-rose-500/5 border border-rose-500/10 rounded-2xl">
+                  <div className="p-6 bg-rose-500/5 rounded-2xl relative overflow-hidden">
                     <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">
                        <Trash2 className="w-4 h-4 text-rose-500" /> 
                        Очищення помилкових записів
                     </h3>
                     <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-                      Виберіть період часу. Всі записи про вхід, які були створені за цей період, будуть видалені. 
-                      Це корисно, якщо ви помилково відмітили людей або хочете скасувати останні дії.
+                      Виберіть період часу та натисніть кнопку "Очистити". Будуть видалені записи лише для користувачів, які вже **вийшли** з локації. 
                     </p>
-                    
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      {[
-                        { label: '5 хв', value: 5 },
-                        { label: '15 хв', value: 15 },
-                        { label: '30 хв', value: 30 },
-                        { label: '1 год', value: 60 },
-                        { label: '3 год', value: 180 },
-                        { label: '6 год', value: 360 },
-                        { label: '12 год', value: 720 },
-                        { label: '24 год', value: 1440 },
-                      ].map((period) => (
+
+                    <div className="mb-6">
+                      <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-3">Виберіть групи для очищення (якщо нічого не вибрано - очистяться всі):</label>
+                      <div className="flex flex-wrap gap-2">
                         <button
-                          key={period.value}
                           onClick={() => {
-                            if (confirm(`Ви впевнені, що хочете видалити всі записи за останні ${period.label}?`)) {
-                              dataContext.cleanLogsByPeriod(period.value);
-                              showToast(`Записи за останні ${period.label} очищено`, 'info');
+                            if (selectedCleanGroups.length === groups.length) {
+                              setSelectedCleanGroups([]);
+                            } else {
+                              setSelectedCleanGroups(groups.map(g => g.id));
                             }
                           }}
-                          className="px-4 py-3 bg-muted border border-border rounded-xl text-xs font-bold hover:bg-rose-500 hover:text-white transition-all active:scale-95"
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${selectedCleanGroups.length === groups.length ? 'bg-primary text-white border-transparent shadow-sm' : 'bg-background border-border text-muted-foreground hover:bg-muted'}`}
                         >
-                          {period.label}
+                          ВСІ ГРУПИ
                         </button>
-                      ))}
+                        <div className="w-px h-6 bg-border/60 mx-1 self-center" />
+                        {groups.map(g => (
+                          <button
+                            key={g.id}
+                            onClick={() => setSelectedCleanGroups(prev => prev.includes(g.id) ? prev.filter(id => id !== g.id) : [...prev, g.id])}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${selectedCleanGroups.includes(g.id) ? 'bg-primary text-white border-transparent shadow-sm' : 'bg-background border-border text-muted-foreground hover:bg-muted'}`}
+                          >
+                            {g.name}
+                          </button>
+                        ))}
+                      </div>
                     </div>
+                    
+                    <div className="space-y-6">
+                      <div className="flex flex-col gap-4">
+                        <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Очистити за період:</label>
+                        <div className="flex flex-wrap gap-2">
+                          {CLEAN_PERIODS.map((period) => (
+                            <button
+                              key={period.value}
+                              onClick={() => setSelectedPeriod(period.value)}
+                              className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all border ${selectedPeriod === period.value ? 'bg-primary text-white border-primary shadow-md' : 'bg-background border-border text-muted-foreground hover:bg-muted'}`}
+                            >
+                              {period.label}
+                            </button>
+                          ))}
+                        </div>
+                        <button
+                          disabled={selectedPeriod === null}
+                          onClick={() => setShowConfirmModal('period')}
+                          className={`w-full sm:w-auto px-10 py-3 rounded-2xl text-xs font-bold transition-all active:scale-95 shadow-lg ${selectedPeriod !== null ? 'bg-rose-500 text-white hover:bg-rose-600 shadow-rose-500/20' : 'bg-muted text-muted-foreground cursor-not-allowed shadow-none'}`}
+                        >
+                          Очистити
+                        </button>
+                      </div>
+
+                      <div className="h-px bg-border/50" />
+
+                      <div className="flex flex-col gap-3">
+                        <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Швидкі дії:</label>
+                        <button
+                          onClick={() => setShowConfirmModal('shift')}
+                          className="w-full sm:w-auto self-start px-6 py-2.5 bg-muted border border-border text-muted-foreground rounded-xl text-xs font-bold hover:bg-rose-500 hover:text-white hover:border-transparent transition-all active:scale-95"
+                        >
+                          Всю зміну
+                        </button>
+                        <p className="text-[10px] text-muted-foreground">Видаляє дані за поточне чергування для тих, хто вже вийшов</p>
+                      </div>
+                    </div>
+
+                    {/* Confirmation Modal */}
+                    {showConfirmModal && (
+                      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+                        <div className="bg-card border border-border w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+                          <div className="w-12 h-12 rounded-2xl bg-rose-500/10 flex items-center justify-center text-rose-500 mb-4 mx-auto">
+                            <Trash2 className="w-6 h-6" />
+                          </div>
+                          <h3 className="text-lg font-bold text-center mb-2">Підтвердження очищення</h3>
+                          <p className="text-sm text-muted-foreground text-center mb-6">
+                            Ви впевнені, що хочете видалити записи для груп: <span className="font-bold text-foreground">{selectedCleanGroups.length > 0 ? groups.filter(g => selectedCleanGroups.includes(g.id)).map(g => g.name).join(', ') : 'Всіх'}</span>? 
+                            <br/><br/>
+                            {showConfirmModal === 'period' 
+                              ? `Це видалить записи за останні ${CLEAN_PERIODS.find(p => p.value === selectedPeriod)?.label} для користувачів, які вже вийшли.` 
+                              : 'Це видалить всі записи за поточне чергування для користувачів, які вже вийшли.'}
+                          </p>
+                          <div className="flex gap-3">
+                            <button 
+                              onClick={() => setShowConfirmModal(null)}
+                              className="flex-1 py-3 px-4 bg-muted text-muted-foreground rounded-2xl text-xs font-bold hover:bg-muted/80 transition-colors"
+                            >
+                              Скасувати
+                            </button>
+                            <button 
+                              onClick={showConfirmModal === 'period' ? handlePeriodClean : handleShiftClean}
+                              className="flex-1 py-3 px-4 bg-rose-500 text-white rounded-2xl text-xs font-bold hover:bg-rose-600 transition-colors shadow-lg shadow-rose-500/20"
+                            >
+                              Підтвердити
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

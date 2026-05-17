@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
-import { Visitor, Guard, Shift, Category, Group, SecurityShift, DirtySkyEvent } from '../types';
+import { differenceInMinutes } from 'date-fns';
+import { Visitor, Guard, Shift, Category, Group, SecurityShift, DirtySkyEvent, CustomIcon } from '../types';
 
 interface DataContextType {
   visitors: Visitor[];
@@ -17,10 +18,13 @@ interface DataContextType {
   locations: string[];
   setLocations: React.Dispatch<React.SetStateAction<string[]>>;
   dirtySkyEvents: DirtySkyEvent[];
+  customIcons: CustomIcon[];
+  setCustomIcons: React.Dispatch<React.SetStateAction<CustomIcon[]>>;
   startDirtySky: () => void;
   endDirtySky: () => void;
   performShiftBackupAndReset: () => void;
-  cleanLogsByPeriod: (minutes: number) => void;
+  cleanLogsByPeriod: (minutes: number, groupIds?: string[]) => void;
+  cleanCurrentShiftLogs: (groupIds?: string[]) => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -146,6 +150,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [customIcons, setCustomIcons] = useState<CustomIcon[]>(() => {
+    try {
+      const saved = localStorage.getItem('customIcons');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const startDirtySky = () => {
     const newEvent: DirtySkyEvent = {
       id: Date.now().toString(),
@@ -261,26 +274,111 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // Do NOT clear dirtySkyEvents anymore, they are filtered by date in reports and dashboard
   };
   
-  const cleanLogsByPeriod = (minutes: number) => {
+  const cleanLogsByPeriod = (minutes: number, groupIds?: string[]) => {
     const cutOff = new Date();
     cutOff.setMinutes(cutOff.getMinutes() - minutes);
 
     setVisitors(prev => prev.map(v => {
+      // Only clean data for users who have status 'out'
+      if (v.status !== 'out') return v;
+
+      // Filter by groups if provided
+      if (groupIds && groupIds.length > 0) {
+        const matchesGroupId = groupIds.includes(v.groupId);
+        const matchesGroupName = groupIds.includes(v.group);
+        if (!matchesGroupId && !matchesGroupName) return v;
+      }
+
       const logs = v.logs || [];
-      const newLogs = logs.filter(log => {
+      const updatedLogs = logs.filter(log => {
         const entryTime = log.in ? new Date(log.in) : null;
         return entryTime && entryTime < cutOff;
+      }).map(log => {
+        const exitTime = log.out ? new Date(log.out) : null;
+        if (exitTime && exitTime >= cutOff) {
+          return { ...log, out: undefined };
+        }
+        return log;
+      });
+
+      let lastEntry = v.lastEntry;
+      let status = v.status;
+
+      if (lastEntry && new Date(lastEntry) >= cutOff) {
+        status = 'out';
+        lastEntry = undefined;
+      }
+      
+      if (updatedLogs.length > 0 && !updatedLogs[updatedLogs.length - 1].out) {
+        status = 'in';
+        lastEntry = updatedLogs[updatedLogs.length - 1].in;
+      } else if (updatedLogs.length === 0 || updatedLogs[updatedLogs.length - 1].out) {
+        status = 'out';
+        lastEntry = undefined;
+      }
+
+      // Recalculate totalTimeMinutes based on NEW logs
+      const totalTime = updatedLogs.reduce((acc, log) => {
+        if (log.in && log.out) {
+          return acc + differenceInMinutes(new Date(log.out), new Date(log.in));
+        }
+        return acc;
+      }, 0);
+
+      return { ...v, status, lastEntry, logs: updatedLogs, totalTimeMinutes: totalTime };
+    }));
+  };
+
+  const cleanCurrentShiftLogs = (groupIds?: string[]) => {
+    const now = new Date();
+    const shiftStart = new Date(now);
+    if (shiftStart.getHours() < 8) {
+      shiftStart.setDate(shiftStart.getDate() - 1);
+    }
+    shiftStart.setHours(8, 0, 0, 0);
+
+    setVisitors(prev => prev.map(v => {
+      // Only clean data for users who have status 'out'
+      if (v.status !== 'out') return v;
+
+      if (groupIds && groupIds.length > 0) {
+         const matchesGroupId = groupIds.includes(v.groupId);
+         const matchesGroupName = groupIds.includes(v.group);
+         if (!matchesGroupId && !matchesGroupName) return v;
+      }
+
+      const logs = v.logs || [];
+      const updatedLogs = logs.filter(log => {
+        const entryTime = log.in ? new Date(log.in) : null;
+        return entryTime && entryTime < shiftStart;
       });
 
       let status = v.status;
       let lastEntry = v.lastEntry;
-
-      if (v.lastEntry && new Date(v.lastEntry) >= cutOff) {
-          status = 'out';
-          lastEntry = undefined;
+      
+      // If they were "in" during current shift, they should be "out" after cleaning
+      if (lastEntry && new Date(lastEntry) >= shiftStart) {
+        status = 'out';
+        lastEntry = undefined;
+      }
+      
+      // Check last log of remaining logs
+      if (updatedLogs.length > 0 && !updatedLogs[updatedLogs.length - 1].out) {
+        status = 'in';
+        lastEntry = updatedLogs[updatedLogs.length - 1].in;
+      } else {
+        status = 'out';
+        lastEntry = undefined;
       }
 
-      return { ...v, status, lastEntry, logs: newLogs };
+      const totalTime = updatedLogs.reduce((acc, log) => {
+        if (log.in && log.out) {
+          return acc + differenceInMinutes(new Date(log.out), new Date(log.in));
+        }
+        return acc;
+      }, 0);
+
+      return { ...v, status, lastEntry, logs: updatedLogs, totalTimeMinutes: totalTime };
     }));
   };
 
@@ -292,6 +390,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { localStorage.setItem('locations', JSON.stringify(locations)); }, [locations]);
   useEffect(() => { localStorage.setItem('groups', JSON.stringify(groups)); }, [groups]);
   useEffect(() => { localStorage.setItem('dirtySkyEvents', JSON.stringify(dirtySkyEvents)); }, [dirtySkyEvents]);
+  useEffect(() => { localStorage.setItem('customIcons', JSON.stringify(customIcons)); }, [customIcons]);
 
   // Data retention: 60 days
   useEffect(() => {
@@ -332,7 +431,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       groups, setGroups, 
       locations, setLocations, 
       dirtySkyEvents, startDirtySky, endDirtySky,
-      performShiftBackupAndReset, cleanLogsByPeriod 
+      customIcons, setCustomIcons,
+      performShiftBackupAndReset, cleanLogsByPeriod, cleanCurrentShiftLogs 
     }}>
       {children}
     </DataContext.Provider>

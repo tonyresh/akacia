@@ -6,8 +6,10 @@ import { differenceInMinutes } from 'date-fns';
 import { formatNameAbbreviated } from '../utils/nameUtils';
 
 export default function Security() {
-  const { visitors, securityShifts, setSecurityShifts, shifts, setShifts, performShiftBackupAndReset } = useData();
+  const { visitors, securityShifts, setSecurityShifts, shifts, setShifts, performShiftBackupAndReset, dirtySkyEvents, customIcons } = useData();
   const { showToast } = useToast();
+  
+  const activeDirtySky = dirtySkyEvents.find(e => !e.endTime);
   
   const [activeTab, setActiveTab] = useState<string>('');
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -136,7 +138,7 @@ export default function Security() {
       setShifts(prev => [...prev, ...newShifts]);
       showToast('Група заступила на чергову зміну', 'success');
     } else {
-      showToast('Неможливо заступити: співробітники не на локації', 'error');
+      showToast('Неможливо заступити: користувачі не на локації', 'error');
     }
   };
 
@@ -168,9 +170,15 @@ export default function Security() {
 
   const shiftVisitors = visitors.filter(v => activeShift?.visitorIds.includes(v.id));
   const isShiftOnDuty = activeSessions.length > 0;
-  const isAfter700 = currentTime.getHours() >= 7;
+  const isAfter800 = currentTime.getHours() >= 8;
   const allGuardsIn = shiftVisitors.length > 0 && shiftVisitors.every(guard => guard.status === 'in');
-  const canHandover = isShiftOnDuty && isAfter700 && allGuardsIn;
+  const isAnyOtherShiftReady = securityShifts.some(s => 
+    s.id !== activeShift?.id && 
+    s.visitorIds.length > 0 && 
+    s.visitorIds.every(id => visitors.find(v => v.id === id)?.status === 'in')
+  );
+
+  const canHandover = isShiftOnDuty && isAfter800 && allGuardsIn && isAnyOtherShiftReady;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -202,7 +210,7 @@ export default function Security() {
 
       {activeShift ? (
         <>
-          <div className="flex flex-col bg-card border border-border rounded-3xl p-6 shadow-sm overflow-hidden">
+          <div className="flex flex-col bg-card rounded-3xl p-6 shadow-sm overflow-hidden">
             <div className="flex flex-wrap justify-between items-center gap-4">
               <div className="min-w-0">
                 <h2 className="text-xl font-normal truncate">{activeShift.name}</h2>
@@ -222,7 +230,7 @@ export default function Security() {
                       ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20'
                       : 'bg-muted text-muted-foreground cursor-not-allowed opacity-50 shadow-none'
                   }`}
-                  title={canHandover ? "Передати чергову зміну іншій групі" : "Передача доступна тільки для активної чергової зміни після 07:00, при умові що всі охоронці зайшли"}
+                  title={!canHandover ? (!isShiftOnDuty ? "Зміна не на посту" : !isAfter800 ? "Передача можлива тільки після 08:00" : !allGuardsIn ? "Не всі охоронці поточної зміни на локації" : !isAnyOtherShiftReady ? "Немає іншої групи, де всі охоронці зайшли" : "") : "Передати чергову зміну іншій групі"}
                 >
                   Передати чергову зміну
                 </button>
@@ -260,8 +268,18 @@ export default function Security() {
                          </div>
                          <div className="flex flex-1 justify-between items-center bg-primary/5 p-4 rounded-2xl border border-primary/20">
                            <div className="flex flex-col gap-0.5">
-                             <span className="text-[9px] uppercase font-bold tracking-wider text-primary/70">Тривалість дежурства</span>
-                             <span className="text-foreground font-bold text-lg tabular-nums animate-pulse-slow">{formatDuration(firstStart)}</span>
+                             <span className="text-[9px] uppercase font-bold tracking-wider text-primary/70">Тривалість чергування</span>
+                             <span className="text-foreground font-bold text-lg tabular-nums animate-pulse-slow">
+                               {(() => {
+                                 const now = new Date();
+                                 const shiftStart = new Date(now);
+                                 if (now.getHours() < 8) shiftStart.setDate(shiftStart.getDate() - 1);
+                                 shiftStart.setHours(8, 0, 0, 0);
+                                 
+                                 const effectiveStart = new Date(firstStart) > shiftStart ? new Date(firstStart) : shiftStart;
+                                 return formatDuration(effectiveStart.toISOString());
+                               })()}
+                             </span>
                            </div>
                            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
                              <div className="w-5 h-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
@@ -284,13 +302,18 @@ export default function Security() {
                           Попередня зміна: {formatDuration(finishedSessions[0].startTime, finishedSessions[0].endTime)}
                         </p>
                       )}
+                      {!allGuardsIn && (
+                        <p className="text-[10px] text-red-500 font-bold uppercase tracking-wider mt-1">
+                          Не всі охоронці зайшли на локацію!
+                        </p>
+                      )}
                     </div>
                   </div>
                   <button
                     onClick={startShiftWorkSession}
-                    disabled={!shiftVisitors.some(g => g.status === 'in')}
+                    disabled={!allGuardsIn || !!activeDirtySky}
                     className={`flex items-center gap-2 px-8 py-3 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all ${
-                      shiftVisitors.some(g => g.status === 'in')
+                      allGuardsIn && !activeDirtySky
                         ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 active:scale-95'
                         : 'bg-muted text-muted-foreground cursor-not-allowed opacity-50 shadow-none'
                     }`}
@@ -309,15 +332,20 @@ export default function Security() {
               const activeBreak = activeWorkSession?.restPeriods.find(r => !r.end);
               
               return (
-                <div key={guard.id} className="bg-card border border-border rounded-3xl p-6 flex flex-col shadow-sm">
+                <div key={guard.id} className="bg-card rounded-3xl p-6 flex flex-col shadow-sm">
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-3 max-w-full">
-                      <div className="w-10 h-10 shrink-0 rounded-xl bg-primary/10 flex items-center justify-center text-primary" style={{ backgroundColor: guard.color ? guard.color : undefined, color: guard.color ? '#fff' : undefined }}>
-                        <ShieldAlert className="w-5 h-5" />
-                      </div>
+                      {(() => {
+                        const customIcon = customIcons.find(icon => icon.id === guard.customIconId);
+                        return (
+                          <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center overflow-hidden ${customIcon ? '' : 'bg-primary/10 text-primary'}`} style={{ backgroundColor: customIcon ? 'transparent' : (guard.color ? guard.color : undefined), color: (!customIcon && guard.color) ? '#fff' : undefined }}>
+                            {customIcon ? <img src={customIcon.data} alt="guard icon" className="w-full h-full object-cover" /> : <ShieldAlert className="w-5 h-5" />}
+                          </div>
+                        );
+                      })()}
                       <div className="flex flex-col min-w-0">
                         <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-1">
-                          {guard.category || 'Співробітник'}
+                          {guard.category || 'Користувач'}
                         </span>
                         <span className="font-normal text-lg truncate" title={guard.name}>{formatNameAbbreviated(guard.name)}</span>
                         {guard.callsign && (
@@ -340,13 +368,13 @@ export default function Security() {
             })}
             {shiftVisitors.length === 0 && (
               <div className="col-span-full py-12 text-center text-muted-foreground border border-border rounded-3xl border-dashed">
-                У цій черговій зміні поки що немає чергових співробітників. Додайте їх у налаштуваннях складу.
+                У цій черговій зміні поки що немає чергових користувачів. Додайте їх у налаштуваннях складу.
               </div>
             )}
           </div>
         </>
       ) : (
-        <div className="py-16 text-center text-muted-foreground bg-card border border-border rounded-3xl shadow-sm">
+        <div className="py-16 text-center text-muted-foreground bg-card rounded-3xl shadow-sm">
           <ShieldAlert className="w-12 h-12 mx-auto mb-4 opacity-50" />
           <p className="text-lg font-medium">Чергові зміни не знайдені</p>
           <p className="text-sm mt-2">Створіть нову чергову зміну для початку роботи</p>
@@ -381,9 +409,9 @@ export default function Security() {
               <div className="flex-1 min-h-0 flex flex-col">
                 <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1.5">Склад чергових</label>
                 <div className="flex-1 overflow-y-auto border border-border rounded-xl bg-background/50 p-2 space-y-1 relative max-h-80">
-                  {visitors.filter(v => (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') && v.name !== 'Невідомий').length === 0 ? (
-                    <p className="text-sm text-muted-foreground p-4 text-center">Немає доданих співробітників з Роти охорони</p>
-                  ) : visitors.filter(v => (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') && v.name !== 'Невідомий').map(v => (
+                  {visitors.filter(v => (v.groupId === '3' || (v.group || '').toLowerCase().includes('охорон') || (v.group || '').toLowerCase().includes('рота') || (v.category || '').toLowerCase().includes('охорон') || (v.location || '').toLowerCase().includes('охорон')) && v.name !== 'Невідомий').length === 0 ? (
+                    <p className="text-center text-muted-foreground p-4 text-xs">Немає користувачів з групи охорони або роти</p>
+                  ) : visitors.filter(v => (v.groupId === '3' || (v.group || '').toLowerCase().includes('охорон') || (v.group || '').toLowerCase().includes('рота') || (v.category || '').toLowerCase().includes('охорон') || (v.location || '').toLowerCase().includes('охорон')) && v.name !== 'Невідомий').map(v => (
                     <label key={v.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors border border-transparent hover:border-border/50">
                       <input 
                         type="checkbox" 

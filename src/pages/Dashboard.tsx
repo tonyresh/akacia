@@ -8,7 +8,7 @@ import { formatNameAbbreviated } from '../utils/nameUtils';
 export default function Dashboard() {
   const { 
     visitors, setVisitors, groups, categories, shifts, securityShifts,
-    dirtySkyEvents, startDirtySky, endDirtySky
+    dirtySkyEvents, startDirtySky, endDirtySky, customIcons
   } = useData();
   const { showToast } = useToast();
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -46,7 +46,7 @@ export default function Dashboard() {
   };
 
   const executeCommand = (nameQuery: string, action: 'in' | 'out') => {
-    if (!nameQuery) return;
+    if (!nameQuery || !!activeDirtySky) return;
     
     setVisitors(prev => {
         const matching = prev.filter(v => matchesSearch(v.name, v.callsign, nameQuery));
@@ -63,7 +63,7 @@ export default function Dashboard() {
             return prev.map(visitor => visitor.id === v.id ? { ...visitor, status: 'in' as const, lastEntry: now, logs } : visitor);
           }
         } else if (action === 'out') {
-          const isGuard = (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон');
+          const isGuard = (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') || (v.location || v.locationId || v.group || '').toLowerCase().includes('рота');
           const isGuardOnDuty = isGuard && shifts.some(s => s.guardId === v.id && !s.endTime);
           
           if (isGuardOnDuty) return prev;
@@ -254,11 +254,25 @@ export default function Dashboard() {
       return matchesSearch(v.name, v.callsign, searchQuery);
     }
     const groupName = groups.find(g => g.id === v.groupId)?.name || v.group;
-    return groupName === 'Командування полку' || groupName === 'Керівництво';
+    return groupName === 'Командування полку' || groupName === 'Керівництво' || groupName === 'Командування 412';
   }).sort((a, b) => {
     const specialA = a.isSpecial ? 1 : 0;
     const specialB = b.isSpecial ? 1 : 0;
     if (specialA !== specialB) return specialB - specialA;
+
+    const groupOrder: Record<string, number> = {
+      'Командування 412': 1,
+      'Керівництво': 2,
+      'Командування полку': 3
+    };
+
+    const groupNameA = groups.find(g => g.id === a.groupId)?.name || a.group || '';
+    const groupNameB = groups.find(g => g.id === b.groupId)?.name || b.group || '';
+
+    const orderA = groupOrder[groupNameA] || 99;
+    const orderB = groupOrder[groupNameB] || 99;
+
+    if (orderA !== orderB) return orderA - orderB;
     
     if (a.status === 'in' && b.status !== 'in') return -1;
     if (a.status !== 'in' && b.status === 'in') return 1;
@@ -364,7 +378,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
         <div 
           onClick={() => setModalType('on_location')}
-          className="bg-emerald-500/10 border border-emerald-500/20 rounded-3xl p-3 sm:p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
+          className="bg-emerald-500/10 rounded-3xl p-3 sm:p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
         >
           <div>
             <div className="text-xs sm:text-sm text-emerald-600 font-normal uppercase tracking-wider mb-1">На локації</div>
@@ -377,7 +391,7 @@ export default function Dashboard() {
 
         <div 
           onClick={() => setModalType('entered')}
-          className="bg-primary/10 border border-primary/20 rounded-3xl p-3 sm:p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
+          className="bg-primary/10 rounded-3xl p-3 sm:p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
         >
           <div>
             <div className="text-xs sm:text-sm text-primary font-normal uppercase tracking-wider mb-1">Зайшло (з 08:00)</div>
@@ -390,7 +404,7 @@ export default function Dashboard() {
 
         <div 
           onClick={() => setModalType('exited')}
-          className="bg-red-500/10 border border-red-500/20 rounded-3xl p-3 sm:p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
+          className="bg-red-500/10 rounded-3xl p-3 sm:p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
         >
           <div>
             <div className="text-xs sm:text-sm text-red-500 font-normal uppercase tracking-wider mb-1">Вийшло (з 08:00)</div>
@@ -402,7 +416,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="bg-card border border-border rounded-3xl p-4 shadow-sm">
+      <div className="bg-card rounded-3xl p-4 shadow-sm">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className={`p-3 rounded-2xl ${activeDirtySky ? 'bg-red-500/10 text-red-500 animate-pulse' : 'bg-muted text-muted-foreground'}`}>
@@ -480,11 +494,11 @@ export default function Dashboard() {
         </button>
       </div>
 
-      <div className="bg-card border border-border rounded-3xl p-4 flex flex-col shadow-sm">
+      <div className="bg-card rounded-3xl p-4 flex flex-col shadow-sm">
         <div className="flex justify-between items-end mb-6">
           <div>
             <h2 className="text-lg font-normal">{searchQuery.trim() ? 'Результати пошуку' : 'Командування'}</h2>
-            {searchQuery.trim() && <p className="text-xs text-muted-foreground">Знайдені співробітники</p>}
+            {searchQuery.trim() && <p className="text-xs text-muted-foreground">Знайдені користувачі</p>}
           </div>
         </div>
         
@@ -492,6 +506,7 @@ export default function Dashboard() {
           {commandVisitors.length > 0 ? (
             commandVisitors.map(v => {
               const visitorGroup = groups?.find((g: any) => g.id === v.groupId) || groups?.find((g: any) => g.name === v.group);
+              const customIcon = customIcons.find(icon => icon.id === v.customIconId);
               const isOnLocation = v.status === 'in';
               const blockColor = v.color || visitorGroup?.color;
               const hasGroupColor = !!blockColor && blockColor !== 'transparent';
@@ -504,19 +519,21 @@ export default function Dashboard() {
               return (
                 <div 
                   key={v.id} 
-                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 border border-border rounded-2xl transition-colors ${isOnLocation ? 'opacity-100' : 'opacity-50'} ${hasGroupColor ? (isOnLocation ? 'shadow-md ring-1 ring-inset ring-white/10' : '') : (isOnLocation ? 'bg-muted/20 hover:bg-muted/40' : 'bg-black/5')}`}
+                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl transition-colors ${isOnLocation ? 'opacity-100' : 'opacity-50'} ${hasGroupColor ? (isOnLocation ? 'shadow-md ring-1 ring-inset ring-white/10' : '') : (isOnLocation ? 'bg-muted/20 hover:bg-muted/40' : 'bg-black/5')}`}
                   style={rowStyles}
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full border-2 border-background shadow-sm shrink-0 flex items-center justify-center text-white" style={{ backgroundColor: v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984') }}>
-                      {v.isSpecial ? (
+                    <div className={`w-10 h-10 rounded-full border-2 border-background shrink-0 flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984')) }}>
+                      {customIcon ? (
+                        <img src={customIcon.data} alt="icon" className="w-full h-full object-cover" />
+                      ) : v.isSpecial ? (
                         <Star className="w-6 h-6 text-white fill-white" />
                       ) : (
                         <User className="w-5 h-5 text-[#e5e9ec]" />
                       )}
                     </div>
                     <div>
-                      <div className="text-[9px] text-muted-foreground uppercase font-normal tracking-wider mb-1 opacity-70">
+                      <div className="text-[9px] text-muted-foreground uppercase font-normal tracking-wider mb-1 opacity-70 break-words leading-tight">
                         {v.category} {v.location || v.locationId || v.group ? `• ${v.location || v.locationId || v.group}` : ''}
                       </div>
                       <div className="font-normal text-sm">{formatNameAbbreviated(v.name)}</div>
@@ -534,7 +551,7 @@ export default function Dashboard() {
                           з {v.lastEntry ? new Date(v.lastEntry).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false}) : ''}
                         </div>
                         {(() => {
-                          const isGuard = (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон');
+                          const isGuard = (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') || (v.location || v.locationId || v.group || '').toLowerCase().includes('рота');
                           const isGuardOnDuty = isGuard && shifts.some(s => s.guardId === v.id && !s.endTime);
                           const isOutDisabled = isGuardOnDuty || !!activeDirtySky;
                           
@@ -557,8 +574,14 @@ export default function Dashboard() {
                       </div>
                     ) : (
                       <button
-                        onClick={() => markIn(v.id)}
-                        className="w-full sm:w-auto flex justify-center items-center gap-1.5 px-4 py-1.5 text-[10px] sm:text-xs font-normal uppercase tracking-widest rounded-xl border border-emerald-500/30 text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30 transition-colors"
+                        onClick={() => !activeDirtySky && markIn(v.id)}
+                        disabled={!!activeDirtySky}
+                        title={activeDirtySky ? "Вхід заблоковано режимом Брудне небо" : undefined}
+                        className={`w-full sm:w-auto flex justify-center items-center gap-1.5 px-4 py-1.5 text-[10px] sm:text-xs font-normal uppercase tracking-widest rounded-xl border transition-colors ${
+                          activeDirtySky
+                            ? 'border-muted bg-muted/50 text-muted-foreground cursor-not-allowed'
+                            : 'border-emerald-500/30 text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30'
+                        }`}
                       >
                         <LogIn className="w-3.5 h-3.5" />
                         Зайшов
@@ -570,7 +593,7 @@ export default function Dashboard() {
             })
           ) : (
             <div className="py-12 text-center text-muted-foreground bg-muted/10 border border-border border-dashed rounded-2xl">
-               Співробітників не знайдено
+               Користувачів не знайдено
             </div>
           )}
         </div>
@@ -597,6 +620,7 @@ export default function Dashboard() {
               ) : (
                 modalVisitors.map(v => {
                   const visitorGroup = groups?.find(g => g.id === v.groupId) || groups?.find(g => g.name === v.group);
+                  const customIcon = customIcons.find(icon => icon.id === v.customIconId);
                   const blockColor = v.color || visitorGroup?.color;
                   const hasGroupColor = !!blockColor && blockColor !== 'transparent';
                   
@@ -609,19 +633,21 @@ export default function Dashboard() {
                   return (
                     <div 
                       key={v.id} 
-                      className={`flex justify-between items-center border border-border p-4 rounded-2xl shadow-sm transition-colors ${isOnLocation ? 'opacity-100' : 'opacity-50'} ${hasGroupColor ? '' : 'bg-background'}`}
+                      className={`flex justify-between items-center p-4 rounded-2xl shadow-sm transition-colors ${isOnLocation ? 'opacity-100' : 'opacity-50'} ${hasGroupColor ? '' : 'bg-background'}`}
                       style={rowStyles}
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full border-2 border-background shadow-sm shrink-0 flex items-center justify-center text-white" style={{ backgroundColor: v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984') }}>
-                          {v.isSpecial ? (
+                        <div className={`w-10 h-10 rounded-full border-2 border-background shrink-0 flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984')) }}>
+                          {customIcon ? (
+                            <img src={customIcon.data} alt="icon" className="w-full h-full object-cover" />
+                          ) : v.isSpecial ? (
                             <Star className="w-6 h-6 text-white fill-white" />
                           ) : (
                             <User className="w-5 h-5 text-[#e5e9ec]" />
                           )}
                         </div>
                         <div>
-                          <div className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider mb-1 opacity-70">
+                          <div className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider mb-1 opacity-70 break-words leading-tight">
                             {v.category} {v.location || v.locationId || v.group ? `• ${v.location || v.locationId || v.group}` : ''}
                           </div>
                           <div className="font-semibold text-sm">{formatNameAbbreviated(v.name)}</div>

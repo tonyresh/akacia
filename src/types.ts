@@ -26,6 +26,13 @@ export interface Visitor {
   logs?: TimeLog[];
   color?: string;
   isSpecial?: boolean;
+  customIconId?: string;
+}
+
+export interface CustomIcon {
+  id: string;
+  name: string;
+  data: string; // base64
 }
 
 export interface SecurityShift {

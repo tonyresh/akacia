@@ -207,47 +207,25 @@ export default function Reports() {
           <h1 className="text-2xl font-normal tracking-tight">Звіти та Аналітика</h1>
           <p className="text-sm text-muted-foreground mt-1">Детальна статистика відвідувань системи</p>
         </div>
-        
-        <div className="flex flex-col sm:flex-row items-center gap-3 bg-card border border-border rounded-2xl p-2 shadow-sm">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground uppercase font-normal">З:</span>
-            <input 
-              type="date" 
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="bg-transparent border-none outline-none text-sm font-normal focus:ring-0 cursor-pointer"
-            />
-          </div>
-          <div className="hidden sm:block h-4 w-[1px] bg-border" />
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground uppercase font-normal">По:</span>
-            <input 
-              type="date" 
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="bg-transparent border-none outline-none text-sm font-normal focus:ring-0 cursor-pointer"
-            />
-          </div>
-        </div>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
+        <div className="bg-card rounded-3xl p-6 shadow-sm">
           <div className="text-xs text-muted-foreground font-normal uppercase tracking-wider mb-2">Загалом відвідувань</div>
           <div className="flex items-end gap-2">
             <div className="text-3xl font-normal">{totalVisits}</div>
             <div className="text-emerald-500 text-xs font-normal mb-1">за місяць</div>
           </div>
         </div>
-        <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
+        <div className="bg-card rounded-3xl p-6 shadow-sm">
           <div className="text-xs text-muted-foreground font-normal uppercase tracking-wider mb-2">Унікальних осіб</div>
           <div className="flex items-end gap-2">
             <div className="text-3xl font-normal">{uniqueVisitors}</div>
             <div className="text-primary text-xs font-normal mb-1">активні</div>
           </div>
         </div>
-        <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
+        <div className="bg-card rounded-3xl p-6 shadow-sm">
           <button 
             onClick={downloadCSV}
             className="w-full h-full flex flex-col items-center justify-center gap-2 hover:bg-secondary/50 transition-colors group"
@@ -260,8 +238,33 @@ export default function Reports() {
         </div>
       </div>
 
+      <div className="flex justify-center">
+        <div className="flex flex-col sm:flex-row items-center gap-3 bg-card rounded-2xl p-2 shadow-sm border border-border/50">
+          <div className="flex items-center gap-2 px-2">
+            <CalendarIcon className="w-4 h-4 text-muted-foreground/60" />
+            <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">З:</span>
+            <input 
+              type="date" 
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="bg-transparent border-none outline-none text-sm font-normal focus:ring-0 cursor-pointer"
+            />
+          </div>
+          <div className="hidden sm:block h-4 w-[1px] bg-border" />
+          <div className="flex items-center gap-2 px-2">
+            <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">По:</span>
+            <input 
+              type="date" 
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="bg-transparent border-none outline-none text-sm font-normal focus:ring-0 cursor-pointer"
+            />
+          </div>
+        </div>
+      </div>
+
       {/* Main Content Area */}
-      <div className="bg-card border border-border rounded-3xl overflow-hidden shadow-sm">
+      <div className="bg-card rounded-3xl overflow-hidden shadow-sm">
         <div className="p-6">
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row gap-4">
@@ -277,7 +280,7 @@ export default function Reports() {
                 </div>
                 <div className="flex gap-2">
                   <select 
-                    className="px-4 py-2 border border-border rounded-xl bg-card outline-none focus:ring-2 focus:ring-primary/20 font-normal text-sm"
+                    className="px-4 py-2 border border-border rounded-xl bg-card outline-none focus:ring-2 focus:ring-primary/20 font-normal text-sm appearance-none cursor-pointer hover:bg-muted transition-colors min-w-[140px]"
                     value={filterGroup}
                     onChange={(e) => setFilterGroup(e.target.value)}
                   >
@@ -289,11 +292,11 @@ export default function Reports() {
                 </div>
               </div>
 
-              <div className="border border-border rounded-2xl overflow-hidden mt-4">
+              <div className="rounded-2xl overflow-hidden mt-4">
                 {/* Desktop Header */}
                 <div className="hidden md:grid md:grid-cols-[100px_1fr_120px_100px_80px_100px] bg-muted/30 text-[10px] font-normal uppercase tracking-wider text-muted-foreground border-b border-border">
                   <div className="px-6 py-3 border-r border-border">Дата</div>
-                  <div className="px-6 py-3 border-r border-border">Співробітник</div>
+                  <div className="px-6 py-3 border-r border-border">Користувач</div>
                   <div className="px-6 py-3 border-r border-border">Звідки (Бригада)</div>
                   <div className="px-6 py-3 border-r border-border">Група</div>
                   <div className="px-6 py-3 border-r border-border">Вхід</div>
@@ -353,7 +356,7 @@ export default function Reports() {
                             {dateStr}
                           </div>
                           <div className="px-0 md:px-6 md:py-4 md:border-r md:border-border mb-3 md:mb-0">
-                            <div className="md:hidden text-[9px] font-bold text-muted-foreground uppercase mb-1">Співробітник</div>
+                            <div className="md:hidden text-[9px] font-bold text-muted-foreground uppercase mb-1">Користувач</div>
                             <div className="text-[10px] text-muted-foreground uppercase mb-0.5">{v.category}</div>
                             <div className="text-sm font-normal">{formatNameAbbreviated(v.name)}</div>
                             {v.callsign && (
