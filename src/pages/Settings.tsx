@@ -413,35 +413,34 @@ export default function Settings() {
 
   return (
     <div className="max-w-6xl mx-auto">
-      <h1 className="text-2xl font-bold tracking-tight mb-8">Налаштування</h1>
+      <h1 className="text-2xl font-bold tracking-tight mb-4">Налаштування</h1>
 
-      <div className="flex flex-col lg:flex-row gap-8">
-        {/* Sidebar Menu */}
-        <aside className="w-full lg:w-64 shrink-0">
-          <nav className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0 scrollbar-hide">
-            {menuItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all whitespace-nowrap lg:whitespace-normal w-full text-left ${
-                  activeTab === item.id 
-                    ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' 
-                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
-              >
-                <item.icon className={`w-4 h-4 ${activeTab === item.id ? 'text-current' : item.color}`} />
-                <span>{item.label}</span>
-              </button>
-            ))}
-          </nav>
-        </aside>
+      <div className="mb-2 overflow-x-auto pb-2 hide-scrollbar">
+        <div className="flex gap-2 min-w-max">
+          {menuItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => setActiveTab(item.id)}
+              className={`h-10 px-4 rounded-xl flex items-center gap-3 text-[10px] sm:text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all border shrink-0 ${
+                activeTab === item.id 
+                  ? 'bg-primary text-primary-foreground border-transparent shadow-lg shadow-primary/20 scale-[1.02]' 
+                  : 'bg-card hover:bg-muted border-border text-muted-foreground'
+              }`}
+            >
+              <item.icon className={`w-4 h-4 ${activeTab === item.id ? 'text-primary-foreground' : 'text-muted-foreground'}`} />
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
+      <div className="flex flex-col gap-4">
         {/* Content Area */}
         <main className="flex-1 min-w-0">
-          <div className="bg-card rounded-3xl p-6 md:p-8 shadow-sm min-h-[500px]">
+          <div className="bg-card rounded-3xl py-3 sm:py-4 px-6 md:px-8 shadow-sm min-h-[500px]">
             {activeTab === 'database' && (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="flex items-center gap-3 mb-6">
+                <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500">
                     <Database className="w-5 h-5" />
                   </div>
@@ -453,7 +452,7 @@ export default function Settings() {
 
             {activeTab === 'ranks' && (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 max-w-2xl">
-                <div className="flex items-center gap-3 mb-6">
+                <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
                     <UserRound className="w-5 h-5" />
                   </div>
@@ -528,7 +527,7 @@ export default function Settings() {
 
             {activeTab === 'locations' && (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 max-w-2xl">
-                <div className="flex items-center gap-3 mb-6">
+                <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500">
                     <MapPin className="w-5 h-5" />
                   </div>
@@ -603,7 +602,7 @@ export default function Settings() {
 
             {activeTab === 'groups' && (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 max-w-2xl">
-                <div className="flex items-center gap-3 mb-6">
+                <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
                     <Users className="w-5 h-5" />
                   </div>
@@ -704,7 +703,7 @@ export default function Settings() {
 
             {activeTab === 'backup' && (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="flex items-center gap-3 mb-6">
+                <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-500">
                     <Archive className="w-5 h-5" />
                   </div>
@@ -741,7 +740,7 @@ export default function Settings() {
 
             {activeTab === 'appearance' && (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="flex items-center gap-3 mb-6">
+                <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
                     <Palette className="w-5 h-5" />
                   </div>
@@ -913,7 +912,7 @@ export default function Settings() {
 
             {activeTab === 'other' && (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="flex items-center gap-3 mb-6">
+                <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-500">
                     <Sliders className="w-5 h-5" />
                   </div>

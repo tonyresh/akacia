@@ -257,7 +257,7 @@ export default function Security() {
                      const firstStart = activeSessions.sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0]?.startTime;
                      return (
                        <>
-                         <div className="flex flex-1 justify-between items-center bg-emerald-500/5 p-4 rounded-2xl border border-emerald-500/20">
+                         <div className="flex flex-1 justify-between items-center bg-emerald-500/5 py-2 px-4 rounded-2xl border border-emerald-500/20">
                            <div className="flex flex-col gap-0.5">
                              <span className="text-[9px] uppercase font-bold tracking-wider text-emerald-600/70">Чергування розпочато</span>
                              <span className="text-foreground font-bold text-lg">{new Date(firstStart).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false})}</span>
@@ -266,7 +266,7 @@ export default function Security() {
                              <Play className="w-5 h-5 text-emerald-600 fill-emerald-600" />
                            </div>
                          </div>
-                         <div className="flex flex-1 justify-between items-center bg-primary/5 p-4 rounded-2xl border border-primary/20">
+                         <div className="flex flex-1 justify-between items-center bg-primary/5 py-2 px-4 rounded-2xl border border-primary/20">
                            <div className="flex flex-col gap-0.5">
                              <span className="text-[9px] uppercase font-bold tracking-wider text-primary/70">Тривалість чергування</span>
                              <span className="text-foreground font-bold text-lg tabular-nums animate-pulse-slow">

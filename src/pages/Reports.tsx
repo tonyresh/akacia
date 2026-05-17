@@ -9,7 +9,9 @@ import {
   Search, 
   Table as TableIcon,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Users,
+  ArrowRightCircle
 } from 'lucide-react';
 import { 
   format, 
@@ -126,25 +128,36 @@ export default function Reports() {
       });
 
       Object.entries(logsByDay).forEach(([dateKey, dayLogs]) => {
+        // Find max timestamp in this group of logs
+        const maxTime = dayLogs.reduce((max, log) => {
+          const inTime = parseISO(log.in).getTime();
+          const outTime = log.out ? parseISO(log.out).getTime() : Date.now();
+          return Math.max(max, inTime, outTime);
+        }, 0);
+
         rows.push({
           type: 'visitor',
           visitor: v,
           date: parseISO(dateKey),
+          maxTime,
           logs: dayLogs
         });
       });
     });
 
     dirtySkyVisits.forEach(e => {
+      const start = parseISO(e.startTime).getTime();
+      const end = e.endTime ? parseISO(e.endTime).getTime() : Date.now();
       rows.push({
         type: 'dirtySky',
         event: e,
         date: parseISO(e.startTime),
+        maxTime: Math.max(start, end),
         logs: [{ in: e.startTime, out: e.endTime }]
       });
     });
 
-    return rows.sort((a, b) => b.date.getTime() - a.date.getTime());
+    return rows.sort((a, b) => b.maxTime - a.maxTime);
   }, [visitors, dirtySkyVisits, dateRange, searchQuery, filterGroup]);
 
   const uniqueVisitors = filteredData.length;
@@ -201,7 +214,7 @@ export default function Reports() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto pb-12 font-roboto">
+    <div className="space-y-3 max-w-7xl mx-auto pb-12 font-roboto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-normal tracking-tight">Звіти та Аналітика</h1>
@@ -210,30 +223,36 @@ export default function Reports() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div className="bg-card rounded-3xl p-6 shadow-sm">
-          <div className="text-xs text-muted-foreground font-normal uppercase tracking-wider mb-2">Загалом відвідувань</div>
-          <div className="flex items-end gap-2">
-            <div className="text-3xl font-normal">{totalVisits}</div>
-            <div className="text-emerald-500 text-xs font-normal mb-1">за місяць</div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="bg-primary/10 rounded-3xl py-2 sm:py-2.5 px-3 sm:px-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all">
+          <div className="flex items-center gap-2">
+            <div className="text-xs sm:text-sm text-primary font-bold uppercase tracking-wider">Загалом відвідувань:</div>
+            <div className="text-xs sm:text-sm font-bold text-primary">{totalVisits}</div>
+          </div>
+          <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 bg-primary rounded-xl flex items-center justify-center text-primary-foreground font-normal shadow-lg shadow-primary/20">
+             <ArrowRightCircle className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
           </div>
         </div>
-        <div className="bg-card rounded-3xl p-6 shadow-sm">
-          <div className="text-xs text-muted-foreground font-normal uppercase tracking-wider mb-2">Унікальних осіб</div>
-          <div className="flex items-end gap-2">
-            <div className="text-3xl font-normal">{uniqueVisitors}</div>
-            <div className="text-primary text-xs font-normal mb-1">активні</div>
+
+        <div className="bg-emerald-500/10 rounded-3xl py-2 sm:py-2.5 px-3 sm:px-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all">
+          <div className="flex items-center gap-2">
+            <div className="text-xs sm:text-sm text-emerald-600 font-bold uppercase tracking-wider">Унікальних осіб:</div>
+            <div className="text-xs sm:text-sm font-bold text-emerald-700">{uniqueVisitors}</div>
+          </div>
+          <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-normal shadow-lg shadow-emerald-500/20">
+             <Users className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
           </div>
         </div>
-        <div className="bg-card rounded-3xl p-6 shadow-sm">
+
+        <div className="bg-card rounded-3xl p-1 shadow-sm border border-border/50">
           <button 
             onClick={downloadCSV}
-            className="w-full h-full flex flex-col items-center justify-center gap-2 hover:bg-secondary/50 transition-colors group"
+            className="w-full h-full flex items-center justify-center gap-3 py-2 px-4 hover:bg-secondary/50 transition-colors group rounded-2xl"
           >
-            <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Download className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
+              <Download className="w-4 h-4" />
             </div>
-            <span className="text-sm font-normal">Завантажити CSV звіт</span>
+            <span className="text-xs font-bold uppercase tracking-wider">Завантажити CSV</span>
           </button>
         </div>
       </div>
@@ -265,8 +284,8 @@ export default function Reports() {
 
       {/* Main Content Area */}
       <div className="bg-card rounded-3xl overflow-hidden shadow-sm">
-        <div className="p-6">
-          <div className="space-y-4">
+        <div className="p-3">
+          <div className="space-y-2">
             <div className="flex flex-col sm:flex-row gap-4">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -295,12 +314,12 @@ export default function Reports() {
               <div className="rounded-2xl overflow-hidden mt-4">
                 {/* Desktop Header */}
                 <div className="hidden md:grid md:grid-cols-[100px_1fr_120px_100px_80px_100px] bg-muted/30 text-[10px] font-normal uppercase tracking-wider text-muted-foreground border-b border-border">
-                  <div className="px-6 py-3 border-r border-border">Дата</div>
-                  <div className="px-6 py-3 border-r border-border">Користувач</div>
-                  <div className="px-6 py-3 border-r border-border">Звідки (Бригада)</div>
-                  <div className="px-6 py-3 border-r border-border">Група</div>
-                  <div className="px-6 py-3 border-r border-border">Вхід</div>
-                  <div className="px-6 py-3 text-right">Вихід</div>
+                  <div className="px-6 py-1.5 border-r border-border">Дата</div>
+                  <div className="px-6 py-1.5 border-r border-border">Користувач</div>
+                  <div className="px-6 py-1.5 border-r border-border">Звідки (Бригада)</div>
+                  <div className="px-6 py-1.5 border-r border-border">Група</div>
+                  <div className="px-6 py-1.5 border-r border-border">Вхід</div>
+                  <div className="px-6 py-1.5 text-right">Вихід</div>
                 </div>
 
                 <div className="divide-y divide-border">
@@ -311,29 +330,29 @@ export default function Reports() {
                       if (row.type === 'dirtySky') {
                         const e = row.event;
                         return (
-                          <div key={`ds-${e.id}-${idx}`} className="grid grid-cols-1 md:grid-cols-[100px_1fr_120px_100px_80px_100px] hover:bg-amber-500/5 bg-amber-500/5 transition-colors p-4 md:p-0">
-                            <div className="px-0 md:px-6 md:py-4 md:border-r md:border-border text-xs flex justify-between md:block mb-2 md:mb-0">
+                          <div key={`ds-${e.id}-${idx}`} className="grid grid-cols-1 md:grid-cols-[100px_1fr_120px_100px_80px_100px] hover:bg-amber-500/5 bg-amber-500/5 transition-colors p-2 md:p-0">
+                            <div className="px-0 md:px-6 md:py-1.5 md:border-r md:border-border text-xs flex justify-between md:block mb-2 md:mb-0">
                               <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground">Дата</span>
                               {dateStr}
                             </div>
-                            <div className="px-0 md:px-6 md:py-4 md:border-r md:border-border mb-3 md:mb-0">
+                            <div className="px-0 md:px-6 md:py-1.5 md:border-r md:border-border mb-3 md:mb-0">
                               <div className="md:hidden text-[9px] font-bold text-muted-foreground uppercase mb-1">Подія</div>
                               <div className="text-sm font-normal text-amber-700">Брудне небо</div>
                               <div className="text-[10px] text-muted-foreground uppercase">Спеціальна подія</div>
                             </div>
-                            <div className="px-0 md:px-6 md:py-4 md:border-r md:border-border text-xs flex justify-between md:block mb-2 md:mb-0">
+                            <div className="px-0 md:px-6 md:py-1.5 md:border-r md:border-border text-xs flex justify-between md:block mb-2 md:mb-0">
                               <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground">Звідки</span>
                               —
                             </div>
-                            <div className="px-0 md:px-6 md:py-4 md:border-r md:border-border text-xs flex justify-between md:block mb-2 md:mb-0">
+                            <div className="px-0 md:px-6 md:py-1.5 md:border-r md:border-border text-xs flex justify-between md:block mb-2 md:mb-0">
                               <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground">Група</span>
                               Спец. події
                             </div>
-                            <div className="px-0 md:px-6 md:py-4 md:border-r md:border-border text-xs tabular-nums text-amber-600 font-normal flex justify-between md:block mb-2 md:mb-0">
+                            <div className="px-0 md:px-6 md:py-1.5 md:border-r md:border-border text-xs tabular-nums text-amber-600 font-normal flex justify-between md:block mb-2 md:mb-0">
                               <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground">Вхід</span>
                               {format(parseISO(e.startTime), 'HH:mm')}
                             </div>
-                            <div className="px-0 md:px-6 md:py-4 text-xs tabular-nums text-red-600 font-normal flex justify-between md:block">
+                            <div className="px-0 md:px-6 md:py-1.5 text-xs tabular-nums text-red-600 font-normal flex justify-between md:block">
                               <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground">Вихід</span>
                               <span className="md:w-full md:text-right md:block">{e.endTime ? format(parseISO(e.endTime), 'HH:mm') : 'триває'}</span>
                             </div>
@@ -350,12 +369,12 @@ export default function Reports() {
                       } : {};
 
                       return (
-                        <div key={`${v.id}-${dateStr}-${idx}`} className="grid grid-cols-1 md:grid-cols-[100px_1fr_120px_100px_80px_100px] hover:bg-secondary/30 transition-colors p-4 md:p-0" style={rowStyles}>
-                          <div className="px-0 md:px-6 md:py-4 md:border-r md:border-border text-xs flex justify-between md:block mb-2 md:mb-0">
+                        <div key={`${v.id}-${dateStr}-${idx}`} className="grid grid-cols-1 md:grid-cols-[100px_1fr_120px_100px_80px_100px] hover:bg-secondary/30 transition-colors p-2 md:p-0" style={rowStyles}>
+                          <div className="px-0 md:px-6 md:py-1.5 md:border-r md:border-border text-xs flex justify-between md:block mb-2 md:mb-0">
                             <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground">Дата</span>
                             {dateStr}
                           </div>
-                          <div className="px-0 md:px-6 md:py-4 md:border-r md:border-border mb-3 md:mb-0">
+                          <div className="px-0 md:px-6 md:py-1.5 md:border-r md:border-border mb-3 md:mb-0">
                             <div className="md:hidden text-[9px] font-bold text-muted-foreground uppercase mb-1">Користувач</div>
                             <div className="text-[10px] text-muted-foreground uppercase mb-0.5">{v.category}</div>
                             <div className="text-sm font-normal">{formatNameAbbreviated(v.name)}</div>
@@ -365,21 +384,21 @@ export default function Reports() {
                               </div>
                             )}
                           </div>
-                          <div className="px-0 md:px-6 md:py-4 md:border-r md:border-border text-xs flex justify-between md:block mb-2 md:mb-0">
+                          <div className="px-0 md:px-6 md:py-1.5 md:border-r md:border-border text-xs flex justify-between md:block mb-2 md:mb-0">
                             <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground">Звідки</span>
                             {v.location || '—'}
                           </div>
-                          <div className="px-0 md:px-6 md:py-4 md:border-r md:border-border text-xs flex justify-between md:block mb-2 md:mb-0">
+                          <div className="px-0 md:px-6 md:py-1.5 md:border-r md:border-border text-xs flex justify-between md:block mb-2 md:mb-0">
                             <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground">Група</span>
                             {v.group || '—'}
                           </div>
-                          <div className="px-0 md:px-6 md:py-4 md:border-r md:border-border text-xs tabular-nums text-emerald-600 font-normal flex justify-between md:block mb-2 md:mb-0">
+                          <div className="px-0 md:px-6 md:py-1.5 md:border-r md:border-border text-xs tabular-nums text-emerald-600 font-normal flex justify-between md:block mb-2 md:mb-0">
                             <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground">Вхід</span>
                             <div className="flex flex-col gap-1 md:items-start items-end">
                               {row.logs.map((l: any) => format(parseISO(l.in), 'HH:mm')).join('; ')}
                             </div>
                           </div>
-                          <div className="px-0 md:px-6 md:py-4 text-xs tabular-nums text-red-600 font-normal flex justify-between md:block">
+                          <div className="px-0 md:px-6 md:py-1.5 text-xs tabular-nums text-red-600 font-normal flex justify-between md:block">
                             <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground">Вихід</span>
                             <div className="flex flex-col gap-1 md:items-end items-end w-full">
                               {row.logs.map((l: any) => l.out ? format(parseISO(l.out), 'HH:mm') : 'на посту').join('; ')}

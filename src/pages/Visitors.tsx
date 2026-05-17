@@ -109,8 +109,14 @@ export default function Visitors() {
   }, [search]);
 
   const toggleListening = () => {
-    if (isListening) {
-      if (recognitionRef.current) recognitionRef.current.stop();
+    if (isListeningRef.current) {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          console.error('Stop error:', e);
+        }
+      }
       setIsListening(false);
       return;
     }
@@ -122,28 +128,45 @@ export default function Visitors() {
       return;
     }
 
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
+    }
+
     const recognition = new SpeechRecognition();
     recognition.lang = 'uk-UA'; 
     recognition.continuous = true;
     recognition.interimResults = true;
 
-    recognition.onstart = () => setIsListening(true);
-    recognition.onend = () => {
-        if (isListeningRef.current) {
-            try {
-                recognition.start();
-            } catch (e) {
-                setIsListening(false);
-            }
-        } else {
-            setIsListening(false);
-        }
+    recognition.onstart = () => {
+      console.log('Speech recognition started');
+      setIsListening(true);
     };
+
+    recognition.onend = () => {
+      console.log('Speech recognition ended');
+      if (isListeningRef.current) {
+        try {
+          recognition.start();
+        } catch (e) {
+          console.error('Restart error:', e);
+          setIsListening(false);
+        }
+      } else {
+        setIsListening(false);
+      }
+    };
+
     recognition.onerror = (event: any) => { 
       console.error('Speech recognition error:', event.error);
-      setIsListening(false);
       if (event.error === 'not-allowed') {
         alert("Помилка: Надайте дозвіл на використання мікрофону у браузері.");
+        setIsListening(false);
+      } else if (event.error === 'aborted') {
+        // Ignore
+      } else {
+        setIsListening(false);
       }
     };
     recognition.onresult = (event: any) => {
@@ -233,7 +256,10 @@ export default function Visitors() {
       
       const isGuard = v.groupId === '3' || (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') || (v.location || v.locationId || v.group || '').toLowerCase().includes('рота');
       const isGuardOnDuty = isGuard && shifts.some(s => s.guardId === v.id && !s.endTime);
-      if (isGuardOnDuty) return v;
+      if (isGuardOnDuty) {
+        showToast(`Не можна вийти: ${v.name} заступив на чергування`, 'error');
+        return v;
+      }
 
       const now = new Date().toISOString();
       const logs = v.logs ? [...v.logs] : (v.lastEntry ? [{ in: v.lastEntry }] : []);
@@ -403,7 +429,7 @@ export default function Visitors() {
                   style={{ backgroundColor: hasGroupColor ? bgColor : 'var(--border)' }}
                 />
                 
-                <div className="p-2.5 pl-3.5 flex-1 flex flex-col gap-1.5 min-w-0">
+                <div className="py-1.5 px-2.5 pl-3.5 flex-1 flex flex-col gap-1.5 min-w-0">
                   <div className="flex justify-between items-start gap-2">
                     <div className="flex gap-2.5 items-center min-w-0">
                       <div className={`w-9 h-9 rounded-full border-2 border-background shrink-0 flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984')) }}>

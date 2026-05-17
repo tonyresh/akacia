@@ -114,7 +114,10 @@ export default function Dashboard() {
       
       const isGuard = v.groupId === '3' || (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') || (v.location || v.locationId || v.group || '').toLowerCase().includes('рота');
       const isGuardOnDuty = isGuard && shifts.some(s => s.guardId === v.id && !s.endTime);
-      if (isGuardOnDuty) return v;
+      if (isGuardOnDuty) {
+        showToast(`Не можна вийти: ${v.name} заступив на чергування`, 'error');
+        return v;
+      }
 
       if (v.status === 'out' && !v.lastEntry) return v;
 
@@ -159,8 +162,14 @@ export default function Dashboard() {
   }, [searchQuery]);
 
   const toggleListening = () => {
-    if (isListening) {
-      if (recognitionRef.current) recognitionRef.current.stop();
+    if (isListeningRef.current) {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          console.error('Stop error:', e);
+        }
+      }
       setIsListening(false);
       return;
     }
@@ -172,28 +181,45 @@ export default function Dashboard() {
       return;
     }
 
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
+    }
+
     const recognition = new SpeechRecognition();
     recognition.lang = 'uk-UA'; 
     recognition.continuous = true;
     recognition.interimResults = true;
 
-    recognition.onstart = () => setIsListening(true);
+    recognition.onstart = () => {
+      console.log('Speech recognition started');
+      setIsListening(true);
+    };
+
     recognition.onend = () => {
+      console.log('Speech recognition ended');
       if (isListeningRef.current) {
         try {
           recognition.start();
         } catch (e) {
+          console.error('Restart error:', e);
           setIsListening(false);
         }
       } else {
         setIsListening(false);
       }
     };
+
     recognition.onerror = (event: any) => { 
       console.error('Speech recognition error:', event.error);
-      setIsListening(false);
       if (event.error === 'not-allowed') {
         alert("Помилка: Надайте дозвіл на використання мікрофону у браузері.");
+        setIsListening(false);
+      } else if (event.error === 'aborted') {
+        // Ignore aborted error as it happens on stop()
+      } else {
+        setIsListening(false);
       }
     };
     recognition.onresult = (event: any) => {
@@ -367,40 +393,40 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
         <div 
           onClick={() => setModalType('on_location')}
-          className="bg-emerald-500/10 rounded-3xl p-3 sm:p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
+          className="bg-emerald-500/10 rounded-3xl py-2 sm:py-2.5 px-3 sm:px-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
         >
           <div className="flex items-center gap-2">
-            <div className="text-sm sm:text-base text-emerald-600 font-bold uppercase tracking-wider">На локації:</div>
-            <div className="text-sm sm:text-base font-bold text-emerald-700">{currentlyInCount}</div>
+            <div className="text-xs sm:text-sm text-emerald-600 font-bold uppercase tracking-wider">На локації:</div>
+            <div className="text-xs sm:text-sm font-bold text-emerald-700">{currentlyInCount}</div>
           </div>
-          <div className="w-8 h-8 sm:w-10 sm:h-10 shrink-0 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-normal shadow-lg shadow-emerald-500/20">
-             <Users className="w-4 h-4 sm:w-5 sm:h-5" />
+          <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-normal shadow-lg shadow-emerald-500/20">
+             <Users className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
           </div>
         </div>
 
         <div 
           onClick={() => setModalType('entered')}
-          className="bg-primary/10 rounded-3xl p-3 sm:p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
+          className="bg-primary/10 rounded-3xl py-2 sm:py-2.5 px-3 sm:px-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
         >
           <div className="flex items-center gap-2">
-            <div className="text-sm sm:text-base text-primary font-bold uppercase tracking-wider">Зайшло (з 08:00):</div>
-            <div className="text-sm sm:text-base font-bold text-primary">{enteredTodayCount}</div>
+            <div className="text-xs sm:text-sm text-primary font-bold uppercase tracking-wider">Зайшло (з 08:00):</div>
+            <div className="text-xs sm:text-sm font-bold text-primary">{enteredTodayCount}</div>
           </div>
-          <div className="w-8 h-8 sm:w-10 sm:h-10 shrink-0 bg-primary rounded-xl flex items-center justify-center text-primary-foreground font-normal shadow-lg shadow-primary/20">
-             <ArrowRightCircle className="w-4 h-4 sm:w-5 sm:h-5" />
+          <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 bg-primary rounded-xl flex items-center justify-center text-primary-foreground font-normal shadow-lg shadow-primary/20">
+             <ArrowRightCircle className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
           </div>
         </div>
 
         <div 
           onClick={() => setModalType('exited')}
-          className="bg-red-500/10 rounded-3xl p-3 sm:p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
+          className="bg-red-500/10 rounded-3xl py-2 sm:py-2.5 px-3 sm:px-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
         >
           <div className="flex items-center gap-2">
-            <div className="text-sm sm:text-base text-red-500 font-bold uppercase tracking-wider">Вийшло (з 08:00):</div>
-            <div className="text-sm sm:text-base font-bold text-red-600">{exitedTodayCount}</div>
+            <div className="text-xs sm:text-sm text-red-500 font-bold uppercase tracking-wider">Вийшло (з 08:00):</div>
+            <div className="text-xs sm:text-sm font-bold text-red-600">{exitedTodayCount}</div>
           </div>
-          <div className="w-8 h-8 sm:w-10 sm:h-10 shrink-0 bg-red-500 rounded-xl flex items-center justify-center text-white font-normal shadow-lg shadow-red-500/20">
-            <ArrowRightCircle className="w-4 h-4 sm:w-5 sm:h-5 rotate-180" />
+          <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 bg-red-500 rounded-xl flex items-center justify-center text-white font-normal shadow-lg shadow-red-500/20">
+            <ArrowRightCircle className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 rotate-180" />
           </div>
         </div>
       </div>
@@ -508,7 +534,7 @@ export default function Dashboard() {
               return (
                 <div 
                   key={v.id} 
-                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl transition-colors ${isOnLocation ? 'opacity-100' : 'opacity-50'} ${hasGroupColor ? (isOnLocation ? 'shadow-md ring-1 ring-inset ring-white/10' : '') : (isOnLocation ? 'bg-muted/20 hover:bg-muted/40' : 'bg-black/5')}`}
+                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-2 px-4 rounded-2xl transition-colors ${isOnLocation ? 'opacity-100' : 'opacity-50'} ${hasGroupColor ? (isOnLocation ? 'shadow-md ring-1 ring-inset ring-white/10' : '') : (isOnLocation ? 'bg-muted/20 hover:bg-muted/40' : 'bg-black/5')}`}
                   style={rowStyles}
                 >
                   <div className="flex items-center gap-4">
