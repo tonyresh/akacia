@@ -521,7 +521,7 @@ export default function Dashboard() {
           {commandVisitors.length > 0 ? (
             commandVisitors.map(v => {
               const visitorGroup = groups?.find((g: any) => g.id === v.groupId) || groups?.find((g: any) => g.name === v.group);
-              const customIcon = customIcons.find(icon => icon.id === v.customIconId);
+              const customIcon = customIcons.find(icon => icon.id === v.customIconId) || (visitorGroup?.iconId ? customIcons.find(icon => icon.id === visitorGroup.iconId) : null);
               const isOnLocation = v.status === 'in';
               const blockColor = v.color || visitorGroup?.color;
               const hasGroupColor = !!blockColor && blockColor !== 'transparent';
@@ -538,7 +538,7 @@ export default function Dashboard() {
                   style={rowStyles}
                 >
                   <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-full border-2 border-background shrink-0 flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984')) }}>
+                    <div className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984')) }}>
                       {customIcon ? (
                         <img src={customIcon.data} alt="icon" className="w-full h-full object-cover" />
                       ) : v.isSpecial ? (
@@ -635,7 +635,7 @@ export default function Dashboard() {
               ) : (
                 modalVisitors.map(v => {
                   const visitorGroup = groups?.find(g => g.id === v.groupId) || groups?.find(g => g.name === v.group);
-                  const customIcon = customIcons.find(icon => icon.id === v.customIconId);
+                  const customIcon = customIcons.find(icon => icon.id === v.customIconId) || (visitorGroup?.iconId ? customIcons.find(icon => icon.id === visitorGroup.iconId) : null);
                   const blockColor = v.color || visitorGroup?.color;
                   const hasGroupColor = !!blockColor && blockColor !== 'transparent';
                   
@@ -652,7 +652,7 @@ export default function Dashboard() {
                       style={rowStyles}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full border-2 border-background shrink-0 flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984')) }}>
+                        <div className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984')) }}>
                           {customIcon ? (
                             <img src={customIcon.data} alt="icon" className="w-full h-full object-cover" />
                           ) : v.isSpecial ? (

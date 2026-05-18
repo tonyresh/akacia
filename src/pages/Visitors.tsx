@@ -394,7 +394,7 @@ export default function Visitors() {
           )}
           {filtered.map((v, index) => {
             const visitorGroup = groups.find(g => g.id === v.groupId) || groups.find(g => g.name === v.group);
-            const customIcon = customIcons.find(icon => icon.id === v.customIconId);
+            const customIcon = customIcons.find(icon => icon.id === v.customIconId) || (visitorGroup?.iconId ? customIcons.find(icon => icon.id === visitorGroup.iconId) : null);
             const bgColor = v.color || visitorGroup?.color || 'transparent';
             const hasGroupColor = bgColor !== 'transparent';
             
@@ -410,7 +410,7 @@ export default function Visitors() {
               shiftStart.setDate(shiftStart.getDate() - 1);
             }
             shiftStart.setHours(8, 0, 0, 0);
-
+ 
             const shiftLogs = (v.logs || []).filter(log => new Date(log.in!) >= shiftStart);
             if (v.lastEntry && new Date(v.lastEntry) >= shiftStart && !shiftLogs.some(l => l.in === v.lastEntry)) {
                // This shouldn't normally happen if logs are synced, but as a safety check
@@ -432,7 +432,7 @@ export default function Visitors() {
                 <div className="py-1.5 px-2.5 pl-3.5 flex-1 flex flex-col gap-1.5 min-w-0">
                   <div className="flex justify-between items-start gap-2">
                     <div className="flex gap-2.5 items-center min-w-0">
-                      <div className={`w-9 h-9 rounded-full border-2 border-background shrink-0 flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984')) }}>
+                      <div className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984')) }}>
                         {customIcon ? (
                           <img src={customIcon.data} alt="icon" className="w-full h-full object-cover" />
                         ) : (v.isSpecial ? (

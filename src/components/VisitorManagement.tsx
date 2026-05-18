@@ -219,7 +219,7 @@ export default function VisitorManagement() {
             {filtered.map((v) => {
               const isEditing = editingId === v.id;
               const visitorGroup = groups.find(g => g.id === v.groupId) || groups.find(g => g.name === v.group);
-              const customIcon = customIcons.find(icon => icon.id === v.customIconId);
+              const customIcon = customIcons.find(icon => icon.id === v.customIconId) || (visitorGroup?.iconId ? customIcons.find(icon => icon.id === visitorGroup.iconId) : null);
               const blockColor = v.color || visitorGroup?.color;
               const hasGroupColor = !!blockColor && blockColor !== 'transparent';
               

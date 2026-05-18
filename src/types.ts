@@ -4,6 +4,7 @@ export interface Group {
   id: string;
   name: string;
   color: string;
+  iconId?: string;
 }
 
 export interface TimeLog {

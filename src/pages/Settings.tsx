@@ -26,6 +26,7 @@ export default function Settings() {
   const [newLocation, setNewLocation] = useState('');
   const [newGroup, setNewGroup] = useState('');
   const [newGroupColor, setNewGroupColor] = useState('');
+  const [newGroupIconId, setNewGroupIconId] = useState<string | undefined>();
   
   const [editingRank, setEditingRank] = useState<string | null>(null);
   const [editRankValue, setEditRankValue] = useState('');
@@ -33,6 +34,7 @@ export default function Settings() {
   const [editingGroup, setEditingGroup] = useState<any | null>(null);
   const [editGroupValue, setEditGroupValue] = useState('');
   const [editGroupColor, setEditGroupColor] = useState('');
+  const [editGroupIconId, setEditGroupIconId] = useState<string | undefined>();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const usersFileInputRef = useRef<HTMLInputElement>(null);
@@ -154,17 +156,18 @@ export default function Settings() {
       showToast(`Група "${newGroup.trim()}" вже існує!`, 'error');
       return;
     }
-    setGroups([...groups, { id: Date.now().toString(), name: newGroup.trim(), color: newGroupColor }]);
+    setGroups([...groups, { id: Date.now().toString(), name: newGroup.trim(), color: newGroupColor, iconId: newGroupIconId }]);
     showToast(`Групу "${newGroup.trim()}" створено`, 'success');
     setNewGroup('');
     setNewGroupColor('');
+    setNewGroupIconId(undefined);
   }
 
   const saveGroupEdit = () => {
     if (!editingGroup || !editGroupValue.trim()) return;
     
     const trimmed = editGroupValue.trim();
-    setGroups(prev => prev.map(g => g.id === editingGroup.id ? { ...g, name: trimmed, color: editGroupColor } : g));
+    setGroups(prev => prev.map(g => g.id === editingGroup.id ? { ...g, name: trimmed, color: editGroupColor, iconId: editGroupIconId } : g));
     
     // Propagate name change to visitors
     if (trimmed !== editingGroup.name) {
@@ -403,7 +406,7 @@ export default function Settings() {
 
   const menuItems: { id: SettingsTab; label: string; icon: any; color: string }[] = [
     { id: 'database', label: 'Користувачі', icon: Database, color: 'text-blue-500' },
-    { id: 'ranks', label: 'Військові звання', icon: UserRound, color: 'text-emerald-500' },
+    { id: 'ranks', label: 'Звання', icon: UserRound, color: 'text-emerald-500' },
     { id: 'locations', label: 'Бригада', icon: MapPin, color: 'text-orange-500' },
     { id: 'groups', label: 'Групи', icon: Users, color: 'text-amber-500' },
     { id: 'backup', label: 'Бэкап', icon: Archive, color: 'text-indigo-500' },
@@ -631,19 +634,43 @@ export default function Settings() {
                       />
                     ))}
                   </div>
+
+                  {customIcons.length > 0 && (
+                    <div className="flex gap-2 flex-wrap items-center mt-2">
+                       <span className="text-[10px] uppercase font-bold text-muted-foreground mr-2">Іконка групи:</span>
+                       <div className="flex gap-2 bg-background/50 p-2 rounded-xl border border-border/50">
+                         <button 
+                           onClick={() => setNewGroupIconId(undefined)}
+                           className={`w-8 h-8 rounded-lg flex items-center justify-center border text-[10px] ${!newGroupIconId ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'}`}
+                         >
+                           HEX
+                         </button>
+                         {customIcons.map(icon => (
+                           <button
+                             key={icon.id}
+                             onClick={() => setNewGroupIconId(icon.id)}
+                             className={`w-8 h-8 rounded-lg overflow-hidden border transition-all ${newGroupIconId === icon.id ? 'border-primary scale-110 ring-2 ring-primary/20' : 'border-border opacity-60 hover:opacity-100'}`}
+                           >
+                             <img src={icon.data} alt={icon.name} className="w-full h-full object-cover" />
+                           </button>
+                         ))}
+                       </div>
+                    </div>
+                  )}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {groups.map(g => (
-                    <div key={g.id} className="flex justify-between items-center p-3 rounded-xl border border-border/50 text-sm transition-colors group" style={{ backgroundColor: g.color || 'var(--muted)' }}>
+                    <div key={g.id} className="flex flex-col p-3 rounded-xl border border-border/50 text-sm transition-colors group relative" style={{ backgroundColor: g.color || 'var(--muted)' }}>
                       {editingGroup?.id === g.id ? (
-                        <div className="flex-1 flex flex-col gap-2">
+                        <div className="flex-1 flex flex-col gap-3">
                            <input 
                             autoFocus
                             value={editGroupValue}
                             onChange={e => setEditGroupValue(e.target.value)}
                             className="w-full bg-background border border-border rounded px-2 py-1 text-xs focus:outline-none"
                           />
-                          <div className="flex gap-2 items-center">
+                          
+                          <div className="flex gap-2 flex-wrap items-center">
                              {GUARD_COLORS.map(c => (
                               <button
                                 key={c}
@@ -653,32 +680,60 @@ export default function Settings() {
                                 style={{ backgroundColor: c }}
                               />
                             ))}
-                            <div className="flex-1" />
+                          </div>
+
+                          <div className="flex gap-2 flex-wrap items-center bg-background/30 p-1.5 rounded-lg border border-border/20">
+                            <button 
+                              onClick={() => setEditGroupIconId(undefined)}
+                              className={`w-6 h-6 rounded-md flex items-center justify-center border text-[8px] ${!editGroupIconId ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'}`}
+                            >
+                              DEF
+                            </button>
+                            {customIcons.map(icon => (
+                              <button
+                                key={icon.id}
+                                onClick={() => setEditGroupIconId(icon.id)}
+                                className={`w-6 h-6 rounded-md overflow-hidden border transition-all ${editGroupIconId === icon.id ? 'border-primary scale-110' : 'border-border opacity-60'}`}
+                              >
+                                <img src={icon.data} alt={icon.name} className="w-full h-full object-cover" />
+                              </button>
+                            ))}
+                          </div>
+
+                          <div className="flex gap-2 justify-end mt-1">
                             <button 
                                 onClick={saveGroupEdit} 
-                                title="Зберегти"
-                                className="p-1.5 text-emerald-600 hover:bg-emerald-500/10 rounded-lg transition-colors"
+                                className="px-3 py-1 bg-emerald-500 text-white rounded-lg text-[10px] font-bold uppercase transition-colors"
                               >
-                                <Check className="w-4 h-4" />
+                                Зберегти
                               </button>
                               <button 
                                 onClick={() => setEditingGroup(null)} 
-                                title="Скасувати"
-                                className="p-1.5 text-muted-foreground hover:bg-muted rounded-lg transition-colors"
+                                className="px-3 py-1 bg-muted text-muted-foreground rounded-lg text-[10px] font-bold uppercase transition-colors"
                               >
-                                <X className="w-4 h-4" />
+                                Скасувати
                               </button>
                           </div>
                         </div>
                       ) : (
-                        <>
-                          <span className="font-medium truncate">{g.name}</span>
+                        <div className="flex justify-between items-center w-full">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-lg bg-card/40 flex items-center justify-center text-foreground shrink-0 overflow-hidden">
+                              {g.iconId && customIcons.find(i => i.id === g.iconId) ? (
+                                <img src={customIcons.find(i => i.id === g.iconId)?.data} alt="icon" className="w-full h-full object-cover" />
+                              ) : (
+                                <Users className="w-4 h-4 opacity-40" />
+                              )}
+                            </div>
+                            <span className="font-medium truncate">{g.name}</span>
+                          </div>
                           <div className="flex items-center gap-1">
                             <button 
                               onClick={() => {
                                 setEditingGroup(g);
                                 setEditGroupValue(g.name);
                                 setEditGroupColor(g.color);
+                                setEditGroupIconId(g.iconId);
                               }} 
                               className="text-muted-foreground hover:text-blue-500 p-1.5 rounded-md transition-all sm:opacity-0 group-hover:opacity-100"
                               title="Редагувати"
@@ -693,7 +748,7 @@ export default function Settings() {
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
-                        </>
+                        </div>
                       )}
                     </div>
                   ))}
