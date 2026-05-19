@@ -20,7 +20,7 @@ export default function VisitorManagement() {
   const [newName, setNewName] = useState('');
   const [newCallsign, setNewCallsign] = useState('');
   const [newCat, setNewCat] = useState(categories[0] || '');
-  const [newLocation, setNewLocation] = useState(locations[0] || '');
+  const [newLocation, setNewLocation] = useState(locations[0]?.id || '');
   const [newGroup, setNewGroup] = useState(groups[0]?.id || '');
   const [newColor, setNewColor] = useState('');
   const [newIsSpecial, setNewIsSpecial] = useState(false);
@@ -94,8 +94,8 @@ export default function VisitorManagement() {
         name: trimmedName,
         callsign: trimmedCallsign || undefined,
         category: newCat || categories[0] || '',
-        locationId: newLocation || locations[0] || '',
-        location: newLocation || locations[0] || '',
+        locationId: newLocation || locations[0]?.id || '',
+        location: locations.find(l => l.id === (newLocation || locations[0]?.id))?.name || '',
         groupId: newGroup || groups[0]?.id || '',
         group: groups.find(g => g.id === (newGroup || groups[0]?.id))?.name || '',
         status: 'out',
@@ -121,7 +121,8 @@ export default function VisitorManagement() {
     setEditName(v.name);
     setEditCallsign(v.callsign || '');
     setEditCat(v.category);
-    setEditLocation(v.location || v.locationId || locations[0] || '');
+    const loc = locations.find(l => l.id === v.locationId) || locations.find(l => l.name === v.location);
+    setEditLocation(loc?.id || locations[0]?.id || '');
     setEditGroupId(v.groupId || groups.find(g => g.name === v.group)?.id || groups[0]?.id || '');
     setEditColor(v.color || '');
     setEditIsSpecial(v.isSpecial || false);
@@ -134,13 +135,14 @@ export default function VisitorManagement() {
       setVisitors(prev => prev.map(v => {
         if (v.id === editingId) {
           const foundGroup = groups.find(g => g.id === editGroupId);
+          const foundLocation = locations.find(l => l.id === editLocation);
           return { 
             ...v, 
             name: editName, 
             callsign: editCallsign.trim() || undefined,
             category: editCat, 
             locationId: editLocation, 
-            location: editLocation, 
+            location: foundLocation?.name || v.location, 
             groupId: editGroupId, 
             group: foundGroup?.name || v.group, 
             color: editColor,
@@ -219,7 +221,8 @@ export default function VisitorManagement() {
             {filtered.map((v) => {
               const isEditing = editingId === v.id;
               const visitorGroup = groups.find(g => g.id === v.groupId) || groups.find(g => g.name === v.group);
-              const customIcon = customIcons.find(icon => icon.id === v.customIconId) || (visitorGroup?.iconId ? customIcons.find(icon => icon.id === visitorGroup.iconId) : null);
+              const visitorLocation = locations.find(l => l.id === v.locationId) || locations.find(l => l.name === v.location);
+              const customIcon = customIcons.find(icon => icon.id === v.customIconId) || (visitorLocation?.iconId ? customIcons.find(icon => icon.id === visitorLocation.iconId) : null);
               const blockColor = v.color || visitorGroup?.color;
               const hasGroupColor = !!blockColor && blockColor !== 'transparent';
               
@@ -357,7 +360,7 @@ export default function VisitorManagement() {
                         onChange={(e) => setEditLocation(e.target.value)}
                         className="w-full px-3 py-2 bg-background border border-border rounded-xl text-sm focus:ring-1 focus:ring-primary"
                       >
-                        {locations.map(l => <option key={l} value={l}>{l}</option>)}
+                        {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                       </select>
                     ) : (
                       <span className="text-sm font-medium text-muted-foreground lg:text-foreground">{v.location || v.locationId || v.group}</span>
@@ -470,7 +473,7 @@ export default function VisitorManagement() {
                   className="w-full px-4 py-2 border border-border bg-background rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow"
                 >
                   <option value="">Виберіть...</option>
-                  {locations.map(l => <option key={l} value={l}>{l}</option>)}
+                  {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               </div>
               <div>

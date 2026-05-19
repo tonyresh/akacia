@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { differenceInMinutes } from 'date-fns';
-import { Visitor, Guard, Shift, Category, Group, SecurityShift, DirtySkyEvent, CustomIcon } from '../types';
+import { Visitor, Guard, Shift, Category, Group, SecurityShift, DirtySkyEvent, CustomIcon, Location } from '../types';
 
 interface DataContextType {
   visitors: Visitor[];
@@ -15,8 +15,8 @@ interface DataContextType {
   setCategories: React.Dispatch<React.SetStateAction<Category[]>>;
   groups: Group[];
   setGroups: React.Dispatch<React.SetStateAction<Group[]>>;
-  locations: string[];
-  setLocations: React.Dispatch<React.SetStateAction<string[]>>;
+  locations: Location[];
+  setLocations: React.Dispatch<React.SetStateAction<Location[]>>;
   dirtySkyEvents: DirtySkyEvent[];
   customIcons: CustomIcon[];
   setCustomIcons: React.Dispatch<React.SetStateAction<CustomIcon[]>>;
@@ -76,13 +76,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       return ['Рядовий', 'Сержант', 'Лейтенант', 'Капітан', 'Майор', 'Полковник'];
     }
   });
-  const [locations, setLocations] = useState<string[]>(() => {
+  const [locations, setLocations] = useState<Location[]>(() => {
     try {
       const saved = localStorage.getItem('locations');
-      return saved ? JSON.parse(saved) : ['Штаб', 'КПП', 'Казарма №1', 'Навчальна бригада'];
-    } catch {
-      return ['Штаб', 'КПП', 'Казарма №1', 'Навчальна бригада'];
-    }
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.length > 0 && typeof parsed[0] === 'string') {
+          return (parsed as string[]).map(l => ({ id: Math.random().toString(36).substr(2, 9), name: l }));
+        }
+        return parsed;
+      }
+    } catch {}
+    return [
+      { id: 'loc-1', name: 'Штаб' },
+      { id: 'loc-2', name: 'КПП' },
+      { id: 'loc-3', name: 'Казарма №1' },
+      { id: 'loc-4', name: 'Навчальна бригада' }
+    ];
   });
   const [groups, setGroups] = useState<Group[]>(() => {
     try {
@@ -109,9 +119,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   // Migration: Move "Рота охорони" from locations to groups and de-duplicate
   useEffect(() => {
     // Migration from old location to group
-    const hasSecurityLocation = locations.some(loc => loc === 'Рота охорони');
+    const hasSecurityLocation = locations.some(loc => loc.name === 'Рота охорони');
     if (hasSecurityLocation) {
-      setLocations(prev => prev.filter(loc => loc !== 'Рота охорони'));
+      setLocations(prev => prev.filter(loc => loc.name !== 'Рота охорони'));
     }
     
     // Always check for duplicates and ensure Рота охорони exists

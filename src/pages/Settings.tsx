@@ -24,9 +24,9 @@ export default function Settings() {
 
   const [newCat, setNewCat] = useState('');
   const [newLocation, setNewLocation] = useState('');
+  const [newLocationIconId, setNewLocationIconId] = useState<string | undefined>();
   const [newGroup, setNewGroup] = useState('');
   const [newGroupColor, setNewGroupColor] = useState('');
-  const [newGroupIconId, setNewGroupIconId] = useState<string | undefined>();
   
   const [editingRank, setEditingRank] = useState<string | null>(null);
   const [editRankValue, setEditRankValue] = useState('');
@@ -34,7 +34,10 @@ export default function Settings() {
   const [editingGroup, setEditingGroup] = useState<any | null>(null);
   const [editGroupValue, setEditGroupValue] = useState('');
   const [editGroupColor, setEditGroupColor] = useState('');
-  const [editGroupIconId, setEditGroupIconId] = useState<string | undefined>();
+
+  const [editingLocation, setEditingLocation] = useState<any | null>(null);
+  const [editLocationValue, setEditLocationValue] = useState('');
+  const [editLocationIconId, setEditLocationIconId] = useState<string | undefined>();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const usersFileInputRef = useRef<HTMLInputElement>(null);
@@ -82,9 +85,6 @@ export default function Settings() {
     setEditingRank(null);
   };
 
-  const [editingLocation, setEditingLocation] = useState<string | null>(null);
-  const [editLocationValue, setEditLocationValue] = useState('');
-
   const [selectedCleanGroups, setSelectedCleanGroups] = useState<string[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<number | null>(null);
   const [showConfirmModal, setShowConfirmModal] = useState<'period' | 'shift' | null>(null);
@@ -115,38 +115,33 @@ export default function Settings() {
 
   const addLocation = () => {
     if (!newLocation.trim()) return;
-    if (locations.includes(newLocation.trim())) {
+    if (locations.find(l => l.name === newLocation.trim())) {
       showToast(`Бригада "${newLocation.trim()}" вже є в довіднику!`, 'error');
       return;
     }
-    setLocations([...locations, newLocation.trim()]);
+    setLocations([...locations, { id: Date.now().toString(), name: newLocation.trim(), iconId: newLocationIconId }]);
     showToast(`Бригаду "${newLocation.trim()}" додано`, 'success');
     setNewLocation('');
+    setNewLocationIconId(undefined);
   }
 
-  const saveLocationEdit = (oldValue: string) => {
+  const saveLocationEdit = () => {
+    if (!editingLocation || !editLocationValue.trim()) return;
     const trimmed = editLocationValue.trim();
-    if (!trimmed || trimmed === oldValue) {
-      setEditingLocation(null);
-      return;
-    }
     
-    if (locations.includes(trimmed)) {
-      alert(`Бригада "${trimmed}" вже є в довіднику!`);
-      return;
-    }
-
-    setLocations(prev => prev.map(l => l === oldValue ? trimmed : l));
-    showToast(`Бригаду "${oldValue}" перейменована на "${trimmed}"`, 'success');
+    setLocations(prev => prev.map(l => l.id === editingLocation.id ? { ...l, name: trimmed, iconId: editLocationIconId } : l));
     
     // Propagate change to visitors
-    setVisitors(prev => prev.map(v => {
-      if (v.location === oldValue || v.locationId === oldValue) {
-        return { ...v, location: trimmed, locationId: trimmed };
-      }
-      return v;
-    }));
-    
+    if (trimmed !== editingLocation.name) {
+      setVisitors(prev => prev.map(v => {
+        if (v.location === editingLocation.name || v.locationId === editingLocation.id) {
+          return { ...v, location: trimmed, locationId: editingLocation.id };
+        }
+        return v;
+      }));
+    }
+
+    showToast(`Бригаду "${trimmed}" оновлено`, 'success');
     setEditingLocation(null);
   };
 
@@ -156,18 +151,17 @@ export default function Settings() {
       showToast(`Група "${newGroup.trim()}" вже існує!`, 'error');
       return;
     }
-    setGroups([...groups, { id: Date.now().toString(), name: newGroup.trim(), color: newGroupColor, iconId: newGroupIconId }]);
+    setGroups([...groups, { id: Date.now().toString(), name: newGroup.trim(), color: newGroupColor }]);
     showToast(`Групу "${newGroup.trim()}" створено`, 'success');
     setNewGroup('');
     setNewGroupColor('');
-    setNewGroupIconId(undefined);
   }
 
   const saveGroupEdit = () => {
     if (!editingGroup || !editGroupValue.trim()) return;
     
     const trimmed = editGroupValue.trim();
-    setGroups(prev => prev.map(g => g.id === editingGroup.id ? { ...g, name: trimmed, color: editGroupColor, iconId: editGroupIconId } : g));
+    setGroups(prev => prev.map(g => g.id === editingGroup.id ? { ...g, name: trimmed, color: editGroupColor } : g));
     
     // Propagate name change to visitors
     if (trimmed !== editingGroup.name) {
@@ -187,9 +181,10 @@ export default function Settings() {
     setCategories(categories.filter(c => c !== cat));
     showToast(`Звання "${cat}" видалено`, 'info');
   };
-  const removeLocation = (loc: string) => {
-    setLocations(locations.filter(l => l !== loc));
-    showToast(`Бригаду "${loc}" видалено`, 'info');
+  const removeLocation = (id: string) => {
+    const location = locations.find(l => l.id === id);
+    setLocations(locations.filter(l => l.id !== id));
+    showToast(`Бригаду "${location?.name || ''}" видалено`, 'info');
   };
   const removeGroup = (id: string) => {
     const group = groups.find(g => g.id === id);
@@ -536,51 +531,106 @@ export default function Settings() {
                   </div>
                   <h2 className="text-xl font-semibold">Бригада</h2>
                 </div>
-                <div className="flex gap-3 mb-6">
-                  <input 
-                    value={newLocation} onChange={e => setNewLocation(e.target.value)}
-                    className="flex-1 px-4 py-2 border border-border bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 text-sm"
-                    placeholder="Введіть нову бригаду..."
-                  />
-                  <button onClick={addLocation} className="bg-orange-500 text-orange-950 px-6 py-2 rounded-xl hover:bg-orange-400 text-sm font-medium transition-colors shadow-lg shadow-orange-500/20">
-                    Додати
-                  </button>
+                <div className="space-y-4 mb-6 p-4 bg-muted/30 rounded-2xl border border-border/50">
+                  <div className="flex gap-3">
+                    <input 
+                      value={newLocation} onChange={e => setNewLocation(e.target.value)}
+                      className="flex-1 px-4 py-2 border border-border bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 text-sm"
+                      placeholder="Введіть нову бригаду..."
+                    />
+                    <button onClick={addLocation} className="bg-orange-500 text-orange-950 px-6 py-2 rounded-xl hover:bg-orange-400 text-sm font-medium transition-colors shadow-lg shadow-orange-500/20">
+                      Додати
+                    </button>
+                  </div>
+                  
+                  {customIcons.length > 0 && (
+                    <div className="flex gap-2 flex-wrap items-center mt-2">
+                       <span className="text-[10px] uppercase font-bold text-muted-foreground mr-2">Іконка бригади:</span>
+                       <div className="flex gap-2 bg-background/50 p-2 rounded-xl border border-border/50">
+                         <button 
+                           onClick={() => setNewLocationIconId(undefined)}
+                           className={`w-8 h-8 rounded-lg flex items-center justify-center border text-[10px] ${!newLocationIconId ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'}`}
+                         >
+                           DEF
+                         </button>
+                         {customIcons.map(icon => (
+                           <button
+                             key={icon.id}
+                             onClick={() => setNewLocationIconId(icon.id)}
+                             className={`w-8 h-8 rounded-lg overflow-hidden border transition-all ${newLocationIconId === icon.id ? 'border-primary scale-110 ring-2 ring-primary/20' : 'border-border opacity-60 hover:opacity-100'}`}
+                           >
+                             <img src={icon.data} alt={icon.name} className="w-full h-full object-cover" />
+                           </button>
+                         ))}
+                       </div>
+                    </div>
+                  )}
                 </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {locations.map(loc => (
-                    <div key={loc} className="flex justify-between items-center p-3 bg-muted/40 rounded-xl border border-border/50 text-sm group transition-colors hover:bg-muted/60">
-                      {editingLocation === loc ? (
-                        <div className="flex-1 flex gap-2">
+                    <div key={loc.id} className="flex flex-col p-3 rounded-xl border border-border/50 text-sm group transition-colors hover:bg-muted/60 bg-muted/40">
+                      {editingLocation?.id === loc.id ? (
+                        <div className="flex-1 flex flex-col gap-3">
                           <input 
                             autoFocus
                             value={editLocationValue}
                             onChange={e => setEditLocationValue(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && saveLocationEdit(loc)}
-                            className="flex-1 bg-background border border-border rounded px-2 py-1 text-xs focus:outline-none"
+                            onKeyDown={e => e.key === 'Enter' && saveLocationEdit()}
+                            className="w-full bg-background border border-border rounded px-2 py-1 text-xs focus:outline-none"
                           />
-                          <button 
-                            onClick={() => saveLocationEdit(loc)} 
-                            title="Зберегти"
-                            className="p-1.5 text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-colors"
-                          >
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button 
-                            onClick={() => setEditingLocation(null)} 
-                            title="Скасувати"
-                            className="p-1.5 text-muted-foreground hover:bg-muted rounded-lg transition-colors"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
+
+                          <div className="flex gap-2 flex-wrap items-center bg-background/30 p-1.5 rounded-lg border border-border/20">
+                            <button 
+                              onClick={() => setEditLocationIconId(undefined)}
+                              className={`w-6 h-6 rounded-md flex items-center justify-center border text-[8px] ${!editLocationIconId ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'}`}
+                            >
+                              DEF
+                            </button>
+                            {customIcons.map(icon => (
+                              <button
+                                key={icon.id}
+                                onClick={() => setEditLocationIconId(icon.id)}
+                                className={`w-6 h-6 rounded-md overflow-hidden border transition-all ${editLocationIconId === icon.id ? 'border-primary scale-110' : 'border-border opacity-60'}`}
+                              >
+                                <img src={icon.data} alt={icon.name} className="w-full h-full object-cover" />
+                              </button>
+                            ))}
+                          </div>
+
+                          <div className="flex gap-2 justify-end">
+                            <button 
+                              onClick={saveLocationEdit} 
+                              className="px-3 py-1 bg-emerald-500 text-white rounded-lg text-[10px] font-bold uppercase transition-colors"
+                            >
+                              Зберегти
+                            </button>
+                            <button 
+                              onClick={() => setEditingLocation(null)} 
+                              className="px-3 py-1 bg-muted text-muted-foreground rounded-lg text-[10px] font-bold uppercase transition-colors"
+                            >
+                              Скасувати
+                            </button>
+                          </div>
                         </div>
                       ) : (
-                        <>
-                          <span className="font-medium truncate">{loc}</span>
+                        <div className="flex justify-between items-center w-full">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 rounded-lg bg-card/40 flex items-center justify-center text-foreground shrink-0 overflow-hidden">
+                              {loc.iconId && customIcons.find(i => i.id === loc.iconId) ? (
+                                <img src={customIcons.find(i => i.id === loc.iconId)?.data} alt="icon" className="w-full h-full object-cover" />
+                              ) : (
+                                <MapPin className="w-4 h-4 opacity-40" />
+                              )}
+                            </div>
+                            <span className="font-medium truncate">{loc.name}</span>
+                          </div>
                           <div className="flex items-center gap-1">
                             <button 
                               onClick={() => {
                                 setEditingLocation(loc);
-                                setEditLocationValue(loc);
+                                setEditLocationValue(loc.name);
+                                setEditLocationIconId(loc.iconId);
                               }} 
                               className="text-muted-foreground hover:text-blue-500 p-1.5 rounded-md transition-all sm:opacity-0 group-hover:opacity-100"
                               title="Редагувати"
@@ -588,14 +638,14 @@ export default function Settings() {
                               <Pencil className="w-4 h-4" />
                             </button>
                             <button 
-                              onClick={() => removeLocation(loc)}
+                              onClick={() => removeLocation(loc.id)}
                               className="text-muted-foreground hover:text-red-500 p-1.5 rounded-md transition-all"
                               title="Видалити"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
-                        </>
+                        </div>
                       )}
                     </div>
                   ))}
@@ -634,29 +684,6 @@ export default function Settings() {
                       />
                     ))}
                   </div>
-
-                  {customIcons.length > 0 && (
-                    <div className="flex gap-2 flex-wrap items-center mt-2">
-                       <span className="text-[10px] uppercase font-bold text-muted-foreground mr-2">Іконка групи:</span>
-                       <div className="flex gap-2 bg-background/50 p-2 rounded-xl border border-border/50">
-                         <button 
-                           onClick={() => setNewGroupIconId(undefined)}
-                           className={`w-8 h-8 rounded-lg flex items-center justify-center border text-[10px] ${!newGroupIconId ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'}`}
-                         >
-                           HEX
-                         </button>
-                         {customIcons.map(icon => (
-                           <button
-                             key={icon.id}
-                             onClick={() => setNewGroupIconId(icon.id)}
-                             className={`w-8 h-8 rounded-lg overflow-hidden border transition-all ${newGroupIconId === icon.id ? 'border-primary scale-110 ring-2 ring-primary/20' : 'border-border opacity-60 hover:opacity-100'}`}
-                           >
-                             <img src={icon.data} alt={icon.name} className="w-full h-full object-cover" />
-                           </button>
-                         ))}
-                       </div>
-                    </div>
-                  )}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {groups.map(g => (
@@ -682,24 +709,6 @@ export default function Settings() {
                             ))}
                           </div>
 
-                          <div className="flex gap-2 flex-wrap items-center bg-background/30 p-1.5 rounded-lg border border-border/20">
-                            <button 
-                              onClick={() => setEditGroupIconId(undefined)}
-                              className={`w-6 h-6 rounded-md flex items-center justify-center border text-[8px] ${!editGroupIconId ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'}`}
-                            >
-                              DEF
-                            </button>
-                            {customIcons.map(icon => (
-                              <button
-                                key={icon.id}
-                                onClick={() => setEditGroupIconId(icon.id)}
-                                className={`w-6 h-6 rounded-md overflow-hidden border transition-all ${editGroupIconId === icon.id ? 'border-primary scale-110' : 'border-border opacity-60'}`}
-                              >
-                                <img src={icon.data} alt={icon.name} className="w-full h-full object-cover" />
-                              </button>
-                            ))}
-                          </div>
-
                           <div className="flex gap-2 justify-end mt-1">
                             <button 
                                 onClick={saveGroupEdit} 
@@ -719,11 +728,7 @@ export default function Settings() {
                         <div className="flex justify-between items-center w-full">
                           <div className="flex items-center gap-3 min-w-0">
                             <div className="w-8 h-8 rounded-lg bg-card/40 flex items-center justify-center text-foreground shrink-0 overflow-hidden">
-                              {g.iconId && customIcons.find(i => i.id === g.iconId) ? (
-                                <img src={customIcons.find(i => i.id === g.iconId)?.data} alt="icon" className="w-full h-full object-cover" />
-                              ) : (
                                 <Users className="w-4 h-4 opacity-40" />
-                              )}
                             </div>
                             <span className="font-medium truncate">{g.name}</span>
                           </div>
@@ -733,7 +738,6 @@ export default function Settings() {
                                 setEditingGroup(g);
                                 setEditGroupValue(g.name);
                                 setEditGroupColor(g.color);
-                                setEditGroupIconId(g.iconId);
                               }} 
                               className="text-muted-foreground hover:text-blue-500 p-1.5 rounded-md transition-all sm:opacity-0 group-hover:opacity-100"
                               title="Редагувати"

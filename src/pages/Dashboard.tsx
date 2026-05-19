@@ -8,7 +8,7 @@ import { formatNameAbbreviated } from '../utils/nameUtils';
 export default function Dashboard() {
   const { 
     visitors, setVisitors, groups, categories, shifts, securityShifts,
-    dirtySkyEvents, startDirtySky, endDirtySky, customIcons
+    dirtySkyEvents, startDirtySky, endDirtySky, customIcons, locations
   } = useData();
   const { showToast } = useToast();
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -521,7 +521,8 @@ export default function Dashboard() {
           {commandVisitors.length > 0 ? (
             commandVisitors.map(v => {
               const visitorGroup = groups?.find((g: any) => g.id === v.groupId) || groups?.find((g: any) => g.name === v.group);
-              const customIcon = customIcons.find(icon => icon.id === v.customIconId) || (visitorGroup?.iconId ? customIcons.find(icon => icon.id === visitorGroup.iconId) : null);
+              const visitorLocation = locations.find(l => l.id === v.locationId) || locations.find(l => l.name === v.location);
+              const customIcon = customIcons.find(icon => icon.id === v.customIconId) || (visitorLocation?.iconId ? customIcons.find(icon => icon.id === visitorLocation.iconId) : null);
               const isOnLocation = v.status === 'in';
               const blockColor = v.color || visitorGroup?.color;
               const hasGroupColor = !!blockColor && blockColor !== 'transparent';
@@ -635,7 +636,8 @@ export default function Dashboard() {
               ) : (
                 modalVisitors.map(v => {
                   const visitorGroup = groups?.find(g => g.id === v.groupId) || groups?.find(g => g.name === v.group);
-                  const customIcon = customIcons.find(icon => icon.id === v.customIconId) || (visitorGroup?.iconId ? customIcons.find(icon => icon.id === visitorGroup.iconId) : null);
+                  const visitorLocation = locations.find(l => l.id === v.locationId) || locations.find(l => l.name === v.location);
+                  const customIcon = customIcons.find(icon => icon.id === v.customIconId) || (visitorLocation?.iconId ? customIcons.find(icon => icon.id === visitorLocation.iconId) : null);
                   const blockColor = v.color || visitorGroup?.color;
                   const hasGroupColor = !!blockColor && blockColor !== 'transparent';
                   

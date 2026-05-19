@@ -394,7 +394,8 @@ export default function Visitors() {
           )}
           {filtered.map((v, index) => {
             const visitorGroup = groups.find(g => g.id === v.groupId) || groups.find(g => g.name === v.group);
-            const customIcon = customIcons.find(icon => icon.id === v.customIconId) || (visitorGroup?.iconId ? customIcons.find(icon => icon.id === visitorGroup.iconId) : null);
+            const visitorLocation = locations.find(l => l.id === v.locationId) || locations.find(l => l.name === v.location);
+            const customIcon = customIcons.find(icon => icon.id === v.customIconId) || (visitorLocation?.iconId ? customIcons.find(icon => icon.id === visitorLocation.iconId) : null);
             const bgColor = v.color || visitorGroup?.color || 'transparent';
             const hasGroupColor = bgColor !== 'transparent';
             
@@ -463,21 +464,12 @@ export default function Visitors() {
                         )}
                       </div>
                     </div>
-                    <div className="text-[9px] font-mono font-bold text-muted-foreground bg-muted/50 border border-border px-1.5 py-0.5 rounded-md shrink-0">
-                      #{index + 1}
-                    </div>
                   </div>
 
                   <div className="flex flex-col gap-0.5 text-[11px] text-muted-foreground mt-0.5">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className="font-semibold text-foreground text-[9px] uppercase tracking-wider opacity-60 shrink-0">Звідки:</span>
                       <span className="break-words">{v.location || v.locationId || v.group}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="font-semibold text-foreground text-[9px] uppercase tracking-wider opacity-60 shrink-0">Група:</span>
-                      <span className="break-words px-1 py-0.5 rounded text-[9px] font-medium" style={{ backgroundColor: hasGroupColor ? `${bgColor}15` : 'var(--muted)', color: hasGroupColor ? bgColor : 'inherit' }}>
-                        {visitorGroup?.name || v.group}
-                      </span>
                     </div>
                   </div>
 

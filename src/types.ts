@@ -4,6 +4,11 @@ export interface Group {
   id: string;
   name: string;
   color: string;
+}
+
+export interface Location {
+  id: string;
+  name: string;
   iconId?: string;
 }
 
