@@ -91,12 +91,10 @@ export default function Visitors() {
     }
     
     const v = matching[0];
-    const logs = v.logs ? [...v.logs] : (v.lastEntry ? [{ in: v.lastEntry }] : []);
-    
     if (action === 'in') {
-      markIn(v.id, logs.length);
+      markIn(v.id);
     } else {
-      markOut(v.id, logs.length - 1);
+      markOut(v.id);
     }
   };
 
@@ -109,7 +107,7 @@ export default function Visitors() {
   }, [search]);
 
   const toggleListening = () => {
-    if (isListeningRef.current) {
+    if (isListening) {
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
@@ -124,9 +122,11 @@ export default function Visitors() {
     // @ts-ignore
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert("Ваш браузер не підтримує розпізнавання мови");
+      showToast("Ваш браузер не підтримує розпізнавання мови", 'error');
       return;
     }
+
+    setIsListening(true);
 
     if (recognitionRef.current) {
       try {
@@ -141,7 +141,6 @@ export default function Visitors() {
 
     recognition.onstart = () => {
       console.log('Speech recognition started');
-      setIsListening(true);
     };
 
     recognition.onend = () => {
@@ -153,18 +152,16 @@ export default function Visitors() {
           console.error('Restart error:', e);
           setIsListening(false);
         }
-      } else {
-        setIsListening(false);
       }
     };
 
     recognition.onerror = (event: any) => { 
       console.error('Speech recognition error:', event.error);
       if (event.error === 'not-allowed') {
-        alert("Помилка: Надайте дозвіл на використання мікрофону у браузері.");
+        showToast("Помилка: Надайте дозвіл на використання мікрофону у браузері.", 'error');
         setIsListening(false);
       } else if (event.error === 'aborted') {
-        // Ignore
+        // Ignore aborted error as it happens on stop()
       } else {
         setIsListening(false);
       }
@@ -181,14 +178,14 @@ export default function Visitors() {
         }
       }
 
-      const text = (finalTranscript || interimTranscript).toLowerCase().trim();
+      const text = (finalTranscript + ' ' + interimTranscript).toLowerCase().trim();
       if (!text) return;
 
-      const isPlus = /\b(плюс|заш|зайш|ввійш|увійш|прийш|заход|зайди|заходь|плюсани|додай)[а-яіїєґ]*\b/i.test(text);
-      const isMinus = /\b(минус|мінус|выш|вийш|піш|виход|вийди|виходь|мінусани|відніми)[а-яіїєґ]*\b/i.test(text);
+      const isPlus = /(?:\+|^|плюс|заш|зайш|ввійш|увійш|прийш|заход|зайди|заходь|плюсани|додай|став|постав|вошел|увійшов|зайшов)[а-яіїєґ]*\b/i.test(text);
+      const isMinus = /(?:-|^|мінус|минус|выш|вийш|піш|виход|вийди|виходь|мінусани|відніми|заверш|ушел|вийшов|зовні|випиши)[а-яіїєґ]*\b/i.test(text);
 
       let searchName = text
-        .replace(/\b(плюс|минус|мінус|зашел|зашла|зайшов|зайшла|ввійшов|ввійшла|увійшов|увійшла|прийшов|прийшла|зайшли|прийшли|вышел|вышла|вийшов|вийшла|пішов|пішла|вийшли|пішли|заш|зайш|ввійш|увійш|прийш|выш|вийш|піш|заход|виход|зайди|заходь|плюсани|додай|вийди|виходь|мінусани|відніми)[а-яіїєґ/]*\b/gi, '')
+        .replace(/(?:\+|-|плюс|минус|мінус|зашел|зашла|зайшов|зайшла|ввійшов|ввійшла|увійшов|увійшла|прийшов|прийшла|зайшли|прийшли|вышел|вышла|вийшов|вийшла|пішов|пішла|вийшли|пішли|заш|зайш|ввійш|увійш|прийш|выш|вийш|піш|заход|виход|зайди|заходь|плюсани|додай|вийди|виходь|мінусани|відніми|став|постав|заверш|ушел|зовні|випиши)[а-яіїєґ/]*\b/gi, '')
         .replace(/[.,!?]/g, '')
         .trim();
 
@@ -210,7 +207,7 @@ export default function Visitors() {
     try {
       recognition.start();
     } catch (err) {
-      console.error(err);
+      console.error('Start error:', err);
       setIsListening(false);
     }
   };
@@ -229,30 +226,44 @@ export default function Visitors() {
       return a.name.localeCompare(b.name);
     });
 
-  const markIn = (id: string, index: number) => {
-    const v = visitors.find(vis => vis.id === id);
-    if (v) {
-      showToast(`${v.name}: ЗАЙШОВ`, 'success');
+  const markIn = (id: string | string[]) => {
+    const ids = Array.isArray(id) ? id : [id];
+    const now = new Date().toISOString();
+    
+    if (ids.length === 1) {
+      const v = visitors.find(vis => vis.id === ids[0]);
+      if (v && v.status !== 'in') {
+        showToast(`${v.name}: ЗАЙШОВ`, 'success');
+      }
     }
 
     setVisitors(prev => prev.map(v => {
-      if (v.id !== id) return v;
-      const now = new Date().toISOString();
+      if (!ids.includes(v.id)) return v;
+      if (v.status === 'in') return v;
+      
       const logs = v.logs ? [...v.logs] : (v.lastEntry ? [{ in: v.lastEntry }] : []);
-      logs[index] = { in: now };
+      if (logs.length === 0 || logs[logs.length - 1].out) {
+        logs.push({ in: now });
+      }
+      
       return { ...v, status: 'in', lastEntry: now, logs };
     }));
     setSearch('');
   };
 
-  const markOut = (id: string, index: number) => {
-    const v = visitors.find(vis => vis.id === id);
-    if (v) {
-      showToast(`${v.name}: ВИЙШОВ`, 'info');
+  const markOut = (id: string | string[]) => {
+    const ids = Array.isArray(id) ? id : [id];
+    const now = new Date().toISOString();
+    
+    if (ids.length === 1) {
+      const v = visitors.find(vis => vis.id === ids[0]);
+      if (v && (v.status === 'in' || v.lastEntry)) {
+        showToast(`${v.name}: ВИЙШОВ`, 'info');
+      }
     }
 
     setVisitors(prev => prev.map(v => {
-      if (v.id !== id) return v;
+      if (!ids.includes(v.id)) return v;
       
       const isGuard = v.groupId === '3' || (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') || (v.location || v.locationId || v.group || '').toLowerCase().includes('рота');
       const isGuardOnDuty = isGuard && shifts.some(s => s.guardId === v.id && !s.endTime);
@@ -261,19 +272,41 @@ export default function Visitors() {
         return v;
       }
 
-      const now = new Date().toISOString();
+      if (v.status === 'out' && !v.lastEntry) return v;
+
       const logs = v.logs ? [...v.logs] : (v.lastEntry ? [{ in: v.lastEntry }] : []);
-      if (!logs[index]) return v;
-      logs[index] = { ...logs[index], out: now };
       
-      const diff = logs[index].in ? differenceInMinutes(new Date(now), new Date(logs[index].in!)) : 0;
-      return { 
-        ...v, 
-        status: 'out', 
-        lastEntry: undefined,
-        logs,
-        totalTimeMinutes: (v.totalTimeMinutes || 0) + diff 
-      };
+      let index = -1;
+      for (let i = logs.length - 1; i >= 0; i--) {
+        if (logs[i].in && !logs[i].out) {
+          index = i;
+          break;
+        }
+      }
+
+      if (index !== -1) {
+        logs[index] = { ...logs[index], out: now };
+        const startTime = logs[index].in;
+        const diff = startTime ? differenceInMinutes(new Date(now), new Date(startTime)) : 0;
+        return { 
+          ...v, 
+          status: 'out', 
+          lastEntry: undefined,
+          logs,
+          totalTimeMinutes: (v.totalTimeMinutes || 0) + Math.max(0, diff) 
+        };
+      } else {
+        const fallbackIn = v.lastEntry || now;
+        logs.push({ in: fallbackIn, out: now });
+        const diff = differenceInMinutes(new Date(now), new Date(fallbackIn));
+        return {
+          ...v,
+          status: 'out',
+          lastEntry: undefined,
+          logs,
+          totalTimeMinutes: (v.totalTimeMinutes || 0) + Math.max(0, diff)
+        };
+      }
     }));
     setSearch('');
   };
@@ -493,7 +526,7 @@ export default function Visitors() {
                     <div className="flex gap-1.5 w-full">
                       {v.status !== 'in' && (
                         <button
-                          onClick={() => !activeDirtySky && markIn(v.id, logs.length)}
+                          onClick={() => !activeDirtySky && markIn(v.id)}
                           disabled={!!activeDirtySky}
                           title={activeDirtySky ? "Вхід заблоковано режимом Брудне небо" : undefined}
                           className={`flex-1 flex justify-center items-center gap-1 px-1.5 py-1.5 text-[9px] font-bold uppercase tracking-wider rounded-lg border transition-colors ${
@@ -512,7 +545,7 @@ export default function Visitors() {
                         const isOutDisabled = isGuardOnDuty || !!activeDirtySky;
                         return (
                           <button
-                            onClick={() => !isOutDisabled && markOut(v.id, logs.length - 1)}
+                            onClick={() => !isOutDisabled && markOut(v.id)}
                             disabled={isOutDisabled}
                             title={isGuardOnDuty ? "Не можна вийти до передачі зміни" : activeDirtySky ? "Вихід заблоковано режимом Брудне небо" : undefined}
                             className={`flex-1 flex justify-center items-center gap-1 px-1.5 py-1.5 text-[9px] font-bold uppercase tracking-wider rounded-lg border transition-colors ${

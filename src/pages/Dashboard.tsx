@@ -162,7 +162,7 @@ export default function Dashboard() {
   }, [searchQuery]);
 
   const toggleListening = () => {
-    if (isListeningRef.current) {
+    if (isListening) {
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
@@ -177,9 +177,11 @@ export default function Dashboard() {
     // @ts-ignore
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      alert("Ваш браузер не підтримує розпізнавання мови");
+      showToast("Ваш браузер не підтримує розпізнавання мови", 'error');
       return;
     }
+
+    setIsListening(true);
 
     if (recognitionRef.current) {
       try {
@@ -194,7 +196,6 @@ export default function Dashboard() {
 
     recognition.onstart = () => {
       console.log('Speech recognition started');
-      setIsListening(true);
     };
 
     recognition.onend = () => {
@@ -206,15 +207,13 @@ export default function Dashboard() {
           console.error('Restart error:', e);
           setIsListening(false);
         }
-      } else {
-        setIsListening(false);
       }
     };
 
     recognition.onerror = (event: any) => { 
       console.error('Speech recognition error:', event.error);
       if (event.error === 'not-allowed') {
-        alert("Помилка: Надайте дозвіл на використання мікрофону у браузері.");
+        showToast("Помилка: Надайте дозвіл на використання мікрофону у браузері.", 'error');
         setIsListening(false);
       } else if (event.error === 'aborted') {
         // Ignore aborted error as it happens on stop()
@@ -234,17 +233,17 @@ export default function Dashboard() {
         }
       }
 
-      const text = (finalTranscript || interimTranscript).toLowerCase().trim();
-      if (!text) return;
+    const text = (finalTranscript + ' ' + interimTranscript).toLowerCase().trim();
+    if (!text) return;
 
-      // Detection with word boundaries
-      const isPlus = /\b(плюс|заш|зайш|ввійш|увійш|прийш|заход|зайди|заходь|плюсани|додай)[а-яіїєґ]*\b/i.test(text);
-      const isMinus = /\b(минус|мінус|выш|вийш|піш|виход|вийди|виходь|мінусани|відніми)[а-яіїєґ]*\b/i.test(text);
+    // Detection with word boundaries and common variations
+    const isPlus = /(?:\+|^|плюс|заш|зайш|ввійш|увійш|прийш|заход|зайди|заходь|плюсани|додай|став|постав|вошел|увійшов|зайшов)[а-яіїєґ]*\b/i.test(text);
+    const isMinus = /(?:-|^|мінус|минус|выш|вийш|піш|виход|вийди|виходь|мінусани|відніми|заверш|ушел|вийшов|зовні|випиши)[а-яіїєґ]*\b/i.test(text);
 
-      let searchName = text
-        .replace(/\b(плюс|минус|мінус|зашел|зашла|зайшов|зайшла|ввійшов|ввійшла|увійшов|увійшла|прийшов|прийшла|зайшли|прийшли|вышел|вышла|вийшов|вийшла|пішов|пішла|вийшли|пішли|заш|зайш|ввійш|увійш|прийш|выш|вийш|піш|заход|виход|зайди|заходь|плюсани|додай|вийди|виходь|мінусани|відніми)[а-яіїєґ/]*\b/gi, '')
-        .replace(/[.,!?]/g, '')
-        .trim();
+    let searchName = text
+      .replace(/(?:\+|-|плюс|минус|мінус|зашел|зашла|зайшов|зайшла|ввійшов|ввійшла|увійшов|увійшла|прийшов|прийшла|зайшли|прийшли|вышел|вышла|вийшов|вийшла|пішов|пішла|вийшли|пішли|заш|зайш|ввійш|увійш|прийш|выш|вийш|піш|заход|виход|зайди|заходь|плюсани|додай|вийди|виходь|мінусани|відніми|став|постав|заверш|ушел|зовні|випиши)[а-яіїєґ/]*\b/gi, '')
+      .replace(/[.,!?]/g, '')
+      .trim();
 
       if (searchName) {
         setSearchQuery(searchName);
@@ -261,7 +260,12 @@ export default function Dashboard() {
     };
 
     recognitionRef.current = recognition;
-    recognition.start();
+    try {
+      recognition.start();
+    } catch (err) {
+      console.error('Start error:', err);
+      setIsListening(false);
+    }
   };
 
   const commandVisitors = visitors.filter(v => {
