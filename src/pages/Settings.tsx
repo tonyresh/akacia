@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useTheme } from '../store/ThemeContext';
 import { useData } from '../store/DataContext';
 import { useToast } from '../store/ToastContext';
-import { X, Check, Type, AppWindow, Database, Download, Upload, MapPin, Users, UserRound, Archive, Palette, LayoutDashboard, Bell, BellOff, Volume2, Clock, Pencil, Trash2, Sliders } from 'lucide-react';
+import { X, Check, Type, AppWindow, Database, Download, Upload, MapPin, Users, UserRound, Archive, Palette, LayoutDashboard, Bell, BellOff, Volume2, Clock, Pencil, Trash2, Sliders, Sun, Moon } from 'lucide-react';
 import { Visitor } from '../types';
 import VisitorManagement from '../components/VisitorManagement';
 
@@ -10,6 +10,7 @@ type SettingsTab = 'database' | 'ranks' | 'locations' | 'groups' | 'backup' | 'a
 
 export default function Settings() {
   const { 
+    theme, setTheme,
     fontSize, setFontSize, 
     toastsEnabled, setToastsEnabled,
     soundsEnabled, setSoundsEnabled,
@@ -961,6 +962,35 @@ export default function Settings() {
                           }`}
                         >
                           {size === 'normal' ? 'Стандартний' : size === 'large' ? 'Великий' : 'Дуже великий'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-4">Тема оформлення (Світла / Темна)</label>
+                    <div className="flex flex-wrap gap-3">
+                      {(['light', 'dark'] as const).map(t => (
+                        <button
+                          key={t}
+                          onClick={() => setTheme(t)}
+                          className={`px-8 py-3 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
+                            theme === t 
+                              ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]' 
+                              : 'bg-muted text-muted-foreground hover:bg-secondary/50 hover:text-foreground border border-border/50'
+                          }`}
+                        >
+                          {t === 'light' ? (
+                            <>
+                              <Sun className="w-4.5 h-4.5" />
+                              <span>Світла</span>
+                            </>
+                          ) : (
+                            <>
+                              <Moon className="w-4.5 h-4.5" />
+                              <span>Темна</span>
+                            </>
+                          )}
                         </button>
                       ))}
                     </div>

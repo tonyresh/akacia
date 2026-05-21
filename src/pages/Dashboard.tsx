@@ -273,7 +273,7 @@ export default function Dashboard() {
       return matchesSearch(v.name, v.callsign, searchQuery);
     }
     const groupName = groups.find(g => g.id === v.groupId)?.name || v.group;
-    return groupName === 'Командування полку' || groupName === 'Керівництво' || groupName === 'Командування 412';
+    return groupName === 'Командування полку' || groupName === 'Керівництво' || groupName === 'Командування 412' || groupName === 'Управління';
   }).sort((a, b) => {
     const specialA = a.isSpecial ? 1 : 0;
     const specialB = b.isSpecial ? 1 : 0;
@@ -281,8 +281,9 @@ export default function Dashboard() {
 
     const groupOrder: Record<string, number> = {
       'Командування 412': 1,
-      'Керівництво': 2,
-      'Командування полку': 3
+      'Управління': 2,
+      'Керівництво': 3,
+      'Командування полку': 4
     };
 
     const groupNameA = groups.find(g => g.id === a.groupId)?.name || a.group || '';
@@ -366,11 +367,18 @@ export default function Dashboard() {
     <div className="space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-col md:grid md:grid-cols-3 items-center gap-4 py-4 mb-2 font-roboto font-normal">
         <div className="md:text-left w-full text-center flex items-center justify-center md:justify-start gap-3">
-          <h1 className="text-2xl font-normal tracking-tight uppercase text-primary">ДАШБОРД</h1>
+          <div className="flex flex-col md:items-start items-center">
+            <span className="text-[10px] font-bold tracking-[0.1em] text-muted-foreground uppercase">
+              Чергова зміна:
+            </span>
+            <span className="text-lg font-bold text-primary uppercase leading-tight mt-0.5">
+              {activeShiftName || 'не заступила'}
+            </span>
+          </div>
           {activeDirtySky && (
-            <div className="flex items-center gap-2 text-red-500 animate-pulse">
-              <TriangleAlert className="w-8 h-8" />
-              <span className="text-sm font-bold uppercase hidden sm:inline">Брудне небо</span>
+            <div className="flex items-center gap-1.5 text-red-500 animate-pulse ml-2">
+              <TriangleAlert className="w-6 h-6 shrink-0" />
+              <span className="text-xs font-bold uppercase whitespace-nowrap hidden sm:inline">Брудне небо</span>
             </div>
           )}
         </div>
@@ -384,13 +392,45 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="md:text-right w-full text-center flex md:justify-end items-center gap-2">
-           <span className="text-xs font-normal tracking-[0.1em] text-muted-foreground uppercase">
-             Чергова зміна:
-           </span>
-           <span className="text-base font-normal text-primary uppercase">
-             {activeShiftName || 'не заступила'}
-           </span>
+        <div className="md:text-right w-full text-center flex justify-center md:justify-end items-center gap-3">
+          <div className="flex flex-col items-center md:items-end">
+            <span className="text-[10px] font-bold tracking-[0.1em] text-muted-foreground uppercase">
+              Брудне небо:
+            </span>
+            <div className="flex items-center gap-2 mt-1">
+              {activeDirtySky ? (
+                <>
+                  <span className="text-[10px] bg-red-500/15 border border-red-500/30 text-red-500 px-2 py-0.5 rounded-md font-bold uppercase animate-pulse">
+                    АКТИВНЕ
+                  </span>
+                  <button
+                    onClick={() => {
+                      endDirtySky();
+                      showToast('Режим Брудне небо завершено', 'success');
+                    }}
+                    className="flex items-center justify-center gap-1 px-3 py-1 rounded-xl text-[10px] font-bold uppercase bg-red-500 hover:bg-red-600 text-white transition-colors shadow-sm shadow-red-500/20 shrink-0"
+                  >
+                    <Square className="w-2.5 h-2.5" /> Вимкнути
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="text-[10px] bg-slate-500/10 border border-slate-500/25 text-muted-foreground px-2 py-0.5 rounded-md font-bold uppercase">
+                    ВИМКН
+                  </span>
+                  <button
+                    onClick={() => {
+                      startDirtySky();
+                      showToast('РЕЖИМ БРУДНЕ НЕБО АКТИВОВАНО!', 'error');
+                    }}
+                    className="flex items-center justify-center gap-1 px-3 py-1 rounded-xl text-[10px] font-bold uppercase bg-emerald-500 hover:bg-emerald-600 text-white transition-colors shadow-sm shadow-emerald-500/20 shrink-0"
+                  >
+                    <Play className="w-2.5 h-2.5" /> Увімкнути
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -413,7 +453,7 @@ export default function Dashboard() {
           className="bg-primary/10 rounded-3xl py-2 sm:py-2.5 px-3 sm:px-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
         >
           <div className="flex items-center gap-2">
-            <div className="text-xs sm:text-sm text-primary font-bold uppercase tracking-wider">Зайшло (з 08:00):</div>
+            <div className="text-xs sm:text-sm text-primary font-bold uppercase tracking-wider">Зайшло:</div>
             <div className="text-xs sm:text-sm font-bold text-primary">{enteredTodayCount}</div>
           </div>
           <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 bg-primary rounded-xl flex items-center justify-center text-primary-foreground font-normal shadow-lg shadow-primary/20">
@@ -426,65 +466,11 @@ export default function Dashboard() {
           className="bg-red-500/10 rounded-3xl py-2 sm:py-2.5 px-3 sm:px-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
         >
           <div className="flex items-center gap-2">
-            <div className="text-xs sm:text-sm text-red-500 font-bold uppercase tracking-wider">Вийшло (з 08:00):</div>
+            <div className="text-xs sm:text-sm text-red-500 font-bold uppercase tracking-wider">Вийшло:</div>
             <div className="text-xs sm:text-sm font-bold text-red-600">{exitedTodayCount}</div>
           </div>
           <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 bg-red-500 rounded-xl flex items-center justify-center text-white font-normal shadow-lg shadow-red-500/20">
             <ArrowRightCircle className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 rotate-180" />
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-card rounded-3xl p-4 shadow-sm">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className={`p-3 rounded-2xl ${activeDirtySky ? 'bg-red-500/10 text-red-500 animate-pulse' : 'bg-muted text-muted-foreground'}`}>
-              <CloudRain className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="text-lg font-normal">Брудне небо</h2>
-              {activeDirtySky ? (
-                <p className="text-sm text-red-600 font-normal">
-                  Триває з {format(new Date(activeDirtySky.startTime), 'HH:mm')}
-                </p>
-              ) : lastCompletedDirtySky ? (
-                <p className="text-sm text-muted-foreground font-normal">
-                  Останнє: з {format(new Date(lastCompletedDirtySky.startTime), 'HH:mm')} до {format(new Date(lastCompletedDirtySky.endTime!), 'HH:mm')}
-                </p>
-              ) : (
-                <p className="text-sm text-muted-foreground font-normal">Облік не ведеться</p>
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            <button
-              onClick={() => {
-                startDirtySky();
-                showToast('РЕЖИМ БРУДНЕ НЕБО АКТИВОВАНО!', 'error');
-              }}
-              disabled={!!activeDirtySky}
-              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-normal transition-all ${
-                activeDirtySky 
-                  ? 'bg-muted text-muted-foreground cursor-not-allowed' 
-                  : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/20'
-              }`}
-            >
-              <Play className="w-4 h-4" /> Початок
-            </button>
-            <button
-              onClick={() => {
-                endDirtySky();
-                showToast('Режим Брудне небо завершено', 'success');
-              }}
-              disabled={!activeDirtySky}
-              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-normal transition-all ${
-                !activeDirtySky 
-                  ? 'bg-muted text-muted-foreground cursor-not-allowed' 
-                  : 'bg-red-500 text-white hover:bg-red-600 shadow-lg shadow-red-500/20'
-              }`}
-            >
-              <Square className="w-4 h-4" /> Кінець
-            </button>
           </div>
         </div>
       </div>
@@ -516,7 +502,7 @@ export default function Dashboard() {
       <div className="bg-card rounded-3xl p-4 flex flex-col shadow-sm">
         <div className="flex justify-between items-end mb-6">
           <div>
-            <h2 className="text-lg font-normal">{searchQuery.trim() ? 'Результати пошуку' : 'Командування'}</h2>
+            <h2 className="text-lg font-normal">{searchQuery.trim() ? 'Результати пошуку' : 'Командування та Управління'}</h2>
             {searchQuery.trim() && <p className="text-xs text-muted-foreground">Знайдені користувачі</p>}
           </div>
         </div>
