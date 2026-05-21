@@ -57,7 +57,7 @@ export const Logo = ({ className }: { className?: string }) => {
           {stripeElements}
         </g>
       </svg>
-      <span className="text-foreground font-extrabold tracking-[0.08em] text-lg uppercase font-sans">
+      <span className="text-foreground font-extrabold tracking-[0.08em] text-lg uppercase font-sans portrait:hidden">
         412 Nemesis
       </span>
     </div>

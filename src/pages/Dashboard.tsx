@@ -387,7 +387,7 @@ export default function Dashboard() {
         </div>
         
         {/* Center column: Date and time */}
-        <div className="text-center flex flex-col items-center justify-center grow shrink-0 min-w-0">
+        <div className="text-center flex-col items-center justify-center grow shrink-0 min-w-0 portrait:flex landscape:hidden">
           <div className="text-lg sm:text-2xl md:text-3xl font-semibold tabular-nums leading-none tracking-tight">
             {currentTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: false})}
           </div>
