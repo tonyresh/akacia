@@ -25,7 +25,7 @@ export default function Layout() {
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden text-foreground">
       {/* Top Header */}
-      <header className="hidden landscape:flex items-center justify-between px-3 sm:px-8 border-b border-border bg-card h-16 shrink-0 gap-2 sm:gap-4 select-none">
+      <header className="hidden landscape:flex items-center justify-between px-3 sm:px-8 border-b border-border bg-card h-16 shrink-0 gap-2 sm:gap-4 select-none no-print">
         {/* Left: Logo */}
         <div className="flex items-center shrink-0">
           <Logo className="w-auto" />
@@ -57,7 +57,7 @@ export default function Layout() {
       </main>
 
       {/* Bottom Navigation for Portrait vertical orientation */}
-      <nav className="flex landscape:hidden fixed bottom-1 left-2 right-2 sm:left-4 sm:right-4 z-50 items-center justify-around bg-card/95 backdrop-blur-md border border-border/80 h-16 rounded-2xl shadow-xl px-2 select-none mb-1">
+      <nav className="flex landscape:hidden fixed bottom-1 left-2 right-2 sm:left-4 sm:right-4 z-50 items-center justify-around bg-card/95 backdrop-blur-md border border-border/80 h-16 rounded-2xl shadow-xl px-2 select-none mb-1 no-print">
         {navItems.map((item) => (
           <NavLink
             key={item.to}

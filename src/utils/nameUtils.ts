@@ -7,7 +7,7 @@ export const formatNameAbbreviated = (fullName: string) => {
   const firstNameInitial = parts[1].charAt(0).toUpperCase();
   const middleNameInitial = parts[2] ? parts[2].charAt(0).toUpperCase() : '';
   
-  return `${lastName} ${firstNameInitial}.${middleNameInitial ? middleNameInitial + '.' : ''}`;
+  return `${lastName} ${firstNameInitial}.${middleNameInitial ? middleNameInitial : ''}`;
 };
 
 export const splitNameTwoLines = (fullName: string) => {
