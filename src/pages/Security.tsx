@@ -181,12 +181,8 @@ export default function Security() {
   const canHandover = isShiftOnDuty && isAfter800 && allGuardsIn && isAnyOtherShiftReady;
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-2xl font-normal tracking-tight">Облік охорони - Чергові зміни</h1>
-      </div>
-
-      <div className="flex gap-3 overflow-x-auto pb-4 hide-scrollbar snap-x">
+    <div className="space-y-4 max-w-7xl mx-auto">
+      <div className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x">
         {securityShifts.map(s => (
           <button
             key={s.id}

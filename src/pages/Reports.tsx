@@ -214,14 +214,7 @@ export default function Reports() {
   };
 
   return (
-    <div className="space-y-3 max-w-7xl mx-auto pb-12 font-roboto">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-normal tracking-tight">Звіти та Аналітика</h1>
-          <p className="text-sm text-muted-foreground mt-1">Детальна статистика відвідувань системи</p>
-        </div>
-      </div>
-
+    <div className="space-y-2.5 max-w-7xl mx-auto pb-12 font-roboto font-normal">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="bg-primary/10 rounded-3xl py-2 sm:py-2.5 px-3 sm:px-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all">
@@ -244,16 +237,17 @@ export default function Reports() {
           </div>
         </div>
 
-        <div className="bg-card rounded-3xl p-1 shadow-sm border border-border/50">
-          <button 
-            onClick={downloadCSV}
-            className="w-full h-full flex items-center justify-center gap-3 py-2 px-4 hover:bg-secondary/50 transition-colors group rounded-2xl"
-          >
-            <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Download className="w-4 h-4" />
-            </div>
-            <span className="text-xs font-bold uppercase tracking-wider">Завантажити CSV</span>
-          </button>
+        <div 
+          onClick={downloadCSV}
+          className="bg-card hover:bg-muted/50 border border-border/50 rounded-3xl py-2 sm:py-2.5 px-3 sm:px-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all cursor-pointer select-none active:scale-95"
+        >
+          <div className="flex items-center gap-2">
+            <div className="text-xs sm:text-sm text-foreground/80 font-bold uppercase tracking-wider">Завантажити CSV:</div>
+            <div className="text-xs sm:text-sm font-bold text-muted-foreground/50">(.csv)</div>
+          </div>
+          <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 bg-secondary border border-border rounded-xl flex items-center justify-center text-foreground font-normal shadow-lg shadow-secondary/20">
+             <Download className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
+          </div>
         </div>
       </div>
 

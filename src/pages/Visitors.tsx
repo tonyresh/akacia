@@ -312,27 +312,16 @@ export default function Visitors() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="bg-card rounded-2xl p-2 sm:p-3 shadow-sm overflow-hidden border-none">
+    <div className="space-y-4 max-w-7xl mx-auto">
+      <div className="bg-card rounded-2xl p-2 sm:p-3 shadow-sm overflow-hidden border-none font-roboto font-normal">
         <div className="flex items-center justify-between gap-1 sm:gap-4 w-full flex-nowrap">
-          <div className="flex items-center gap-1.5 sm:gap-6 shrink-0 min-w-0">
-            <div className="flex items-center gap-1 sm:gap-3 shrink-0">
-              <div className="w-6 h-6 sm:w-10 sm:h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary shrink-0">
-                <Star className="w-3 h-3 sm:w-5 sm:h-5 fill-primary/20" />
-              </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-[6px] sm:text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60 leading-none mb-0.5 whitespace-nowrap">Чергова зміна</span>
-                <h1 className="text-[9px] sm:text-sm font-bold tracking-tight text-foreground truncate">
-                  {currentTime.toLocaleDateString()}
-                </h1>
-              </div>
+          {/* Left: Clock and date same style as dashboard */}
+          <div className="flex flex-col items-start justify-center grow-0 shrink-0 min-w-0">
+            <div className="text-lg sm:text-2xl md:text-3xl font-semibold tabular-nums leading-none tracking-tight">
+              {currentTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: false})}
             </div>
-            
-            <div className="h-4 sm:h-8 w-px bg-border shrink-0" />
-            
-            <div className="text-base sm:text-3xl font-black tracking-tighter text-foreground tabular-nums flex items-baseline gap-0.5 shrink-0">
-              {currentTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: false}).replace(/:\d\d$/, '')}
-              <span className="text-[8px] sm:text-lg opacity-50 ml-0.5">{currentTime.toLocaleTimeString([], {second:'2-digit', hour12: false}).split(':')[0]}</span>
+            <div className="text-[9px] sm:text-[10px] font-bold tracking-[0.12em] text-muted-foreground uppercase mt-1">
+              {currentTime.toLocaleDateString('uk-UA', { day: '2-digit', month: 'long', year: 'numeric' })}
             </div>
           </div>
 

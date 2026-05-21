@@ -411,10 +411,8 @@ export default function Settings() {
   ];
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <h1 className="text-2xl font-bold tracking-tight mb-4">Налаштування</h1>
-
-      <div className="mb-2 overflow-x-auto pb-2 hide-scrollbar">
+    <div className="max-w-6xl mx-auto space-y-3">
+      <div className="mb-2 overflow-x-auto pb-1.5 hide-scrollbar">
         <div className="flex gap-2 min-w-max">
           {menuItems.map((item) => (
             <button
