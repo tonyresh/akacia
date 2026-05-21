@@ -25,24 +25,14 @@ export default function Layout() {
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden text-foreground">
       {/* Top Header */}
-      <header className="flex items-center justify-between px-3 sm:px-8 border-b border-border bg-card h-16 shrink-0 gap-2 sm:gap-4 select-none">
+      <header className="hidden landscape:flex items-center justify-between px-3 sm:px-8 border-b border-border bg-card h-16 shrink-0 gap-2 sm:gap-4 select-none">
         {/* Left: Logo */}
         <div className="flex items-center shrink-0">
           <Logo className="w-auto" />
         </div>
 
-        {/* Center: Clock and Date (only displayed in horizontal landscape orientation) */}
-        <div className="hidden landscape:flex flex-col items-center justify-center text-center font-roboto">
-          <div className="text-xl md:text-2xl font-bold tabular-nums leading-none tracking-tight">
-            {currentTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: false})}
-          </div>
-          <div className="text-[10px] font-bold tracking-[0.12em] text-muted-foreground uppercase mt-1">
-            {currentTime.toLocaleDateString('uk-UA', { day: '2-digit', month: 'long', year: 'numeric' })}
-          </div>
-        </div>
-
         {/* Right: Nav Menu (Only on top in landscape horizontal orientation) */}
-        <nav className="hidden landscape:flex items-center gap-0.5 sm:gap-1.5 overflow-x-auto hide-scrollbar">
+        <nav className="flex items-center gap-0.5 sm:gap-1.5 overflow-x-auto hide-scrollbar">
           {navItems.map((item) => (
             <NavLink
               key={item.to}

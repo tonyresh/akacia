@@ -316,7 +316,7 @@ export default function Visitors() {
       <div className="bg-card rounded-2xl p-2 sm:p-3 shadow-sm overflow-hidden border-none font-roboto font-normal">
         <div className="flex items-center justify-between gap-1 sm:gap-4 w-full flex-nowrap">
           {/* Left: Clock and date same style as dashboard */}
-          <div className="flex flex-col items-start justify-center grow-0 shrink-0 min-w-0 portrait:flex landscape:hidden">
+          <div className="flex flex-col items-start justify-center grow-0 shrink-0 min-w-0">
             <div className="text-lg sm:text-2xl md:text-3xl font-semibold tabular-nums leading-none tracking-tight">
               {currentTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: false})}
             </div>
