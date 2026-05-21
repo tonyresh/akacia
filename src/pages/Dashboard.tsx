@@ -365,44 +365,44 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="flex flex-col md:grid md:grid-cols-3 items-center gap-6 py-4 mb-2 font-roboto font-normal border-b border-border/40 pb-6">
+      <div className="flex flex-row items-center justify-between gap-2 sm:gap-4 md:gap-6 py-4 mb-2 font-roboto font-normal border-b border-border/40 pb-6 w-full min-w-0 flex-nowrap">
         {/* Left column: Notifications like Large active "Dirty sky" + activation time */}
-        <div className="md:text-left w-full text-center flex flex-col items-center md:items-start justify-center grow-0 shrink-0">
+        <div className="flex flex-col items-start justify-center grow shrink min-w-0">
           {activeDirtySky ? (
-            <div className="flex flex-col items-center md:items-start text-red-500 animate-pulse">
-              <div className="flex items-center gap-2">
-                <TriangleAlert className="w-6 h-6 md:w-7 md:h-7 shrink-0" />
-                <span className="text-xl md:text-2xl font-bold uppercase tracking-wide leading-none">Брудне небо</span>
+            <div className="flex flex-col items-start text-red-500 animate-pulse min-w-0">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <TriangleAlert className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
+                <span className="text-sm sm:text-base md:text-lg font-bold uppercase tracking-wide leading-none truncate">Брудне небо</span>
               </div>
-              <span className="text-[11px] md:text-xs font-bold uppercase tracking-widest text-red-500/80 mt-1 pl-0 md:pl-8">
+              <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-red-500/80 mt-1 pl-6">
                 з {format(new Date(activeDirtySky.startTime), 'HH:mm')}
               </span>
             </div>
           ) : (
-            <div className="text-muted-foreground/30 flex items-center gap-2 select-none">
-              <CloudRain className="w-6 h-6 shrink-0" />
-              <span className="text-xs font-bold uppercase tracking-widest leading-none">Небо чисте</span>
+            <div className="text-muted-foreground/30 flex items-center gap-1.5 select-none min-w-0">
+              <CloudRain className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
+              <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest leading-none truncate">Небо чисте</span>
             </div>
           )}
         </div>
         
         {/* Center column: Date and time */}
-        <div className="text-center flex flex-col items-center justify-center grow-0 shrink-0">
-          <div className="text-2xl md:text-3xl font-semibold tabular-nums leading-none tracking-tight">
+        <div className="text-center flex flex-col items-center justify-center grow shrink-0 min-w-0">
+          <div className="text-lg sm:text-2xl md:text-3xl font-semibold tabular-nums leading-none tracking-tight">
             {currentTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: false})}
           </div>
-          <div className="text-[10px] font-bold tracking-[0.12em] text-muted-foreground uppercase mt-2">
+          <div className="text-[9px] sm:text-[10px] font-bold tracking-[0.12em] text-muted-foreground uppercase mt-1">
             {currentTime.toLocaleDateString('uk-UA', { day: '2-digit', month: 'long', year: 'numeric' })}
           </div>
         </div>
 
         {/* Right column: Dirty sky title and ON/OFF status buttons */}
-        <div className="md:text-right w-full text-center flex justify-center md:justify-end items-center gap-3">
-          <div className="flex flex-col items-center md:items-end gap-1.5 w-[110px] md:w-[130px]">
-            <span className="text-xs md:text-sm font-bold tracking-[0.05em] text-muted-foreground uppercase whitespace-nowrap">
+        <div className="flex justify-end items-center grow shrink-0">
+          <div className="flex flex-col items-center md:items-end gap-1.5 w-[90px] sm:w-[110px] md:w-[130px]">
+            <span className="text-[10px] sm:text-xs md:text-sm font-bold tracking-[0.05em] text-muted-foreground uppercase whitespace-nowrap">
               Брудне небо
             </span>
-            <div className="flex items-center gap-1.5 w-full">
+            <div className="flex items-center gap-1 w-full">
               <button
                 onClick={() => {
                   if (!activeDirtySky) {
@@ -410,7 +410,7 @@ export default function Dashboard() {
                     showToast('РЕЖИМ БРУДНЕ НЕБО АКТИВОВАНО!', 'error');
                   }
                 }}
-                className={`flex-1 h-10 rounded-xl text-xs font-black uppercase transition-all flex flex-col items-center justify-center shrink-0 ${
+                className={`flex-1 h-8 sm:h-9 md:h-10 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-black uppercase transition-all flex flex-col items-center justify-center shrink-0 ${
                   activeDirtySky 
                     ? 'bg-red-500 text-white shadow-lg shadow-red-500/20 scale-[1.03]' 
                     : 'bg-muted text-muted-foreground hover:bg-neutral-200 dark:hover:bg-neutral-800'
@@ -427,7 +427,7 @@ export default function Dashboard() {
                     showToast('Режим Брудне небо завершено', 'success');
                   }
                 }}
-                className={`flex-1 h-10 rounded-xl text-xs font-black uppercase transition-all flex flex-col items-center justify-center shrink-0 ${
+                className={`flex-1 h-8 sm:h-9 md:h-10 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-black uppercase transition-all flex flex-col items-center justify-center shrink-0 ${
                   !activeDirtySky 
                     ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 scale-[1.03]' 
                     : 'bg-muted text-muted-foreground hover:bg-neutral-200 dark:hover:bg-neutral-800'
@@ -507,12 +507,14 @@ export default function Dashboard() {
       </div>
 
       <div className="bg-card rounded-3xl p-4 flex flex-col shadow-sm">
-        <div className="flex justify-between items-end mb-6">
-          <div>
-            <h2 className="text-lg font-normal">{searchQuery.trim() ? 'Результати пошуку' : 'Командування та Управління'}</h2>
-            {searchQuery.trim() && <p className="text-xs text-muted-foreground">Знайдені користувачі</p>}
+        {searchQuery.trim() && (
+          <div className="flex justify-between items-end mb-6">
+            <div>
+              <h2 className="text-lg font-normal">Результати пошуку</h2>
+              <p className="text-xs text-muted-foreground">Знайдені користувачі</p>
+            </div>
           </div>
-        </div>
+        )}
         
         <div className="space-y-2 pr-2 hide-scrollbar">
           {commandVisitors.length > 0 ? (
