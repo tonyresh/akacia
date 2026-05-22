@@ -33,25 +33,23 @@ export default function Layout() {
     <div className="flex flex-col h-screen bg-background overflow-hidden text-foreground">
       {/* Top Header */}
       <header className="hidden landscape:flex items-center justify-between px-3 sm:px-6 md:px-8 border-b border-border bg-card h-16 shrink-0 select-none no-print">
-        {/* Left: Logo */}
-        <div className="flex items-center shrink-0">
+        {/* Left Column: Logo and Clock centered between Logo and Dirty Sky */}
+        <div className="flex-1 flex items-center min-w-0">
           <Logo className="w-auto shrink-0" />
-        </div>
-        
-        {/* Center-Left: Time & Date (Centered between Logo and Dirty Sky) */}
-        <div className="flex-1 flex justify-center items-center px-2 min-w-0">
-          <div className="flex flex-col items-center justify-center leading-none text-center">
-            <span className="text-lg sm:text-2xl md:text-3xl font-semibold tabular-nums tracking-tight text-foreground">
-              {currentTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: false})}
-            </span>
-            <span className="text-[9px] sm:text-[10px] font-bold tracking-[0.12em] text-muted-foreground uppercase mt-1">
-              {currentTime.toLocaleDateString('uk-UA', { day: '2-digit', month: 'long', year: 'numeric' }).replace(/\s*р\.?$/, '')}
-            </span>
+          <div className="flex-1 flex justify-center items-center px-2 min-w-0">
+            <div className="flex flex-col items-center justify-center leading-none text-center">
+              <span className="text-lg sm:text-2xl md:text-3xl font-semibold tabular-nums tracking-tight text-foreground">
+                {currentTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: false})}
+              </span>
+              <span className="text-[9px] sm:text-[10px] font-bold tracking-[0.12em] text-muted-foreground uppercase mt-1">
+                {currentTime.toLocaleDateString('uk-UA', { day: '2-digit', month: 'long', year: 'numeric' }).replace(/\s*р\.?$/, '')}
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Center-Right: Dirty Sky Controls (Centered between Clock and Menu) */}
-        <div className="flex-1 flex justify-center items-center px-2 min-w-0">
+        {/* Center Column: Dirty Sky Controls (centered between Logo and Menu) */}
+        <div className="shrink-0 flex justify-center items-center px-4">
           {!activeDirtySky ? (
             <div className="flex items-center gap-2 select-none shrink-0">
               <span className="text-[10px] sm:text-xs font-bold tracking-wider uppercase text-muted-foreground">Брудне небо</span>
@@ -67,10 +65,10 @@ export default function Layout() {
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-3 sm:gap-4 select-none shrink-0 justify-center">
-              <div className="flex items-center gap-2 text-red-500 animate-pulse font-extrabold text-xs sm:text-sm md:text-base lg:text-lg uppercase tracking-wider">
-                <TriangleAlert className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 shrink-0" />
-                <span>Брудне небо з {format(new Date(activeDirtySky.startTime), 'HH:mm')}</span>
+            <div className="flex items-center gap-2 sm:gap-3 select-none shrink-0 justify-center">
+              <div className="flex items-center gap-1.5 text-red-500 animate-pulse font-extrabold text-xs sm:text-sm md:text-base uppercase tracking-wider">
+                <TriangleAlert className="w-4 h-4 sm:w-5 sm:h-5 shrink-0" />
+                <span>Брудне небо</span>
               </div>
               <button
                 onClick={() => {
@@ -86,8 +84,8 @@ export default function Layout() {
           )}
         </div>
 
-        {/* Right: Nav Menu */}
-        <div className="flex items-center justify-end shrink-0">
+        {/* Right Column: Nav Menu */}
+        <div className="flex-1 flex items-center justify-end min-w-0">
           <nav className="flex items-center gap-0.5 sm:gap-1 overflow-x-auto hide-scrollbar">
             {navItems.map((item) => (
               <NavLink

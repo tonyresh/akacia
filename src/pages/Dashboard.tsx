@@ -444,7 +444,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
         <div 
           onClick={() => setModalType('on_location')}
-          className="bg-emerald-500/10 rounded-3xl py-2 sm:py-2.5 px-3 sm:px-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
+          className="bg-emerald-500/10 rounded-2xl py-2 sm:py-2.5 px-3 sm:px-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
         >
           <div className="flex items-center gap-2">
             <div className="text-xs sm:text-sm text-emerald-600 font-bold uppercase tracking-wider">На локації:</div>
@@ -457,20 +457,20 @@ export default function Dashboard() {
 
         <div 
           onClick={() => setModalType('entered')}
-          className="bg-primary/10 rounded-3xl py-2 sm:py-2.5 px-3 sm:px-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
+          className="bg-primary/10 rounded-2xl py-2 sm:py-2.5 px-3 sm:px-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
         >
           <div className="flex items-center gap-2">
             <div className="text-xs sm:text-sm text-primary font-bold uppercase tracking-wider">Зайшло:</div>
             <div className="text-xs sm:text-sm font-bold text-primary">{enteredTodayCount}</div>
           </div>
           <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 bg-primary rounded-xl flex items-center justify-center text-primary-foreground font-normal shadow-lg shadow-primary/20">
-             <ArrowRightCircle className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
+              <ArrowRightCircle className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
           </div>
         </div>
 
         <div 
           onClick={() => setModalType('exited')}
-          className="bg-red-500/10 rounded-3xl py-2 sm:py-2.5 px-3 sm:px-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
+          className="bg-red-500/10 rounded-2xl py-2 sm:py-2.5 px-3 sm:px-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
         >
           <div className="flex items-center gap-2">
             <div className="text-xs sm:text-sm text-red-500 font-bold uppercase tracking-wider">Вийшло:</div>
@@ -482,7 +482,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="bg-card rounded-2xl p-2 sm:p-3 shadow-sm font-roboto font-normal flex items-center justify-center gap-1.5 sm:gap-3 w-full">
+      <div className="bg-card rounded-2xl p-2 sm:p-3 shadow-sm font-roboto font-normal flex items-center justify-center gap-1.5 sm:gap-3 w-full !mt-1 !mb-1">
         <div className="relative flex-1 max-w-xl">
           <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground/60" />
           <input 
