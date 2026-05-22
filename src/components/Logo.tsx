@@ -21,7 +21,7 @@ export const Logo = ({ className }: { className?: string }) => {
     <div className={`flex flex-row items-center gap-3 ${className || ''}`}>
       <svg
         viewBox="0 0 200 220"
-        className="h-10 w-10 shrink-0 select-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]"
+        className="h-[42px] w-[38px] sm:h-[53px] sm:w-[48px] md:h-[60px] md:w-[54px] shrink-0 select-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]"
       >
         <defs>
           <mask id="logo-head-mask">
@@ -57,7 +57,7 @@ export const Logo = ({ className }: { className?: string }) => {
           {stripeElements}
         </g>
       </svg>
-      <span className="text-foreground font-extrabold tracking-[0.08em] text-lg uppercase font-sans portrait:hidden">
+      <span className="text-foreground font-extrabold tracking-[0.08em] text-[20px] uppercase font-sans portrait:hidden">
         412 Nemesis
       </span>
     </div>

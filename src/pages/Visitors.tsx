@@ -313,7 +313,7 @@ export default function Visitors() {
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
-      <div className="bg-card rounded-2xl p-2 sm:p-3 shadow-sm overflow-hidden border-none font-roboto font-normal">
+      <div className="bg-transparent shadow-none overflow-hidden border-none font-roboto font-normal p-0">
         <div className="flex items-center justify-center gap-1.5 sm:gap-3 w-full">
           <div className="relative flex-1 max-w-xl">
             <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground/60" />
@@ -322,12 +322,12 @@ export default function Visitors() {
               placeholder="Швидкий пошук відвідувачів..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 sm:pl-11 pr-4 py-2 bg-muted/40 border border-border/80 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all placeholder:text-muted-foreground/50"
+              className="w-full pl-9 sm:pl-11 pr-4 py-2 bg-muted/40 border border-transparent rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all placeholder:text-muted-foreground/50"
             />
           </div>
           <button
              onClick={toggleListening}
-             className={`w-8 h-8 sm:w-10 sm:h-10 border rounded-xl transition-all flex items-center justify-center shrink-0 cursor-pointer ${isListening ? 'bg-red-500 text-white border-transparent shadow-[0_0_15px_rgba(239,68,68,0.4)] animate-pulse' : 'bg-muted/50 border-border hover:bg-muted text-muted-foreground'}`}
+             className={`w-8 h-8 sm:w-10 sm:h-10 border border-transparent rounded-xl transition-all flex items-center justify-center shrink-0 cursor-pointer ${isListening ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)] animate-pulse' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}
              title="Голосовий пошук"
           >
             {isListening ? <Mic className="w-4 h-4 sm:w-5 sm:h-5" /> : <MicOff className="w-4 h-4 sm:w-5 sm:h-5" />}
@@ -340,7 +340,7 @@ export default function Visitors() {
           {showLeftArrow && (
             <button 
               onClick={() => scroll('left')}
-              className="absolute -left-4 top-1/2 -translate-y-1/2 z-10 p-2 bg-card border border-border rounded-full shadow-lg hover:bg-muted transition-all"
+              className="absolute -left-4 top-1/2 -translate-y-1/2 z-10 p-2 bg-card border border-transparent rounded-full shadow-lg hover:bg-muted transition-all"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -364,29 +364,32 @@ export default function Visitors() {
              </button>
             <div className="w-px h-6 bg-border/60 mx-1 shrink-0 self-center" />
             {[{ id: 'all', name: 'Всі', color: '' }, ...groups].map(g => (
-              <button
-                key={g.id}
-                onClick={() => setActiveGroup(g.id)}
-                className={`h-10 px-4 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all border shrink-0 ${
-                  activeGroup === g.id 
-                    ? 'bg-primary text-primary-foreground border-transparent shadow-lg shadow-primary/20 scale-[1.02]' 
-                    : 'bg-card hover:bg-muted border-border text-muted-foreground'
-                }`}
-              >
-                {g.name}
-              </button>
+               <button
+                 key={g.id}
+                 onClick={() => setActiveGroup(g.id)}
+                 className={`h-10 px-4 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all border shrink-0 ${
+                   activeGroup === g.id 
+                     ? 'bg-primary text-primary-foreground border-transparent shadow-lg shadow-primary/20 scale-[1.02]' 
+                     : 'bg-card hover:bg-muted border-border text-muted-foreground'
+                 }`}
+               >
+                 {g.name}
+               </button>
             ))}
           </div>
 
           {showRightArrow && (
             <button 
               onClick={() => scroll('right')}
-              className="absolute -right-4 top-1/2 -translate-y-1/2 z-10 p-2 bg-card border border-border rounded-full shadow-lg hover:bg-muted transition-all"
+              className="absolute -right-4 top-1/2 -translate-y-1/2 z-10 p-2 bg-card border border-transparent rounded-full shadow-lg hover:bg-muted transition-all"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           )}
         </div>
+
+        {/* Divider line between groups and visitor cards list block */}
+        <div className="h-px bg-border/60 w-full mb-6 no-print" />
 
         <style>{`
           @media (min-width: 1024px) {
@@ -398,7 +401,7 @@ export default function Visitors() {
         
         <div className="visitors-grid grid grid-cols-1 sm:grid-cols-2 gap-3">
           {filtered.length === 0 && (
-            <div className="col-span-full py-16 text-center text-muted-foreground border border-border rounded-2xl bg-muted/20">
+            <div className="col-span-full py-16 text-center text-muted-foreground rounded-2xl bg-muted/20">
               Немає даних для відображення
             </div>
           )}
@@ -486,7 +489,7 @@ export default function Visitors() {
                   <div className="mt-auto pt-2 border-t border-border/50 flex flex-col gap-1.5">
                     {displayLogs.length > 0 && (
                       <div className="flex flex-wrap gap-1">
-                        <div className="flex items-center text-[11px] sm:text-xs font-mono font-bold bg-muted/50 border border-border/50 rounded px-2 py-1 w-full justify-between">
+                        <div className="flex items-center text-[11px] sm:text-xs font-mono font-bold bg-muted/60 border border-transparent rounded px-2 py-1 w-full justify-between">
                           <span className="text-emerald-600" title="Перший захід (в цій зміні)">
                             {displayLogs[0].in ? new Date(displayLogs[0].in).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false}) : '--:--'}
                           </span>

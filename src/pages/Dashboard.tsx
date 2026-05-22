@@ -482,7 +482,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="bg-card rounded-2xl p-2 sm:p-3 shadow-sm font-roboto font-normal flex items-center justify-center gap-1.5 sm:gap-3 w-full !mt-1 !mb-1">
+      <div className="bg-transparent shadow-none font-roboto font-normal flex items-center justify-center gap-1.5 sm:gap-3 w-full !mt-1 !mb-1 p-0">
         <div className="relative flex-1 max-w-xl">
           <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground/60" />
           <input 
@@ -490,15 +490,15 @@ export default function Dashboard() {
             placeholder="Швидкий пошук за іменем чи позивним..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 sm:pl-11 pr-4 py-2 bg-muted/40 border border-border/80 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all placeholder:text-muted-foreground/50 font-normal"
+            className="w-full pl-9 sm:pl-11 pr-4 py-2 bg-muted/40 border border-transparent rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all placeholder:text-muted-foreground/50 font-normal"
           />
         </div>
         <button
           onClick={toggleListening}
-          className={`w-8 h-8 sm:w-10 sm:h-10 border rounded-xl transition-all flex items-center justify-center shrink-0 cursor-pointer ${
+          className={`w-8 h-8 sm:w-10 sm:h-10 border border-transparent rounded-xl transition-all flex items-center justify-center shrink-0 cursor-pointer ${
             isListening 
-              ? 'bg-red-500 text-white border-transparent shadow-[0_0_15px_rgba(239,68,68,0.4)] animate-pulse' 
-              : 'bg-muted/50 border-border hover:bg-muted text-muted-foreground'
+              ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)] animate-pulse' 
+              : 'bg-muted/50 hover:bg-muted text-muted-foreground'
           }`}
           title={isListening ? "Зупинити голосовий пошук" : "Голосовий пошук та команди"}
         >
@@ -607,7 +607,7 @@ export default function Dashboard() {
               );
             })
           ) : (
-            <div className="py-12 text-center text-muted-foreground bg-muted/10 border border-border border-dashed rounded-2xl">
+            <div className="py-12 text-center text-muted-foreground bg-muted/10 rounded-2xl">
                Користувачів не знайдено
             </div>
           )}
@@ -629,7 +629,7 @@ export default function Dashboard() {
             </div>
             <div className="p-4 overflow-y-auto flex-1 space-y-3">
               {modalVisitors.length === 0 ? (
-                <div className="py-12 text-center text-muted-foreground border border-border border-dashed rounded-2xl bg-muted/20">
+                <div className="py-12 text-center text-muted-foreground rounded-2xl bg-muted/20">
                   Немає даних
                 </div>
               ) : (

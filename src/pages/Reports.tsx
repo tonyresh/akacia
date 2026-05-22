@@ -480,74 +480,43 @@ export default function Reports() {
   return (
     <div className="space-y-2.5 max-w-7xl mx-auto pb-12 font-roboto font-normal">
       {/* Summary Metrics & Save Row - polished dashboard flow */}
-      <div className="flex flex-col lg:flex-row gap-3 no-print">
-        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="bg-primary/10 rounded-3xl py-2 sm:py-2.5 px-3 sm:px-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all">
-            <div className="flex items-center gap-2">
-              <div className="text-xs sm:text-sm text-primary font-bold uppercase tracking-wider">Відвідувань:</div>
-              <div className="text-xs sm:text-sm font-bold text-primary">{totalVisits}</div>
-            </div>
-            <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 bg-primary rounded-xl flex items-center justify-center text-primary-foreground font-normal shadow-lg shadow-primary/20">
-               <ArrowRightCircle className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
-            </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full no-print">
+        <div className="bg-primary/10 rounded-xl py-2 sm:py-2.5 px-3 sm:px-[14px] flex items-center justify-between shadow-sm hover:shadow-md transition-all h-[52px] sm:h-[60px]">
+          <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 opacity-0 select-none pointer-events-none" />
+          <div className="flex items-center justify-center gap-2 flex-1 text-center font-roboto">
+            <span className="text-xs sm:text-sm text-primary font-bold uppercase tracking-wider">Відвідувань:</span>
+            <span className="text-xs sm:text-sm font-bold text-primary">{totalVisits}</span>
           </div>
+          <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 bg-primary rounded-xl flex items-center justify-center text-primary-foreground font-normal shadow-lg shadow-primary/20">
+             <ArrowRightCircle className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
+          </div>
+        </div>
 
-          <div className="bg-emerald-500/10 rounded-3xl py-2 sm:py-2.5 px-3 sm:px-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all">
-            <div className="flex items-center gap-2">
-              <div className="text-xs sm:text-sm text-emerald-600 font-bold uppercase tracking-wider">Відвідувачів:</div>
-              <div className="text-xs sm:text-sm font-bold text-emerald-700">{uniqueVisitors}</div>
-            </div>
-            <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-normal shadow-lg shadow-emerald-500/20">
-               <Users className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
-            </div>
+        <div className="bg-emerald-500/10 rounded-xl py-2 sm:py-2.5 px-3 sm:px-[14px] flex items-center justify-between shadow-sm hover:shadow-md transition-all h-[52px] sm:h-[60px]">
+          <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 opacity-0 select-none pointer-events-none" />
+          <div className="flex items-center justify-center gap-2 flex-1 text-center font-roboto">
+            <span className="text-xs sm:text-sm text-emerald-600 font-bold uppercase tracking-wider">Відвідувачів:</span>
+            <span className="text-xs sm:text-sm font-bold text-emerald-700">{uniqueVisitors}</span>
+          </div>
+          <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-normal shadow-lg shadow-emerald-500/20">
+             <Users className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
           </div>
         </div>
 
         {/* Polished Save Card with Shift dropdown and Print button */}
-        <div className="bg-card border border-border/50 rounded-3xl py-1.5 px-4 flex flex-col xs:flex-row xs:items-center justify-between gap-3 shadow-sm hover:shadow-md transition-all lg:w-[48%]">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 flex-1">
-            <div className="flex flex-col">
-              <div className="text-xs text-foreground/80 font-bold uppercase tracking-wider leading-tight">Зберегти та надрукувати:</div>
-              <div className="text-[10px] text-muted-foreground">Звіт за вказаний період</div>
-            </div>
-            
-            <div className="flex items-center gap-2 sm:ml-auto select-none">
-              <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider">Чергова зміна:</span>
-              <select
-                value={selectedShiftId}
-                onChange={(e) => setSelectedShiftId(e.target.value)}
-                className="text-xs font-semibold px-2 py-1 border border-border/60 bg-muted/45 rounded-lg outline-none cursor-pointer focus:ring-1 focus:ring-primary/20 pr-6 text-foreground"
-              >
-                {securityShifts && securityShifts.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-                {(!securityShifts || securityShifts.length === 0) && (
-                  <option value="">Немає змін</option>
-                )}
-              </select>
-            </div>
+        <div className="bg-card border border-border/50 rounded-xl py-1.5 px-3 sm:px-[14px] flex flex-row items-center justify-between gap-3 shadow-sm hover:shadow-md transition-all h-[52px] sm:h-[60px]">
+          <div className="min-w-[62px] sm:min-w-[72px] shrink-0 opacity-0 select-none pointer-events-none" />
+          <div className="flex flex-col flex-1 text-center justify-center font-roboto">
+            <span className="text-xs sm:text-sm text-foreground font-bold uppercase tracking-wider leading-tight">Сформувати</span>
+            <span className="text-[10px] text-muted-foreground mt-0.5 lowercase">за обраний період</span>
           </div>
-          <div className="flex gap-1.5 self-end xs:self-auto shrink-0">
+          <div className="flex shrink-0 items-center justify-center">
             <button 
               onClick={downloadCSV}
-              className="px-2.5 py-1 sm:py-1.5 bg-secondary hover:bg-muted text-foreground rounded-xl flex items-center justify-center font-bold text-[10px] sm:text-xs uppercase cursor-pointer select-none active:scale-95 transition-all"
+              className="px-3 py-1.5 sm:py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl flex items-center justify-center gap-1.5 font-bold text-[10px] sm:text-xs uppercase cursor-pointer select-none active:scale-95 transition-all shadow-md shadow-emerald-500/10 min-w-[62px] sm:min-w-[72px]"
             >
-              CSV
-            </button>
-            <button 
-              onClick={generatePDF}
-              disabled={isGeneratingPdf}
-              className="px-2.5 py-1 sm:py-1.5 bg-secondary hover:bg-muted text-foreground rounded-xl flex items-center justify-center font-bold text-[10px] sm:text-xs uppercase cursor-pointer select-none active:scale-95 transition-all disabled:opacity-45"
-            >
-              {isGeneratingPdf ? 'PDF...' : 'PDF'}
-            </button>
-            <button 
-              onClick={() => window.print()}
-              className="px-3.5 py-1 sm:py-1.5 bg-primary hover:bg-primary/95 text-primary-foreground rounded-xl flex items-center justify-center font-bold text-[10px] sm:text-xs uppercase cursor-pointer select-none active:scale-95 transition-all shadow-md shadow-primary/10"
-            >
-              Друк
+              <Download className="w-3.5 h-3.5" />
+              <span>CSV</span>
             </button>
           </div>
         </div>
@@ -625,14 +594,14 @@ export default function Reports() {
                   <input 
                     type="text" 
                     placeholder="Пошук за іменем чи позивним..."
-                    className="w-full pl-10 pr-4 py-2 border border-border rounded-xl bg-muted/20 outline-none focus:ring-2 focus:ring-primary/20 transition-all font-normal text-sm"
+                    className="w-full pl-10 pr-4 py-2 border border-transparent rounded-xl bg-muted/20 outline-none focus:ring-2 focus:ring-primary/20 transition-all font-normal text-sm"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
                 </div>
                 <div className="flex gap-2">
                   <select 
-                    className="px-4 py-2 border border-border rounded-xl bg-card outline-none focus:ring-2 focus:ring-primary/20 font-normal text-sm appearance-none cursor-pointer hover:bg-muted transition-colors min-w-[140px]"
+                    className="px-4 py-2 border border-transparent rounded-xl bg-card outline-none focus:ring-2 focus:ring-primary/20 font-normal text-sm appearance-none cursor-pointer hover:bg-muted transition-colors min-w-[140px]"
                     value={filterGroup}
                     onChange={(e) => setFilterGroup(e.target.value)}
                   >
