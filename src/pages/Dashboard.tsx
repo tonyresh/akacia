@@ -365,16 +365,16 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="flex flex-row items-center justify-between gap-2 sm:gap-4 md:gap-6 py-4 mb-2 font-roboto font-normal border-b border-border/40 pb-6 w-full min-w-0 flex-nowrap">
+      <div className="flex landscape:hidden flex-row items-center justify-between gap-2 sm:gap-4 md:gap-6 py-4 mb-2 font-roboto font-normal border-b border-border/40 pb-6 w-full min-w-0 flex-nowrap">
         {/* Left column: Notifications like Large active "Dirty sky" + activation time */}
         <div className="flex flex-col items-start justify-center grow shrink min-w-0">
           {activeDirtySky ? (
             <div className="flex flex-col items-start text-red-500 animate-pulse min-w-0">
               <div className="flex items-center gap-1.5 min-w-0">
-                <TriangleAlert className="w-5 h-5 sm:w-6 sm:h-6 shrink-0" />
-                <span className="text-sm sm:text-base md:text-lg font-bold uppercase tracking-wide leading-none truncate">Брудне небо</span>
+                <TriangleAlert className="w-6 h-6 sm:w-7 sm:h-7 shrink-0" />
+                <span className="text-base sm:text-lg md:text-xl font-extrabold uppercase tracking-wide leading-none truncate">Брудне небо</span>
               </div>
-              <span className="text-[10px] sm:text-xs font-bold uppercase tracking-widest text-red-500/80 mt-1 pl-6">
+              <span className="text-xs sm:text-sm font-bold uppercase tracking-widest text-red-500/80 mt-1 pl-7.5">
                 з {format(new Date(activeDirtySky.startTime), 'HH:mm')}
               </span>
             </div>
@@ -392,7 +392,7 @@ export default function Dashboard() {
             {currentTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: false})}
           </div>
           <div className="text-[9px] sm:text-[10px] font-bold tracking-[0.12em] text-muted-foreground uppercase mt-1">
-            {currentTime.toLocaleDateString('uk-UA', { day: '2-digit', month: 'long', year: 'numeric' })}
+            {currentTime.toLocaleDateString('uk-UA', { day: '2-digit', month: 'long', year: 'numeric' }).replace(/\s*р\.?$/, '')}
           </div>
         </div>
 
@@ -482,27 +482,27 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="relative group">
-        <div className="absolute inset-y-0 left-0 pl-6 flex items-center pointer-events-none transition-transform group-focus-within:scale-110">
-          <Search className="w-8 h-8 text-primary/60 group-focus-within:text-primary transition-colors" />
+      <div className="bg-card rounded-2xl p-2 sm:p-3 shadow-sm font-roboto font-normal flex items-center justify-center gap-1.5 sm:gap-3 w-full">
+        <div className="relative flex-1 max-w-xl">
+          <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground/60" />
+          <input 
+            type="text"
+            placeholder="Швидкий пошук за іменем чи позивним..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-9 sm:pl-11 pr-4 py-2 bg-muted/40 border border-border/80 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all placeholder:text-muted-foreground/50 font-normal"
+          />
         </div>
-        <input
-          type="text"
-          placeholder="Швидкий пошук за іменем чи позивним..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-18 pr-16 py-6 bg-card border-2 border-primary/20 rounded-3xl text-xl focus:outline-none focus:border-primary focus:ring-8 focus:ring-primary/5 transition-all shadow-xl hover:shadow-2xl placeholder:text-muted-foreground/40 font-normal"
-        />
         <button
           onClick={toggleListening}
-          className={`absolute inset-y-0 right-3 my-auto h-14 w-14 flex items-center justify-center rounded-[1.5rem] transition-all ${
+          className={`w-8 h-8 sm:w-10 sm:h-10 border rounded-xl transition-all flex items-center justify-center shrink-0 cursor-pointer ${
             isListening 
-              ? 'bg-red-500 text-white shadow-lg shadow-red-500/20 animate-pulse' 
-              : 'text-primary/60 hover:bg-primary/10 hover:text-primary'
+              ? 'bg-red-500 text-white border-transparent shadow-[0_0_15px_rgba(239,68,68,0.4)] animate-pulse' 
+              : 'bg-muted/50 border-border hover:bg-muted text-muted-foreground'
           }`}
           title={isListening ? "Зупинити голосовий пошук" : "Голосовий пошук та команди"}
         >
-          {isListening ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+          {isListening ? <MicOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Mic className="w-4 h-4 sm:w-5 sm:h-5" />}
         </button>
       </div>
 
