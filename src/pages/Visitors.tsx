@@ -265,10 +265,9 @@ export default function Visitors() {
     setVisitors(prev => prev.map(v => {
       if (!ids.includes(v.id)) return v;
       
-      const isGuard = v.groupId === '3' || (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') || (v.location || v.locationId || v.group || '').toLowerCase().includes('рота');
-      const isGuardOnDuty = isGuard && shifts.some(s => s.guardId === v.id && !s.endTime);
+      const isGuardOnDuty = shifts.some(s => s.guardId === v.id && !s.endTime);
       if (isGuardOnDuty) {
-        showToast(`Не можна вийти: ${v.name} заступив на чергування`, 'error');
+        showToast(`Не можна вийти: зміна чергування не може вийти з локації, поки не передасть зміну іншій групі`, 'error');
         return v;
       }
 

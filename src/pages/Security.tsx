@@ -124,22 +124,40 @@ export default function Security() {
   };
 
   const startShiftWorkSession = () => {
-    const shiftVisitors = visitors.filter(v => activeShift?.visitorIds.includes(v.id));
+    if (!activeShift) return;
+    const shiftVisitors = visitors.filter(v => activeShift.visitorIds.includes(v.id));
     const now = new Date().toISOString();
-    const newShifts = shiftVisitors
-      .filter(guard => guard.status === 'in' && !getActiveWorkSession(guard.id))
-      .map((guard, i) => ({
-        id: Date.now().toString() + i,
-        guardId: guard.id,
-        startTime: now,
-        restPeriods: []
-      }));
-    if (newShifts.length > 0) {
-      setShifts(prev => [...prev, ...newShifts]);
-      showToast('Група заступила на чергову зміну', 'success');
-    } else {
-      showToast('Неможливо заступити: користувачі не на локації', 'error');
-    }
+    
+    // Set endTime for all guards from the previous shifts who are currently active
+    setShifts(prev => {
+      const endedShifts = prev.map(s => {
+        if (!s.endTime && !activeShift.visitorIds.includes(s.guardId)) {
+          return { ...s, endTime: now };
+        }
+        return s;
+      });
+
+      const newShifts = shiftVisitors
+        .filter(guard => guard.status === 'in' && !endedShifts.some(u => u.guardId === guard.id && !u.endTime))
+        .map((guard, i) => ({
+          id: Date.now().toString() + i + '-' + Math.random(),
+          guardId: guard.id,
+          startTime: now,
+          restPeriods: []
+        }));
+
+      if (newShifts.length > 0) {
+        setTimeout(() => {
+          showToast('Група заступила на чергову зміну', 'success');
+        }, 50);
+        return [...endedShifts, ...newShifts];
+      } else {
+        setTimeout(() => {
+          showToast('Неможливо заступити: користувачі не на локації', 'error');
+        }, 50);
+        return prev;
+      }
+    });
   };
 
   // Find the sessions for the active shift's guards
@@ -170,7 +188,7 @@ export default function Security() {
 
   const shiftVisitors = visitors.filter(v => activeShift?.visitorIds.includes(v.id));
   const isShiftOnDuty = activeSessions.length > 0;
-  const isAfter800 = currentTime.getHours() >= 8;
+  const isAfter600 = currentTime.getHours() >= 6;
   const allGuardsIn = shiftVisitors.length > 0 && shiftVisitors.every(guard => guard.status === 'in');
   const isAnyOtherShiftReady = securityShifts.some(s => 
     s.id !== activeShift?.id && 
@@ -178,7 +196,7 @@ export default function Security() {
     s.visitorIds.every(id => visitors.find(v => v.id === id)?.status === 'in')
   );
 
-  const canHandover = isShiftOnDuty && isAfter800 && allGuardsIn && isAnyOtherShiftReady;
+  const canHandover = isShiftOnDuty && isAfter600 && allGuardsIn && isAnyOtherShiftReady;
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
@@ -226,7 +244,7 @@ export default function Security() {
                       ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20'
                       : 'bg-muted text-muted-foreground cursor-not-allowed opacity-50 shadow-none'
                   }`}
-                  title={!canHandover ? (!isShiftOnDuty ? "Зміна не на посту" : !isAfter800 ? "Передача можлива тільки після 08:00" : !allGuardsIn ? "Не всі охоронці поточної зміни на локації" : !isAnyOtherShiftReady ? "Немає іншої групи, де всі охоронці зайшли" : "") : "Передати чергову зміну іншій групі"}
+                  title={!canHandover ? (!isShiftOnDuty ? "Зміна не на посту" : !isAfter600 ? "Передача можлива тільки після 06:00" : !allGuardsIn ? "Не всі охоронці поточної зміни на локації" : !isAnyOtherShiftReady ? "Немає іншої групи, де всі охоронці зайшли" : "") : "Передати чергову зміну іншій групі"}
                 >
                   Передати чергову зміну
                 </button>
