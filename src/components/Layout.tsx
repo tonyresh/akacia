@@ -67,9 +67,9 @@ export default function Layout() {
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2.5 select-none shrink-0">
-              <div className="flex items-center gap-1.5 text-red-500 animate-pulse font-bold text-[10px] sm:text-xs uppercase tracking-wider">
-                <TriangleAlert className="w-4 h-4 shrink-0" />
+            <div className="flex items-center gap-3 sm:gap-4 select-none shrink-0 justify-center">
+              <div className="flex items-center gap-2 text-red-500 animate-pulse font-extrabold text-xs sm:text-sm md:text-base lg:text-lg uppercase tracking-wider">
+                <TriangleAlert className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 shrink-0" />
                 <span>Брудне небо з {format(new Date(activeDirtySky.startTime), 'HH:mm')}</span>
               </div>
               <button
@@ -77,7 +77,7 @@ export default function Layout() {
                   endDirtySky();
                   showToast('Режим Брудне небо завершено', 'success');
                 }}
-                className="h-8 w-11 sm:w-14 rounded-lg bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-[10px] sm:text-xs font-black uppercase transition-all flex items-center justify-center cursor-pointer select-none shadow-sm shadow-emerald-500/10 font-sans"
+                className="h-8 w-11 sm:w-14 rounded-lg bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-[10px] sm:text-xs font-black uppercase transition-all flex items-center justify-center cursor-pointer select-none shadow-sm shadow-emerald-500/10 font-sans shrink-0"
                 title="Вимкнути режим Брудне небо"
               >
                 OFF
