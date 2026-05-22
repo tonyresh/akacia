@@ -431,6 +431,9 @@ export default function Settings() {
         </div>
       </div>
 
+      {/* Divider line between submenu and main settings content area */}
+      <div className="h-px bg-border/60 w-full mb-6 no-print" />
+
       <div className="flex flex-col gap-4">
         {/* Content Area */}
         <main className="flex-1 min-w-0">

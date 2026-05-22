@@ -444,11 +444,12 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
         <div 
           onClick={() => setModalType('on_location')}
-          className="bg-emerald-500/10 rounded-2xl py-2 sm:py-2.5 px-3 sm:px-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
+          className="bg-emerald-500/10 rounded-2xl py-2 sm:py-2.5 px-3 sm:px-[14px] flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer h-[52px] sm:h-[60px]"
         >
-          <div className="flex items-center gap-2">
-            <div className="text-xs sm:text-sm text-emerald-600 font-bold uppercase tracking-wider">На локації:</div>
-            <div className="text-xs sm:text-sm font-bold text-emerald-700">{currentlyInCount}</div>
+          <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 opacity-0 select-none pointer-events-none" />
+          <div className="flex items-center justify-center gap-2 flex-1 text-center font-roboto">
+            <span className="text-xs sm:text-sm text-emerald-600 font-bold uppercase tracking-wider">На локації:</span>
+            <span className="text-xs sm:text-sm font-bold text-emerald-700">{currentlyInCount}</span>
           </div>
           <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-normal shadow-lg shadow-emerald-500/20">
              <Users className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
@@ -457,11 +458,12 @@ export default function Dashboard() {
 
         <div 
           onClick={() => setModalType('entered')}
-          className="bg-primary/10 rounded-2xl py-2 sm:py-2.5 px-3 sm:px-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
+          className="bg-primary/10 rounded-2xl py-2 sm:py-2.5 px-3 sm:px-[14px] flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer h-[52px] sm:h-[60px]"
         >
-          <div className="flex items-center gap-2">
-            <div className="text-xs sm:text-sm text-primary font-bold uppercase tracking-wider">Зайшло:</div>
-            <div className="text-xs sm:text-sm font-bold text-primary">{enteredTodayCount}</div>
+          <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 opacity-0 select-none pointer-events-none" />
+          <div className="flex items-center justify-center gap-2 flex-1 text-center font-roboto">
+            <span className="text-xs sm:text-sm text-primary font-bold uppercase tracking-wider">Зайшло:</span>
+            <span className="text-xs sm:text-sm font-bold text-primary">{enteredTodayCount}</span>
           </div>
           <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 bg-primary rounded-xl flex items-center justify-center text-primary-foreground font-normal shadow-lg shadow-primary/20">
               <ArrowRightCircle className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
@@ -470,11 +472,12 @@ export default function Dashboard() {
 
         <div 
           onClick={() => setModalType('exited')}
-          className="bg-red-500/10 rounded-2xl py-2 sm:py-2.5 px-3 sm:px-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer"
+          className="bg-red-500/10 rounded-2xl py-2 sm:py-2.5 px-3 sm:px-[14px] flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer h-[52px] sm:h-[60px]"
         >
-          <div className="flex items-center gap-2">
-            <div className="text-xs sm:text-sm text-red-500 font-bold uppercase tracking-wider">Вийшло:</div>
-            <div className="text-xs sm:text-sm font-bold text-red-600">{exitedTodayCount}</div>
+          <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 opacity-0 select-none pointer-events-none" />
+          <div className="flex items-center justify-center gap-2 flex-1 text-center font-roboto">
+            <span className="text-xs sm:text-sm text-red-500 font-bold uppercase tracking-wider">Вийшло:</span>
+            <span className="text-xs sm:text-sm font-bold text-red-600">{exitedTodayCount}</span>
           </div>
           <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 bg-red-500 rounded-xl flex items-center justify-center text-white font-normal shadow-lg shadow-red-500/20">
             <ArrowRightCircle className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 rotate-180" />

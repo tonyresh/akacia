@@ -33,26 +33,27 @@ export default function Layout() {
     <div className="flex flex-col h-screen bg-background overflow-hidden text-foreground">
       {/* Top Header */}
       <header className="hidden landscape:flex items-center justify-between px-3 sm:px-6 md:px-8 border-b border-border bg-card h-[72px] shrink-0 select-none no-print">
-        {/* Left Column: Logo and Clock centered between Logo and Dirty Sky */}
-        <div className="flex-1 flex items-center min-w-0">
+        {/* 1. Logo Column */}
+        <div className="shrink-0 flex items-center">
           <Logo className="w-auto shrink-0" />
-          <div className="flex-1 flex justify-center items-center px-2 min-w-0">
-            <div className="flex flex-col items-center justify-center leading-none text-center">
-              <span className="text-[20px] sm:text-[27px] md:text-[33px] font-semibold tabular-nums tracking-tight text-foreground">
-                {currentTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: false})}
-              </span>
-              <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.12em] text-muted-foreground uppercase mt-1">
-                {currentTime.toLocaleDateString('uk-UA', { day: '2-digit', month: 'long', year: 'numeric' }).replace(/\s*р\.?$/, '')}
-              </span>
-            </div>
+        </div>
+
+        {/* 2. Clock Column (centered between Logo and Dirty Sky) */}
+        <div className="flex-1 flex justify-center items-center min-w-0 px-2">
+          <div className="flex flex-col items-center justify-center leading-none text-center">
+            <span className="text-[20px] sm:text-[27px] md:text-[33px] font-semibold tabular-nums tracking-tight text-foreground">
+              {currentTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: false})}
+            </span>
+            <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.12em] text-muted-foreground uppercase mt-1">
+              {currentTime.toLocaleDateString('uk-UA', { day: '2-digit', month: 'long', year: 'numeric' }).replace(/\s*р\.?$/, '')}
+            </span>
           </div>
         </div>
 
-        {/* Center Column: Dirty Sky Controls (centered between Logo and Menu) */}
-        <div className="shrink-0 flex justify-center items-center px-4">
+        {/* 3. Dirty Sky Controls Column (centered between Clock and Menu) */}
+        <div className="flex-1 flex justify-center items-center min-w-0 px-4">
           {!activeDirtySky ? (
             <div className="flex items-center gap-2.5 select-none shrink-0">
-              <Cloud className="w-[18px] h-[18px] text-muted-foreground/70 shrink-0" />
               <span className="text-[11px] sm:text-[13px] font-bold tracking-wider uppercase text-muted-foreground">Брудне небо</span>
               <button
                 onClick={() => {
@@ -85,8 +86,8 @@ export default function Layout() {
           )}
         </div>
 
-        {/* Right Column: Nav Menu */}
-        <div className="flex-1 flex items-center justify-end min-w-0">
+        {/* 4. Nav Menu Column */}
+        <div className="shrink-0 flex items-center justify-end min-w-0">
           <nav className="flex items-center gap-0.5 sm:gap-1 overflow-x-auto hide-scrollbar">
             {navItems.map((item) => (
               <NavLink
