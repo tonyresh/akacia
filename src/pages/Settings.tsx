@@ -437,27 +437,15 @@ export default function Settings() {
       <div className="flex flex-col gap-4">
         {/* Content Area */}
         <main className="flex-1 min-w-0">
-          <div className="bg-card rounded-3xl py-3 sm:py-4 px-6 md:px-8 shadow-sm min-h-[500px]">
+          <div className="bg-transparent rounded-none p-0 min-h-[500px]">
             {activeTab === 'database' && (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-500">
-                    <Database className="w-5 h-5" />
-                  </div>
-                  <h2 className="text-xl font-semibold">Користувачі</h2>
-                </div>
                 <VisitorManagement />
               </div>
             )}
 
             {activeTab === 'ranks' && (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 max-w-2xl">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-                    <UserRound className="w-5 h-5" />
-                  </div>
-                  <h2 className="text-xl font-semibold">Довідник звань</h2>
-                </div>
                 <div className="flex gap-3 mb-6">
                   <input 
                     value={newCat} onChange={e => setNewCat(e.target.value)}
@@ -527,12 +515,6 @@ export default function Settings() {
 
             {activeTab === 'locations' && (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 max-w-2xl">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500">
-                    <MapPin className="w-5 h-5" />
-                  </div>
-                  <h2 className="text-xl font-semibold">Бригада</h2>
-                </div>
                 <div className="space-y-4 mb-6 p-4 bg-muted/30 rounded-2xl border border-border/50">
                   <div className="flex gap-3">
                     <input 
@@ -548,7 +530,7 @@ export default function Settings() {
                   {customIcons.length > 0 && (
                     <div className="flex gap-2 flex-wrap items-center mt-2">
                        <span className="text-[10px] uppercase font-bold text-muted-foreground mr-2">Іконка бригади:</span>
-                       <div className="flex gap-2 bg-background/50 p-2 rounded-xl border border-border/50">
+                       <div className="flex flex-wrap gap-2 bg-background/50 p-2 rounded-xl border border-border/50 max-w-full">
                          <button 
                            onClick={() => setNewLocationIconId(undefined)}
                            className={`w-8 h-8 rounded-lg flex items-center justify-center border text-[10px] ${!newLocationIconId ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'}`}
@@ -582,7 +564,7 @@ export default function Settings() {
                             className="w-full bg-background border border-border rounded px-2 py-1 text-xs focus:outline-none"
                           />
 
-                          <div className="flex gap-2 flex-wrap items-center bg-background/30 p-1.5 rounded-lg border border-border/20">
+                          <div className="flex flex-wrap gap-2 items-center bg-background/30 p-1.5 rounded-lg border border-border/20 max-w-full">
                             <button 
                               onClick={() => setEditLocationIconId(undefined)}
                               className={`w-6 h-6 rounded-md flex items-center justify-center border text-[8px] ${!editLocationIconId ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'}`}
@@ -657,12 +639,6 @@ export default function Settings() {
 
             {activeTab === 'groups' && (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 max-w-2xl">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
-                    <Users className="w-5 h-5" />
-                  </div>
-                  <h2 className="text-xl font-semibold">Налаштування груп</h2>
-                </div>
                 <div className="space-y-4 mb-8 p-4 bg-muted/30 rounded-2xl border border-border/50">
                   <div className="flex gap-3">
                     <input 
@@ -764,12 +740,6 @@ export default function Settings() {
 
             {activeTab === 'backup' && (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-500">
-                    <Archive className="w-5 h-5" />
-                  </div>
-                  <h2 className="text-xl font-semibold">Бэкап та імпорт</h2>
-                </div>
                 <div className="space-y-8">
                   <div className="p-6 bg-blue-500/5 rounded-2xl">
                     <h3 className="text-sm font-semibold mb-2">Зберігання даних</h3>
@@ -801,13 +771,6 @@ export default function Settings() {
 
             {activeTab === 'appearance' && (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                    <Palette className="w-5 h-5" />
-                  </div>
-                  <h2 className="text-xl font-semibold">Зовнішній вигляд</h2>
-                </div>
-
                 <div className="space-y-8">
                   <div>
                     <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-4">Сповіщення в системі</label>
@@ -904,25 +867,25 @@ export default function Settings() {
                     <div className="p-6 bg-muted/30 rounded-2xl border border-border/50">
                       <p className="text-xs text-muted-foreground mb-4">Завантажте власні іконки, щоб використовувати їх замість стандартних для користувачів.</p>
                       
-                      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4 mb-6">
+                      <div className="flex flex-wrap gap-2 sm:gap-3 mb-6">
                         {customIcons.map(icon => (
-                          <div key={icon.id} className="relative group aspect-square bg-background rounded-xl border border-border overflow-hidden flex items-center justify-center">
+                          <div key={icon.id} className="relative group w-8 h-8 sm:w-10 sm:h-10 bg-background rounded-lg border border-border overflow-hidden flex items-center justify-center shrink-0">
                             <img src={icon.data} alt={icon.name} className="w-full h-full object-cover" />
                             <button 
                               onClick={() => removeIcon(icon.id)}
                               className="absolute inset-0 bg-red-500/80 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                               title="Видалити іконку"
                             >
-                              <Trash2 className="w-5 h-5" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         ))}
                         <button 
                           onClick={() => iconInputRef.current?.click()}
-                          className="aspect-square bg-background border border-border border-dashed rounded-xl flex flex-col items-center justify-center text-muted-foreground hover:bg-muted/50 transition-colors"
+                          className="w-8 h-8 sm:w-10 sm:h-10 bg-background border border-border border-dashed rounded-lg flex flex-col items-center justify-center text-muted-foreground hover:bg-muted/50 transition-all shrink-0"
                         >
-                          <Upload className="w-5 h-5 mb-2" />
-                          <span className="text-[10px]">Завантажити</span>
+                          <Upload className="w-3 h-3 sm:w-4 sm:h-4 mb-0.5" />
+                          <span className="text-[7px] sm:text-[8px] leading-tight font-bold">Додати</span>
                         </button>
                       </div>
                       <input type="file" accept="image/*,.svg,image/svg+xml" className="hidden" ref={iconInputRef} onChange={handleIconUpload} />
@@ -1002,13 +965,6 @@ export default function Settings() {
 
             {activeTab === 'other' && (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center text-rose-500">
-                    <Sliders className="w-5 h-5" />
-                  </div>
-                  <h2 className="text-xl font-semibold">Додаткові функції</h2>
-                </div>
-
                 <div className="space-y-8">
                   <div className="p-6 bg-rose-500/5 rounded-2xl relative overflow-hidden">
                     <h3 className="text-sm font-semibold mb-4 flex items-center gap-2">

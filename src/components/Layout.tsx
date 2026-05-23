@@ -32,62 +32,65 @@ export default function Layout() {
   return (
     <div className="flex flex-col h-screen bg-background overflow-hidden text-foreground">
       {/* Top Header */}
-      <header className="hidden landscape:flex items-center justify-between px-3 sm:px-6 md:px-8 border-b border-border bg-card h-[72px] shrink-0 select-none no-print">
-        {/* 1. Logo Column */}
-        <div className="shrink-0 flex items-center">
-          <Logo className="w-auto shrink-0" />
-        </div>
+      <header className="hidden landscape:flex items-center justify-between px-3 sm:px-6 md:px-8 border-b border-border bg-card h-[72px] shrink-0 select-none no-print gap-4">
+        {/* Left Section: Logo, Clock, and Dirty Sky controls */}
+        <div className="flex-1 flex items-center justify-between min-w-0">
+          {/* Logo */}
+          <div className="shrink-0 flex items-center">
+            <Logo className="w-auto shrink-0" />
+          </div>
 
-        {/* 2. Clock Column (centered between Logo and Dirty Sky) */}
-        <div className="flex-1 flex justify-center items-center min-w-0 px-2">
-          <div className="flex flex-col items-center justify-center leading-none text-center">
-            <span className="text-[20px] sm:text-[27px] md:text-[33px] font-semibold tabular-nums tracking-tight text-foreground">
-              {currentTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: false})}
-            </span>
-            <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.12em] text-muted-foreground uppercase mt-1">
-              {currentTime.toLocaleDateString('uk-UA', { day: '2-digit', month: 'long', year: 'numeric' }).replace(/\s*р\.?$/, '')}
-            </span>
+          {/* Clock centered between Logo and Dirty Sky */}
+          <div className="flex-1 flex justify-center items-center min-w-0 px-2">
+            <div className="flex flex-col items-center justify-center leading-none text-center">
+              <span className="text-[20px] sm:text-[27px] md:text-[33px] font-semibold tabular-nums tracking-tight text-foreground">
+                {currentTime.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit', hour12: false})}
+              </span>
+              <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.12em] text-muted-foreground uppercase mt-1">
+                {currentTime.toLocaleDateString('uk-UA', { day: '2-digit', month: 'long', year: 'numeric' }).replace(/\s*р\.?$/, '')}
+              </span>
+            </div>
+          </div>
+
+          {/* Dirty Sky Controls */}
+          <div className="shrink-0 flex items-center px-4">
+            {!activeDirtySky ? (
+              <div className="flex items-center gap-2.5 select-none shrink-0">
+                <span className="text-[11px] sm:text-[13px] font-bold tracking-wider uppercase text-muted-foreground">Брудне небо</span>
+                <button
+                  onClick={() => {
+                    startDirtySky();
+                    showToast('РЕЖИМ БРУДНЕ НЕБО АКТИВОВАНО!', 'error');
+                  }}
+                  className="h-9 w-12 sm:w-[62px] rounded-lg bg-red-500 hover:bg-red-600 active:scale-95 text-white text-[11px] sm:text-[13px] font-black uppercase transition-all flex items-center justify-center cursor-pointer select-none shadow-sm shadow-red-500/10 font-sans"
+                  title="Увімкнути режим Брудне небо"
+                >
+                  ON
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2.5 sm:gap-3.5 select-none shrink-0 justify-center">
+                <div className="flex items-center gap-1.5 text-red-500 animate-pulse font-extrabold text-[13px] sm:text-[15.5px] md:text-[17.6px] uppercase tracking-wider">
+                  <TriangleAlert className="w-[18px] h-[18px] sm:w-[22px] sm:h-[22px] shrink-0" />
+                  <span>Брудне небо</span>
+                </div>
+                <button
+                  onClick={() => {
+                    endDirtySky();
+                    showToast('Режим Брудне небо завершено', 'success');
+                  }}
+                  className="h-9 w-12 sm:w-[62px] rounded-lg bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-[11px] sm:text-[13px] font-black uppercase transition-all flex items-center justify-center cursor-pointer select-none shadow-sm shadow-emerald-500/10 font-sans shrink-0"
+                  title="Вимкнути режим Брудне небо"
+                >
+                  OFF
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* 3. Dirty Sky Controls Column (centered between Clock and Menu) */}
-        <div className="flex-1 flex justify-center items-center min-w-0 px-4">
-          {!activeDirtySky ? (
-            <div className="flex items-center gap-2.5 select-none shrink-0">
-              <span className="text-[11px] sm:text-[13px] font-bold tracking-wider uppercase text-muted-foreground">Брудне небо</span>
-              <button
-                onClick={() => {
-                  startDirtySky();
-                  showToast('РЕЖИМ БРУДНЕ НЕБО АКТИВОВАНО!', 'error');
-                }}
-                className="h-9 w-12 sm:w-[62px] rounded-lg bg-red-500 hover:bg-red-600 active:scale-95 text-white text-[11px] sm:text-[13px] font-black uppercase transition-all flex items-center justify-center cursor-pointer select-none shadow-sm shadow-red-500/10 font-sans"
-                title="Увімкнути режим Брудне небо"
-              >
-                ON
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2.5 sm:gap-3.5 select-none shrink-0 justify-center">
-              <div className="flex items-center gap-1.5 text-red-500 animate-pulse font-extrabold text-[13px] sm:text-[15.5px] md:text-[17.6px] uppercase tracking-wider">
-                <TriangleAlert className="w-[18px] h-[18px] sm:w-[22px] sm:h-[22px] shrink-0" />
-                <span>Брудне небо</span>
-              </div>
-              <button
-                onClick={() => {
-                  endDirtySky();
-                  showToast('Режим Брудне небо завершено', 'success');
-                }}
-                className="h-9 w-12 sm:w-[62px] rounded-lg bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white text-[11px] sm:text-[13px] font-black uppercase transition-all flex items-center justify-center cursor-pointer select-none shadow-sm shadow-emerald-500/10 font-sans shrink-0"
-                title="Вимкнути режим Брудне небо"
-              >
-                OFF
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* 4. Nav Menu Column */}
-        <div className="shrink-0 flex items-center justify-end min-w-0">
+        {/* Right Section: Nav Menu with light separator */}
+        <div className="shrink-0 flex items-center justify-end min-w-0 border-l border-border/40 pl-4">
           <nav className="flex items-center gap-0.5 sm:gap-1 overflow-x-auto hide-scrollbar">
             {navItems.map((item) => (
               <NavLink
