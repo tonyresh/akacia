@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useData } from '../store/DataContext';
 import { Search, User, Pencil, Trash2, X, Check, Plus, ChevronDown, Star } from 'lucide-react';
 import { useToast } from '../store/ToastContext';
-import { isSpecialVisitor, compareVisitorsSpecialFirst } from '../utils/visitorUtils';
+import { compareVisitorsSpecialFirst } from '../utils/visitorUtils';
 
 const COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#10b981', '#14b8a6', 
@@ -219,7 +219,6 @@ export default function VisitorManagement() {
               const visitorGroup = groups.find(g => g.id === v.groupId) || groups.find(g => g.name === v.group);
               const visitorLocation = locations.find(l => l.id === v.locationId) || locations.find(l => l.name === v.location);
               const customIcon = customIcons.find(icon => icon.id === v.customIconId) || (visitorLocation?.iconId ? customIcons.find(icon => icon.id === visitorLocation.iconId) : null);
-              const isSpecial = isSpecialVisitor(v, groups);
               const blockColor = v.color || visitorGroup?.color;
               const hasGroupColor = !!blockColor && blockColor !== 'transparent';
               
@@ -230,9 +229,7 @@ export default function VisitorManagement() {
               return (
                 <div 
                   key={v.id ? `visitor-${v.id}` : `visitor-idx-${idx}`} 
-                  className={`flex flex-col lg:grid lg:grid-cols-[80px_1fr_150px_150px_140px] hover:bg-muted/30 transition-colors p-4 lg:p-0 ${
-                    isSpecial ? 'ring-1 ring-amber-500/40 bg-amber-500/5' : ''
-                  } ${isEditing ? 'bg-muted/10' : ''}`}
+                  className={`flex flex-col lg:grid lg:grid-cols-[80px_1fr_150px_150px_140px] hover:bg-muted/30 transition-colors p-4 lg:p-0 ${isEditing ? 'bg-muted/10' : ''}`}
                   style={rowStyles}
                 >
                   {/* Icon Column */}
@@ -276,11 +273,9 @@ export default function VisitorManagement() {
                         </div>
                       </div>
                     ) : (
-                    <div className={`w-12 h-12 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984')) }}>
+                    <div className={`w-12 h-12 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (v.color || visitorGroup?.color || '#5b6984') }}>
                         {customIcon ? (
                           <img src={customIcon.data} alt="user icon" className="w-full h-full object-cover" />
-                        ) : isSpecial ? (
-                          <Star className="w-6 h-6 lg:w-5 lg:h-5 text-white fill-white" />
                         ) : (
                           <User className="w-6 h-6 lg:w-5 lg:h-5 text-[#e5e9ec]" />
                         )}
@@ -342,11 +337,8 @@ export default function VisitorManagement() {
                     ) : (
                       <div className="flex flex-col min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-                          <span className="text-[9px] text-muted-foreground uppercase tracking-wider">{v.category}</span>
-                          {isSpecial && (
-                            <span className="text-[8px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-1 py-0.2 rounded flex items-center gap-0.5">
-                              <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" /> Особливий
-                            </span>
+                          {v.category && !v.category.toLowerCase().includes('особлив') && (
+                            <span className="text-[9px] text-muted-foreground uppercase tracking-wider">{v.category}</span>
                           )}
                         </div>
                         <div className="font-semibold text-base leading-tight mb-1">{v.name}</div>

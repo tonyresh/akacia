@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../store/DataContext';
 import { useToast } from '../store/ToastContext';
-import { Users, User, Clock, ArrowRightCircle, X, Search, Mic, MicOff, LogIn, LogOut, Play, Square, CloudRain, TriangleAlert, Star, CheckCircle2 } from 'lucide-react';
+import { Users, User, Clock, ArrowRightCircle, X, Search, Mic, MicOff, LogIn, LogOut, Play, Square, CloudRain, TriangleAlert, CheckCircle2 } from 'lucide-react';
 import { differenceInMinutes, format } from 'date-fns';
 import { formatNameAbbreviated } from '../utils/nameUtils';
 import { 
@@ -613,7 +613,6 @@ export default function Dashboard() {
               const visitorGroup = groups?.find((g: any) => g.id === v.groupId) || groups?.find((g: any) => g.name === v.group);
               const visitorLocation = locations.find(l => l.id === v.locationId) || locations.find(l => l.name === v.location);
               const customIcon = customIcons.find(icon => icon.id === v.customIconId) || (visitorLocation?.iconId ? customIcons.find(icon => icon.id === visitorLocation.iconId) : null);
-              const isSpecial = isSpecialVisitor(v, groups);
               const isOnLocation = v.status === 'in';
               const blockColor = v.color || visitorGroup?.color;
               const hasGroupColor = !!blockColor && blockColor !== 'transparent';
@@ -626,17 +625,13 @@ export default function Dashboard() {
               return (
                 <div 
                   key={v.id} 
-                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-2 px-4 rounded-2xl transition-colors ${isOnLocation ? 'opacity-100' : 'opacity-50'} ${
-                    isSpecial ? 'ring-1.5 ring-amber-500/50 shadow-amber-500/10' : ''
-                  } ${hasGroupColor ? (isOnLocation ? 'shadow-md ring-1 ring-inset ring-white/10' : '') : (isOnLocation ? 'bg-muted/20 hover:bg-muted/40' : 'bg-black/5')}`}
+                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-2 px-4 rounded-2xl transition-colors ${isOnLocation ? 'opacity-100' : 'opacity-50'} ${hasGroupColor ? (isOnLocation ? 'shadow-md ring-1 ring-inset ring-white/10' : '') : (isOnLocation ? 'bg-muted/20 hover:bg-muted/40' : 'bg-black/5')}`}
                   style={rowStyles}
                 >
                   <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984')) }}>
+                    <div className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (v.color || visitorGroup?.color || '#5b6984') }}>
                       {customIcon ? (
                         <img src={customIcon.data} alt="icon" className="w-full h-full object-cover" />
-                      ) : isSpecial ? (
-                        <Star className="w-6 h-6 text-white fill-white" />
                       ) : (
                         <User className="w-5 h-5 text-[#e5e9ec]" />
                       )}
@@ -644,13 +639,11 @@ export default function Dashboard() {
                     <div>
                       <div className="flex items-center gap-1.5 flex-wrap mb-1">
                         <span className="text-[9px] text-muted-foreground uppercase font-normal tracking-wider opacity-70 break-words leading-tight">
-                          {v.category} {v.location || v.locationId || v.group ? `• ${v.location || v.locationId || v.group}` : ''}
+                          {v.category && !v.category.toLowerCase().includes('особлив') ? v.category : ''}
+                          {v.location || v.locationId || (v.group && !v.group.toLowerCase().includes('особлив')) 
+                            ? `${v.category && !v.category.toLowerCase().includes('особлив') ? ' • ' : ''}${v.location || v.locationId || v.group}` 
+                            : ''}
                         </span>
-                        {isSpecial && (
-                          <span className="text-[8px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-1 py-0.2 rounded flex items-center gap-0.5">
-                            <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" /> Особливий
-                          </span>
-                        )}
                       </div>
                       <div className="font-normal text-sm">{formatNameAbbreviated(v.name)}</div>
                       {v.callsign && (
@@ -746,22 +739,17 @@ export default function Dashboard() {
                     borderColor: blockColor.startsWith('#') ? `${blockColor}60` : blockColor,
                   } : {};
 
-                  const isSpecial = isSpecialVisitor(v, groups);
                   const isOnLocation = v.status === 'in';
                   return (
                     <div 
                       key={v.id} 
-                      className={`flex justify-between items-center p-4 rounded-2xl shadow-sm transition-colors ${isOnLocation ? 'opacity-100' : 'opacity-50'} ${
-                        isSpecial ? 'ring-1.5 ring-amber-500/50 shadow-amber-500/10' : ''
-                      } ${hasGroupColor ? '' : 'bg-background'}`}
+                      className={`flex justify-between items-center p-4 rounded-2xl shadow-sm transition-colors ${isOnLocation ? 'opacity-100' : 'opacity-50'} ${hasGroupColor ? '' : 'bg-background'}`}
                       style={rowStyles}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984')) }}>
+                        <div className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (v.color || visitorGroup?.color || '#5b6984') }}>
                           {customIcon ? (
                             <img src={customIcon.data} alt="icon" className="w-full h-full object-cover" />
-                          ) : isSpecial ? (
-                            <Star className="w-6 h-6 text-white fill-white" />
                           ) : (
                             <User className="w-5 h-5 text-[#e5e9ec]" />
                           )}
@@ -769,13 +757,11 @@ export default function Dashboard() {
                         <div>
                           <div className="flex items-center gap-1.5 flex-wrap mb-1">
                             <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider opacity-70 break-words leading-tight">
-                              {v.category} {v.location || v.locationId || v.group ? `• ${v.location || v.locationId || v.group}` : ''}
+                              {v.category && !v.category.toLowerCase().includes('особлив') ? v.category : ''}
+                              {v.location || v.locationId || (v.group && !v.group.toLowerCase().includes('особлив')) 
+                                ? `${v.category && !v.category.toLowerCase().includes('особлив') ? ' • ' : ''}${v.location || v.locationId || v.group}` 
+                                : ''}
                             </span>
-                            {isSpecial && (
-                              <span className="text-[8px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-1 py-0.2 rounded flex items-center gap-0.5">
-                                <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" /> Особливий
-                              </span>
-                            )}
                           </div>
                           <div className="font-semibold text-sm">{formatNameAbbreviated(v.name)}</div>
                           {v.callsign && (

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../store/DataContext';
 import { useTheme } from '../store/ThemeContext';
-import { Search, LogIn, LogOut, Download, Mic, MicOff, Star, User, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Search, LogIn, LogOut, Download, Mic, MicOff, User, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useToast } from '../store/ToastContext';
 import { differenceInMinutes } from 'date-fns';
 import { formatNameAbbreviated, splitNameTwoLines } from '../utils/nameUtils';
@@ -522,7 +522,6 @@ export default function Visitors() {
             const visitorGroup = groups.find(g => g.id === v.groupId) || groups.find(g => g.name === v.group);
             const visitorLocation = locations.find(l => l.id === v.locationId) || locations.find(l => l.name === v.location);
             const customIcon = customIcons.find(icon => icon.id === v.customIconId) || (visitorLocation?.iconId ? customIcons.find(icon => icon.id === visitorLocation.iconId) : null);
-            const isSpecial = isSpecialVisitor(v, groups);
             const bgColor = v.color || visitorGroup?.color || 'transparent';
             const hasGroupColor = bgColor !== 'transparent';
             
