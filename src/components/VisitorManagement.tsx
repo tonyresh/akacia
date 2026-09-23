@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useData } from '../store/DataContext';
 import { Search, User, Pencil, Trash2, X, Check, Plus, ChevronDown, Star } from 'lucide-react';
 import { useToast } from '../store/ToastContext';
+import { isSpecialVisitor, compareVisitorsSpecialFirst } from '../utils/visitorUtils';
 
 const COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#10b981', '#14b8a6', 
@@ -60,12 +61,7 @@ export default function VisitorManagement() {
 
   const filtered = visitors
     .filter(v => matchesSearch(v.name, v.callsign, search))
-    .sort((a, b) => {
-      const specialA = a.isSpecial ? 1 : 0;
-      const specialB = b.isSpecial ? 1 : 0;
-      if (specialA !== specialB) return specialB - specialA;
-      return a.name.localeCompare(b.name);
-    });
+    .sort((a, b) => compareVisitorsSpecialFirst(a, b, { groups }));
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
@@ -218,11 +214,12 @@ export default function VisitorManagement() {
                 Користувачі не знайдені
               </div>
             )}
-            {filtered.map((v) => {
+            {filtered.map((v, idx) => {
               const isEditing = editingId === v.id;
               const visitorGroup = groups.find(g => g.id === v.groupId) || groups.find(g => g.name === v.group);
               const visitorLocation = locations.find(l => l.id === v.locationId) || locations.find(l => l.name === v.location);
               const customIcon = customIcons.find(icon => icon.id === v.customIconId) || (visitorLocation?.iconId ? customIcons.find(icon => icon.id === visitorLocation.iconId) : null);
+              const isSpecial = isSpecialVisitor(v, groups);
               const blockColor = v.color || visitorGroup?.color;
               const hasGroupColor = !!blockColor && blockColor !== 'transparent';
               
@@ -232,8 +229,10 @@ export default function VisitorManagement() {
               
               return (
                 <div 
-                  key={v.id} 
-                  className={`flex flex-col lg:grid lg:grid-cols-[80px_1fr_150px_150px_140px] hover:bg-muted/30 transition-colors p-4 lg:p-0 ${isEditing ? 'bg-muted/10' : ''}`}
+                  key={v.id ? `visitor-${v.id}` : `visitor-idx-${idx}`} 
+                  className={`flex flex-col lg:grid lg:grid-cols-[80px_1fr_150px_150px_140px] hover:bg-muted/30 transition-colors p-4 lg:p-0 ${
+                    isSpecial ? 'ring-1 ring-amber-500/40 bg-amber-500/5' : ''
+                  } ${isEditing ? 'bg-muted/10' : ''}`}
                   style={rowStyles}
                 >
                   {/* Icon Column */}
@@ -246,9 +245,9 @@ export default function VisitorManagement() {
                             onChange={(e) => setEditCustomIconId(e.target.value)}
                             className="w-full h-10 px-3 bg-background border border-border rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary pl-10"
                           >
-                            <option value="">Стандартна</option>
-                            {customIcons.map(icon => (
-                              <option key={icon.id} value={icon.id}>{icon.name}</option>
+                            <option key="default-edit-icon" value="">Стандартна</option>
+                            {customIcons.map((icon, idx) => (
+                              <option key={`icon-${icon.id || idx}`} value={icon.id}>{icon.name}</option>
                             ))}
                           </select>
                           <div className="absolute left-2 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center overflow-hidden">
@@ -266,9 +265,9 @@ export default function VisitorManagement() {
                             className="w-full h-10 px-3 bg-background border border-border rounded text-[10px] focus:outline-none focus:ring-1 focus:ring-primary pl-10"
                             style={{ borderLeft: editColor ? `4px solid ${editColor}` : undefined }}
                           >
-                            <option value="">Без кольору</option>
-                            {COLORS.map(c => (
-                              <option key={c} value={c} style={{ backgroundColor: c, color: '#fff' }}>
+                            <option key="default-edit-color" value="">Без кольору</option>
+                            {COLORS.map((c, idx) => (
+                              <option key={`color-${c}-${idx}`} value={c} style={{ backgroundColor: c, color: '#fff' }}>
                                 Колір {c}
                               </option>
                             ))}
@@ -277,10 +276,10 @@ export default function VisitorManagement() {
                         </div>
                       </div>
                     ) : (
-                    <div className={`w-12 h-12 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984')) }}>
+                    <div className={`w-12 h-12 lg:w-10 lg:h-10 rounded-xl flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984')) }}>
                         {customIcon ? (
                           <img src={customIcon.data} alt="user icon" className="w-full h-full object-cover" />
-                        ) : v.isSpecial ? (
+                        ) : isSpecial ? (
                           <Star className="w-6 h-6 lg:w-5 lg:h-5 text-white fill-white" />
                         ) : (
                           <User className="w-6 h-6 lg:w-5 lg:h-5 text-[#e5e9ec]" />
@@ -302,7 +301,7 @@ export default function VisitorManagement() {
                               onChange={(e) => setEditCat(e.target.value)}
                               className="w-full px-3 py-2 bg-background border border-border rounded-xl text-xs focus:ring-1 focus:ring-primary"
                             >
-                              {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                              {categories.map((c, idx) => <option key={`edit-cat-${c}-${idx}`} value={c}>{c}</option>)}
                             </select>
                           </div>
                           <div>
@@ -342,7 +341,14 @@ export default function VisitorManagement() {
                       </div>
                     ) : (
                       <div className="flex flex-col min-w-0">
-                        <span className="text-[9px] text-muted-foreground uppercase tracking-wider mb-0.5">{v.category}</span>
+                        <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                          <span className="text-[9px] text-muted-foreground uppercase tracking-wider">{v.category}</span>
+                          {isSpecial && (
+                            <span className="text-[8px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-1 py-0.2 rounded flex items-center gap-0.5">
+                              <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" /> Особливий
+                            </span>
+                          )}
+                        </div>
                         <div className="font-semibold text-base leading-tight mb-1">{v.name}</div>
                         {v.callsign && (
                           <div className="text-[10px] font-bold text-primary/80 uppercase tracking-[0.2em]">{v.callsign}</div>
@@ -360,7 +366,7 @@ export default function VisitorManagement() {
                         onChange={(e) => setEditLocation(e.target.value)}
                         className="w-full px-3 py-2 bg-background border border-border rounded-xl text-sm focus:ring-1 focus:ring-primary"
                       >
-                        {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                        {locations.map((l, idx) => <option key={`edit-loc-${l.id || idx}`} value={l.id}>{l.name}</option>)}
                       </select>
                     ) : (
                       <span className="text-sm font-medium text-muted-foreground lg:text-foreground">{v.location || v.locationId || v.group}</span>
@@ -376,7 +382,7 @@ export default function VisitorManagement() {
                         onChange={(e) => setEditGroupId(e.target.value)}
                         className="w-full px-3 py-2 bg-background border border-border rounded-xl text-sm focus:ring-1 focus:ring-primary"
                       >
-                        {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                        {groups.map((g, idx) => <option key={`edit-grp-${g.id || idx}`} value={g.id}>{g.name}</option>)}
                       </select>
                     ) : (
                       <div className="flex items-center gap-2">
@@ -440,8 +446,8 @@ export default function VisitorManagement() {
                   onChange={e => setNewCat(e.target.value)}
                   className="w-full px-4 py-2 border border-border bg-background rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow"
                 >
-                  <option value="">Виберіть звання...</option>
-                  {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                  <option key="default-cat" value="">Виберіть звання...</option>
+                  {categories.map((c, idx) => <option key={`new-cat-${c}-${idx}`} value={c}>{c}</option>)}
                 </select>
               </div>
               <div>
@@ -472,8 +478,8 @@ export default function VisitorManagement() {
                   onChange={e => setNewLocation(e.target.value)}
                   className="w-full px-4 py-2 border border-border bg-background rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow"
                 >
-                  <option value="">Виберіть...</option>
-                  {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                  <option key="default-loc" value="">Виберіть...</option>
+                  {locations.map((l, idx) => <option key={`new-loc-${l.id || idx}`} value={l.id}>{l.name}</option>)}
                 </select>
               </div>
               <div>
@@ -483,8 +489,8 @@ export default function VisitorManagement() {
                   onChange={e => setNewGroup(e.target.value)}
                   className="w-full px-4 py-2 border border-border bg-background rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow"
                 >
-                  <option value="">Виберіть групу...</option>
-                  {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  <option key="default-grp" value="">Виберіть групу...</option>
+                  {groups.map((g, idx) => <option key={`new-grp-${g.id || idx}`} value={g.id}>{g.name}</option>)}
                 </select>
               </div>
               <div>
@@ -495,9 +501,9 @@ export default function VisitorManagement() {
                     onChange={e => setNewColor(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 border border-border bg-background rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow appearance-none"
                   >
-                    <option value="">Не виділяти кольором</option>
-                    {COLORS.map(c => (
-                      <option key={c} value={c}>
+                    <option key="default-color" value="">Не виділяти кольором</option>
+                    {COLORS.map((c, idx) => (
+                      <option key={`new-color-${c}-${idx}`} value={c}>
                         Колір {c}
                       </option>
                     ))}
@@ -517,9 +523,9 @@ export default function VisitorManagement() {
                   >
                     <User className="w-5 h-5" />
                   </button>
-                      {customIcons.map(icon => (
+                      {customIcons.map((icon, idx) => (
                         <button
-                          key={icon.id}
+                          key={icon.id ? `modal-icon-${icon.id}` : `modal-icon-idx-${idx}`}
                           type="button"
                           onClick={() => setNewCustomIconId(icon.id)}
                           className={`aspect-square rounded-lg border-2 overflow-hidden transition-all ${newCustomIconId === icon.id ? 'border-primary bg-primary/10' : 'border-transparent bg-muted/50'}`}

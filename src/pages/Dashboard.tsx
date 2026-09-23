@@ -1,9 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../store/DataContext';
 import { useToast } from '../store/ToastContext';
-import { Users, User, Clock, ArrowRightCircle, X, Search, Mic, MicOff, LogIn, LogOut, Play, Square, CloudRain, TriangleAlert, Star } from 'lucide-react';
+import { Users, User, Clock, ArrowRightCircle, X, Search, Mic, MicOff, LogIn, LogOut, Play, Square, CloudRain, TriangleAlert, Star, CheckCircle2 } from 'lucide-react';
 import { differenceInMinutes, format } from 'date-fns';
 import { formatNameAbbreviated } from '../utils/nameUtils';
+import { 
+  parseVoiceCommand, 
+  matchVisitorVoice 
+} from '../utils/voiceCommandUtils';
+import { Visitor } from '../types';
+import { isSpecialVisitor, compareVisitorsSpecialFirst } from '../utils/visitorUtils';
 
 export default function Dashboard() {
   const { 
@@ -19,52 +25,92 @@ export default function Dashboard() {
   const isListeningRef = useRef(false);
   const recognitionRef = useRef<any>(null);
 
+  const [selectedVoiceVisitor, setSelectedVoiceVisitor] = useState<Visitor | null>(null);
+  const selectedVoiceVisitorRef = useRef<Visitor | null>(null);
+
   useEffect(() => {
     isListeningRef.current = isListening;
   }, [isListening]);
+
+  useEffect(() => {
+    selectedVoiceVisitorRef.current = selectedVoiceVisitor;
+  }, [selectedVoiceVisitor]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const normalizeForSearch = (str: string) => {
-    return str.toLowerCase()
-      .replace(/['`’ʼ.,!?]/g, '')
-      .replace(/[иіїыi]/g, 'i')
-      .replace(/[еєэe]/g, 'e')
-      .replace(/[гґg]/g, 'g')
-      .replace(/[аa]/g, 'a')
-      .replace(/[оo]/g, 'o')
-      .replace(/[рp]/g, 'p')
-      .replace(/[сc]/g, 'c')
-      .replace(/[хx]/g, 'x')
-      .replace(/[уy]/g, 'y');
+  // Update selectedVoiceVisitor whenever visitors update (e.g. status changes)
+  useEffect(() => {
+    if (selectedVoiceVisitor) {
+      const updated = visitors.find(v => v.id === selectedVoiceVisitor.id);
+      if (updated && updated.status !== selectedVoiceVisitor.status) {
+        setSelectedVoiceVisitor(updated);
+      }
+    }
+  }, [visitors, selectedVoiceVisitor]);
+
+  const matchesSearch = (name: string, callsign: string | undefined, searchStr: string, category?: string) => {
+    return matchVisitorVoice({ name, callsign, category } as any, searchStr);
   };
 
-  const matchesSearch = (name: string, callsign: string | undefined, searchStr: string) => {
-    const normName = normalizeForSearch(name);
-    const normCallsign = callsign ? normalizeForSearch(callsign) : '';
-    const searchWords = normalizeForSearch(searchStr).split(/\s+/).filter(w => w.length > 0);
-    if (searchWords.length === 0) return true;
-    return searchWords.every(word => normName.includes(word) || normCallsign.includes(word));
-  };
-
-  const executeCommand = (nameQuery: string, action: 'in' | 'out') => {
-    if (!nameQuery || !!activeDirtySky) return;
+  const executeCommand = (nameQuery: string, action: 'in' | 'out', triggerWord?: string) => {
+    if (!!activeDirtySky) return;
     
-    const matching = visitors.filter(v => matchesSearch(v.name, v.callsign, nameQuery));
-    if (matching.length === 0) {
-      showToast(`Користувача "${nameQuery}" не знайдено`, 'info');
+    let targetVisitor: Visitor | undefined = undefined;
+
+    // 1. If a name was explicitly spoken with the command
+    if (nameQuery && nameQuery.trim()) {
+      const matching = visitors.filter(v => matchVisitorVoice(v, nameQuery));
+      if (matching.length > 0) {
+        targetVisitor = matching[0];
+      }
+    }
+
+    // 2. If no target yet, use the visitor previously found by voice search
+    if (!targetVisitor && selectedVoiceVisitorRef.current) {
+      targetVisitor = visitors.find(v => v.id === selectedVoiceVisitorRef.current?.id) || selectedVoiceVisitorRef.current;
+    }
+
+    // 3. If still no target, check current search input
+    if (!targetVisitor && latestSearch.current && latestSearch.current.trim()) {
+      const matching = visitors.filter(v => matchVisitorVoice(v, latestSearch.current));
+      if (matching.length > 0) {
+        targetVisitor = matching[0];
+      }
+    }
+
+    // 4. If still no target, check if exactly one visitor is in search results
+    if (!targetVisitor) {
+      const filteredCurrent = visitors.filter(v => searchQuery.trim() ? matchesSearch(v.name, v.callsign, searchQuery) : false);
+      if (filteredCurrent.length === 1) {
+        targetVisitor = filteredCurrent[0];
+      }
+    }
+
+    if (!targetVisitor) {
+      if (nameQuery && nameQuery.trim()) {
+        showToast(`Голосова команда: Користувача "${nameQuery}" не знайдено`, 'info');
+      } else {
+        showToast('Спочатку назвіть прізвище або оберіть користувача, потім скажіть «ПЛЮС» чи «МІНУС»', 'info');
+      }
       return;
     }
-    
-    const v = matching[0];
+
+    // Execute the action
     if (action === 'in') {
-      markIn(v.id);
+      markIn(targetVisitor.id);
     } else {
-      markOut(v.id);
+      markOut(targetVisitor.id);
     }
+
+    // Keep visitor selected briefly then clear
+    setSelectedVoiceVisitor(targetVisitor);
+    setTimeout(() => {
+      setSearchQuery('');
+      setSelectedVoiceVisitor(null);
+    }, 2500);
   };
 
   const markIn = (id: string | string[]) => {
@@ -74,8 +120,12 @@ export default function Dashboard() {
     // Find visitors to show toast for
     if (ids.length === 1) {
       const v = visitors.find(vis => vis.id === ids[0]);
-      if (v && v.status !== 'in') {
-        showToast(`${v.name}: ЗАЙШОВ`, 'success');
+      if (v) {
+        if (v.status === 'in') {
+          showToast(`ℹ️ ${v.name} вже на локації (ВХІД)`, 'info');
+        } else {
+          showToast(`🎙️ ${v.name}: ЗАЙШОВ (+)`, 'success');
+        }
       }
     } else if (ids.length > 1) {
       showToast(`Успішно зайшло: ${ids.length} осіб`, 'success');
@@ -102,8 +152,12 @@ export default function Dashboard() {
     // Find visitors to show toast for
     if (ids.length === 1) {
       const v = visitors.find(vis => vis.id === ids[0]);
-      if (v && (v.status === 'in' || v.lastEntry)) {
-        showToast(`${v.name}: ВИЙШОВ`, 'info');
+      if (v) {
+        if (v.status === 'out' && !v.lastEntry) {
+          showToast(`ℹ️ ${v.name} вже за межами локації (ВИХІД)`, 'info');
+        } else {
+          showToast(`🎙️ ${v.name}: ВИЙШОВ (-)`, 'info');
+        }
       }
     } else if (ids.length > 1) {
       showToast(`Успішно вийшло: ${ids.length} осіб`, 'info');
@@ -111,50 +165,22 @@ export default function Dashboard() {
 
     setVisitors(prev => prev.map(v => {
       if (!ids.includes(v.id)) return v;
+      if (v.status === 'out') return v;
       
-      const isGuardOnDuty = shifts.some(s => s.guardId === v.id && !s.endTime);
-      if (isGuardOnDuty) {
-        showToast(`Не можна вийти: зміна чергування не може вийти з локації, поки не передасть зміну іншій групі`, 'error');
-        return v;
-      }
-
-      if (v.status === 'out' && !v.lastEntry) return v;
-
-      const logs = v.logs ? [...v.logs] : (v.lastEntry ? [{ in: v.lastEntry }] : []);
-      
-      let index = -1;
-      for (let i = logs.length - 1; i >= 0; i--) {
-        if (logs[i].in && !logs[i].out) {
-          index = i;
-          break;
-        }
-      }
-
-      if (index !== -1) {
-          logs[index] = { ...logs[index], out: now };
-          const startTime = logs[index].in;
-          const diff = startTime ? differenceInMinutes(new Date(now), new Date(startTime)) : 0;
-          return { 
-            ...v, 
-            status: 'out', 
-            lastEntry: undefined,
-            logs,
-            totalTimeMinutes: (v.totalTimeMinutes || 0) + Math.max(0, diff) 
-          };
-      } else {
-          const fallbackIn = v.lastEntry || now;
-          logs.push({ in: fallbackIn, out: now });
-          const diff = differenceInMinutes(new Date(now), new Date(fallbackIn));
-          return {
-            ...v,
-            status: 'out',
-            lastEntry: undefined,
-            logs,
-            totalTimeMinutes: (v.totalTimeMinutes || 0) + Math.max(0, diff)
-          };
-      }
+      const logs = v.logs ? [...v.logs] : [];
+      const fallbackIn = v.lastEntry || now;
+      logs.push({ in: fallbackIn, out: now });
+      const diff = differenceInMinutes(new Date(now), new Date(fallbackIn));
+      return {
+        ...v,
+        status: 'out',
+        lastEntry: undefined,
+        logs,
+        totalTimeMinutes: (v.totalTimeMinutes || 0) + Math.max(0, diff)
+      };
     }));
   };
+
   const latestSearch = useRef(searchQuery);
   useEffect(() => {
     latestSearch.current = searchQuery;
@@ -189,7 +215,7 @@ export default function Dashboard() {
     }
 
     const recognition = new SpeechRecognition();
-    recognition.lang = 'uk-UA'; 
+    recognition.lang = 'uk-UA';
     recognition.continuous = true;
     recognition.interimResults = true;
 
@@ -201,6 +227,7 @@ export default function Dashboard() {
       console.log('Speech recognition ended');
       if (isListeningRef.current) {
         try {
+          recognition.lang = 'uk-UA';
           recognition.start();
         } catch (e) {
           console.error('Restart error:', e);
@@ -210,16 +237,19 @@ export default function Dashboard() {
     };
 
     recognition.onerror = (event: any) => { 
-      console.error('Speech recognition error:', event.error);
+      if (event.error === 'no-speech' || event.error === 'aborted') {
+        // Non-fatal, silence timeout or stop() called
+        return;
+      }
+      console.warn('Speech recognition notice:', event.error);
       if (event.error === 'not-allowed') {
         showToast("Помилка: Надайте дозвіл на використання мікрофону у браузері.", 'error');
         setIsListening(false);
-      } else if (event.error === 'aborted') {
-        // Ignore aborted error as it happens on stop()
       } else {
         setIsListening(false);
       }
     };
+
     recognition.onresult = (event: any) => {
       let interimTranscript = '';
       let finalTranscript = '';
@@ -232,29 +262,36 @@ export default function Dashboard() {
         }
       }
 
-    const text = (finalTranscript + ' ' + interimTranscript).toLowerCase().trim();
-    if (!text) return;
+      const text = (finalTranscript + ' ' + interimTranscript).trim();
+      if (!text) return;
 
-    // Detection with word boundaries and common variations
-    const isPlus = /(?:\+|^|плюс|заш|зайш|ввійш|увійш|прийш|заход|зайди|заходь|плюсани|додай|став|постав|вошел|увійшов|зайшов)[а-яіїєґ]*\b/i.test(text);
-    const isMinus = /(?:-|^|мінус|минус|выш|вийш|піш|виход|вийди|виходь|мінусани|відніми|заверш|ушел|вийшов|зовні|випиши)[а-яіїєґ]*\b/i.test(text);
+      const parsed = parseVoiceCommand(text);
 
-    let searchName = text
-      .replace(/(?:\+|-|плюс|минус|мінус|зашел|зашла|зайшов|зайшла|ввійшов|ввійшла|увійшов|увійшла|прийшов|прийшла|зайшли|прийшли|вышел|вышла|вийшов|вийшла|пішов|пішла|вийшли|пішли|заш|зайш|ввійш|увійш|прийш|выш|вийш|піш|заход|виход|зайди|заходь|плюсани|додай|вийди|виходь|мінусани|відніми|став|постав|заверш|ушел|зовні|випиши)[а-яіїєґ/]*\b/gi, '')
-      .replace(/[.,!?]/g, '')
-      .trim();
-
-      if (searchName) {
-        setSearchQuery(searchName);
+      if (parsed.targetQuery) {
+        setSearchQuery(parsed.targetQuery);
+        const matches = visitors.filter(v => matchVisitorVoice(v, parsed.targetQuery));
+        if (matches.length > 0) {
+          setSelectedVoiceVisitor(matches[0]);
+        }
       }
 
-      if (event.results[event.results.length - 1].isFinal && (isPlus || isMinus)) {
-        const finalSearchName = searchName || latestSearch.current;
-        executeCommand(finalSearchName, isPlus ? 'in' : 'out');
-        
-        setTimeout(() => {
-          setSearchQuery('');
-        }, 1500);
+      const isFinal = event.results[event.results.length - 1].isFinal;
+
+      if (isFinal) {
+        if (parsed.isCommand && parsed.action) {
+          // Command spoken ("мінус" / "плюс" standalone or "Коваленко мінус")
+          executeCommand(parsed.targetQuery, parsed.action, parsed.triggerWord);
+        } else if (parsed.targetQuery) {
+          // Only name was spoken: find and prompt for plus/minus
+          const matches = visitors.filter(v => matchVisitorVoice(v, parsed.targetQuery));
+          if (matches.length > 0) {
+            const found = matches[0];
+            setSelectedVoiceVisitor(found);
+            showToast(`🎯 Знайдено: ${found.name} (${found.status === 'in' ? 'НА ЛОКАЦІЇ' : 'ЗА МЕЖАМИ'}). Скажіть «ПЛЮС» або «МІНУС»`, 'info');
+          } else {
+            showToast(`Користувача "${parsed.targetQuery}" не знайдено`, 'info');
+          }
+        }
       }
     };
 
@@ -271,11 +308,12 @@ export default function Dashboard() {
     if (searchQuery.trim()) {
       return matchesSearch(v.name, v.callsign, searchQuery);
     }
+    if (isSpecialVisitor(v, groups)) return true;
     const groupName = groups.find(g => g.id === v.groupId)?.name || v.group;
     return groupName === 'Командування полку' || groupName === 'Керівництво' || groupName === 'Командування 412' || groupName === 'Управління';
   }).sort((a, b) => {
-    const specialA = a.isSpecial ? 1 : 0;
-    const specialB = b.isSpecial ? 1 : 0;
+    const specialA = isSpecialVisitor(a, groups) ? 1 : 0;
+    const specialB = isSpecialVisitor(b, groups) ? 1 : 0;
     if (specialA !== specialB) return specialB - specialA;
 
     const groupOrder: Record<string, number> = {
@@ -338,10 +376,13 @@ export default function Dashboard() {
     if (exitedToday) exitedTodayVisitors.push({ ...v, shiftExitTime: exitTime });
   });
 
+  enteredTodayVisitors.sort((a, b) => compareVisitorsSpecialFirst(a, b, { groups }));
+  exitedTodayVisitors.sort((a, b) => compareVisitorsSpecialFirst(a, b, { groups }));
+
   const enteredTodayCount = enteredTodayVisitors.length;
   const exitedTodayCount = exitedTodayVisitors.length;
 
-  const currentlyInVisitors = visitors.filter(v => v.status === 'in').sort((a,b) => a.name.localeCompare(b.name));
+  const currentlyInVisitors = visitors.filter(v => v.status === 'in').sort((a,b) => compareVisitorsSpecialFirst(a, b, { groups }));
   const currentlyInCount = currentlyInVisitors.length;
 
   const modalVisitors = 
@@ -489,12 +530,13 @@ export default function Dashboard() {
           <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground/60" />
           <input 
             type="text"
-            placeholder="Швидкий пошук за іменем чи позивним..."
+            placeholder={isListening ? "Слухаю... Назвіть прізвище або команду" : "Швидкий пошук за іменем чи позивним..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-9 sm:pl-11 pr-4 py-2 bg-muted/40 border border-transparent rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all placeholder:text-muted-foreground/50 font-normal"
           />
         </div>
+
         <button
           onClick={toggleListening}
           className={`w-8 h-8 sm:w-10 sm:h-10 border border-transparent rounded-xl transition-all flex items-center justify-center shrink-0 cursor-pointer ${
@@ -502,11 +544,58 @@ export default function Dashboard() {
               ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)] animate-pulse' 
               : 'bg-muted/50 hover:bg-muted text-muted-foreground'
           }`}
-          title={isListening ? "Зупинити голосовий пошук" : "Голосовий пошук та команди"}
+          title={isListening ? "Зупинити голосовий ввід" : "Голосовий ввід команд"}
         >
           {isListening ? <MicOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Mic className="w-4 h-4 sm:w-5 sm:h-5" />}
         </button>
       </div>
+
+      {/* Found visitor quick voice-action bar */}
+      {selectedVoiceVisitor && (
+        <div className="w-full max-w-xl mx-auto flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 p-2.5 px-3 sm:px-4 bg-primary/10 border border-primary/25 rounded-2xl shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${selectedVoiceVisitor.status === 'in' ? 'bg-emerald-500' : 'bg-amber-500'} animate-pulse`} />
+            <div className="text-xs truncate">
+              <span className="font-bold text-foreground mr-1.5">{selectedVoiceVisitor.name}</span>
+              {selectedVoiceVisitor.callsign && (
+                <span className="text-muted-foreground font-medium mr-1.5">«{selectedVoiceVisitor.callsign}»</span>
+              )}
+              <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                selectedVoiceVisitor.status === 'in' ? 'bg-emerald-500/20 text-emerald-600' : 'bg-amber-500/20 text-amber-700'
+              }`}>
+                {selectedVoiceVisitor.status === 'in' ? 'НА ЛОКАЦІЇ' : 'ЗА МЕЖАМИ'}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+            <span className="text-[11px] text-muted-foreground hidden md:inline font-medium">
+              Скажіть <strong>«ПЛЮС»</strong> чи <strong>«МІНУС»</strong>
+            </span>
+            <button 
+              onClick={() => executeCommand('', 'in')}
+              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center gap-1"
+              title="Вхід на локацію (або скажіть «ПЛЮС»)"
+            >
+              + Вхід
+            </button>
+            <button 
+              onClick={() => executeCommand('', 'out')}
+              className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center gap-1"
+              title="Вихід з локації (або скажіть «МІНУС»)"
+            >
+              - Вихід
+            </button>
+            <button 
+              onClick={() => { setSelectedVoiceVisitor(null); setSearchQuery(''); }}
+              className="p-1 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/80 transition-all cursor-pointer"
+              title="Закрити"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="bg-card rounded-3xl p-4 flex flex-col shadow-sm">
         {searchQuery.trim() && (
@@ -524,6 +613,7 @@ export default function Dashboard() {
               const visitorGroup = groups?.find((g: any) => g.id === v.groupId) || groups?.find((g: any) => g.name === v.group);
               const visitorLocation = locations.find(l => l.id === v.locationId) || locations.find(l => l.name === v.location);
               const customIcon = customIcons.find(icon => icon.id === v.customIconId) || (visitorLocation?.iconId ? customIcons.find(icon => icon.id === visitorLocation.iconId) : null);
+              const isSpecial = isSpecialVisitor(v, groups);
               const isOnLocation = v.status === 'in';
               const blockColor = v.color || visitorGroup?.color;
               const hasGroupColor = !!blockColor && blockColor !== 'transparent';
@@ -536,22 +626,31 @@ export default function Dashboard() {
               return (
                 <div 
                   key={v.id} 
-                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-2 px-4 rounded-2xl transition-colors ${isOnLocation ? 'opacity-100' : 'opacity-50'} ${hasGroupColor ? (isOnLocation ? 'shadow-md ring-1 ring-inset ring-white/10' : '') : (isOnLocation ? 'bg-muted/20 hover:bg-muted/40' : 'bg-black/5')}`}
+                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-2 px-4 rounded-2xl transition-colors ${isOnLocation ? 'opacity-100' : 'opacity-50'} ${
+                    isSpecial ? 'ring-1.5 ring-amber-500/50 shadow-amber-500/10' : ''
+                  } ${hasGroupColor ? (isOnLocation ? 'shadow-md ring-1 ring-inset ring-white/10' : '') : (isOnLocation ? 'bg-muted/20 hover:bg-muted/40' : 'bg-black/5')}`}
                   style={rowStyles}
                 >
                   <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984')) }}>
+                    <div className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984')) }}>
                       {customIcon ? (
                         <img src={customIcon.data} alt="icon" className="w-full h-full object-cover" />
-                      ) : v.isSpecial ? (
+                      ) : isSpecial ? (
                         <Star className="w-6 h-6 text-white fill-white" />
                       ) : (
                         <User className="w-5 h-5 text-[#e5e9ec]" />
                       )}
                     </div>
                     <div>
-                      <div className="text-[9px] text-muted-foreground uppercase font-normal tracking-wider mb-1 opacity-70 break-words leading-tight">
-                        {v.category} {v.location || v.locationId || v.group ? `• ${v.location || v.locationId || v.group}` : ''}
+                      <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                        <span className="text-[9px] text-muted-foreground uppercase font-normal tracking-wider opacity-70 break-words leading-tight">
+                          {v.category} {v.location || v.locationId || v.group ? `• ${v.location || v.locationId || v.group}` : ''}
+                        </span>
+                        {isSpecial && (
+                          <span className="text-[8px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-1 py-0.2 rounded flex items-center gap-0.5">
+                            <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" /> Особливий
+                          </span>
+                        )}
                       </div>
                       <div className="font-normal text-sm">{formatNameAbbreviated(v.name)}</div>
                       {v.callsign && (
@@ -647,26 +746,36 @@ export default function Dashboard() {
                     borderColor: blockColor.startsWith('#') ? `${blockColor}60` : blockColor,
                   } : {};
 
+                  const isSpecial = isSpecialVisitor(v, groups);
                   const isOnLocation = v.status === 'in';
                   return (
                     <div 
                       key={v.id} 
-                      className={`flex justify-between items-center p-4 rounded-2xl shadow-sm transition-colors ${isOnLocation ? 'opacity-100' : 'opacity-50'} ${hasGroupColor ? '' : 'bg-background'}`}
+                      className={`flex justify-between items-center p-4 rounded-2xl shadow-sm transition-colors ${isOnLocation ? 'opacity-100' : 'opacity-50'} ${
+                        isSpecial ? 'ring-1.5 ring-amber-500/50 shadow-amber-500/10' : ''
+                      } ${hasGroupColor ? '' : 'bg-background'}`}
                       style={rowStyles}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984')) }}>
+                        <div className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984')) }}>
                           {customIcon ? (
                             <img src={customIcon.data} alt="icon" className="w-full h-full object-cover" />
-                          ) : v.isSpecial ? (
+                          ) : isSpecial ? (
                             <Star className="w-6 h-6 text-white fill-white" />
                           ) : (
                             <User className="w-5 h-5 text-[#e5e9ec]" />
                           )}
                         </div>
                         <div>
-                          <div className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider mb-1 opacity-70 break-words leading-tight">
-                            {v.category} {v.location || v.locationId || v.group ? `• ${v.location || v.locationId || v.group}` : ''}
+                          <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                            <span className="text-[9px] text-muted-foreground uppercase font-bold tracking-wider opacity-70 break-words leading-tight">
+                              {v.category} {v.location || v.locationId || v.group ? `• ${v.location || v.locationId || v.group}` : ''}
+                            </span>
+                            {isSpecial && (
+                              <span className="text-[8px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-1 py-0.2 rounded flex items-center gap-0.5">
+                                <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" /> Особливий
+                              </span>
+                            )}
                           </div>
                           <div className="font-semibold text-sm">{formatNameAbbreviated(v.name)}</div>
                           {v.callsign && (

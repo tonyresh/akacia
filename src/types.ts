@@ -4,6 +4,7 @@ export interface Group {
   id: string;
   name: string;
   color: string;
+  showInVisitors?: boolean; // Controls whether this group is displayed in the "Відвідувачі" tab
 }
 
 export interface Location {
@@ -45,6 +46,7 @@ export interface SecurityShift {
   id: string;
   name: string;
   visitorIds: string[];
+  status?: 'active' | 'inactive';
 }
 
 export interface Guard {
@@ -69,4 +71,12 @@ export interface DirtySkyEvent {
   id: string;
   startTime: string; // ISO string
   endTime?: string; // ISO string
+}
+
+export interface DutyEvent {
+  id: string;
+  shiftId: string;
+  shiftName: string;
+  type: 'start' | 'end';
+  timestamp: string; // ISO string
 }

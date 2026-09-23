@@ -17,6 +17,12 @@ async function startServer() {
     console.log('Created reports directory');
   }
 
+  // Serve public static assets
+  const publicDir = path.join(process.cwd(), 'public');
+  if (fs.existsSync(publicDir)) {
+    app.use(express.static(publicDir));
+  }
+
   // API to save reports
   app.post("/api/save-report", (req, res) => {
     const { csvData, fileName } = req.body;

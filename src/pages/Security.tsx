@@ -6,7 +6,7 @@ import { differenceInMinutes } from 'date-fns';
 import { formatNameAbbreviated } from '../utils/nameUtils';
 
 export default function Security() {
-  const { visitors, securityShifts, setSecurityShifts, shifts, setShifts, performShiftBackupAndReset, dirtySkyEvents, customIcons } = useData();
+  const { visitors, securityShifts, setSecurityShifts, shifts, setShifts, performShiftBackupAndReset, dirtySkyEvents, customIcons, addDutyEvent } = useData();
   const { showToast } = useToast();
   
   const activeDirtySky = dirtySkyEvents.find(e => !e.endTime);
@@ -64,6 +64,16 @@ export default function Security() {
           setActiveTab(targetGroup.id);
           showToast(`Чергову зміну передано групі: ${targetGroup.name}`, 'success');
         }, 50);
+
+        setSecurityShifts(prev => prev.map(s => ({
+          ...s,
+          status: s.id === targetGroup.id ? 'active' : 'inactive'
+        })));
+
+        if (activeShift) {
+          addDutyEvent(activeShift.id, activeShift.name, 'end', now);
+        }
+        addDutyEvent(targetGroup.id, targetGroup.name, 'start', now);
     }
     
     performShiftBackupAndReset();
@@ -123,41 +133,52 @@ export default function Security() {
     return shifts.find(s => s.guardId === guardId && !s.endTime);
   };
 
-  const startShiftWorkSession = () => {
+  const stopShiftWorkSession = () => {
     if (!activeShift) return;
-    const shiftVisitors = visitors.filter(v => activeShift.visitorIds.includes(v.id));
     const now = new Date().toISOString();
     
-    // Set endTime for all guards from the previous shifts who are currently active
+    // Stop all active guard sessions
+    setShifts(prev => prev.map(s => s.endTime ? s : { ...s, endTime: now }));
+
+    // Update shift statuses to inactive
+    setSecurityShifts(prev => prev.map(s => ({ ...s, status: 'inactive' })));
+
+    // Record in reports: which shift and at what time finished duty
+    addDutyEvent(activeShift.id, activeShift.name, 'end', now);
+
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    showToast(`Чергування зміни "${activeShift.name}" зупинено о ${timeStr}`, 'info');
+  };
+
+  const startShiftWorkSession = () => {
+    if (!activeShift) return;
+    const now = new Date().toISOString();
+    
+    // Set endTime for all guards from previous shifts who are currently active
     setShifts(prev => {
-      const endedShifts = prev.map(s => {
-        if (!s.endTime && !activeShift.visitorIds.includes(s.guardId)) {
-          return { ...s, endTime: now };
-        }
-        return s;
-      });
+      const endedShifts = prev.map(s => s.endTime ? s : { ...s, endTime: now });
 
-      const newShifts = shiftVisitors
-        .filter(guard => guard.status === 'in' && !endedShifts.some(u => u.guardId === guard.id && !u.endTime))
-        .map((guard, i) => ({
-          id: Date.now().toString() + i + '-' + Math.random(),
-          guardId: guard.id,
-          startTime: now,
-          restPeriods: []
-        }));
+      const newShifts = (activeShift.visitorIds || []).map((guardId, i) => ({
+        id: Date.now().toString() + i + '-' + Math.random(),
+        guardId: guardId,
+        startTime: now,
+        restPeriods: []
+      }));
 
-      if (newShifts.length > 0) {
-        setTimeout(() => {
-          showToast('Група заступила на чергову зміну', 'success');
-        }, 50);
-        return [...endedShifts, ...newShifts];
-      } else {
-        setTimeout(() => {
-          showToast('Неможливо заступити: користувачі не на локації', 'error');
-        }, 50);
-        return prev;
-      }
+      return [...endedShifts, ...newShifts];
     });
+
+    // Mark this shift as active and others as inactive
+    setSecurityShifts(prev => prev.map(s => ({
+      ...s,
+      status: s.id === activeShift.id ? 'active' : 'inactive'
+    })));
+
+    // Record in reports: which shift and at what time started duty
+    addDutyEvent(activeShift.id, activeShift.name, 'start', now);
+
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    showToast(`Зміна "${activeShift.name}" заступила на чергування о ${timeStr}`, 'success');
   };
 
   // Find the sessions for the active shift's guards
@@ -187,7 +208,8 @@ export default function Security() {
   };
 
   const shiftVisitors = visitors.filter(v => activeShift?.visitorIds.includes(v.id));
-  const isShiftOnDuty = activeSessions.length > 0;
+  const isShiftOnDuty = activeSessions.length > 0 || activeShift?.status === 'active';
+  const isAnyShiftOnDuty = securityShifts.some(s => s.status === 'active') || shifts.some(s => !s.endTime);
   const isAfter600 = currentTime.getHours() >= 6;
   const allGuardsIn = shiftVisitors.length > 0 && shiftVisitors.every(guard => guard.status === 'in');
   const isAnyOtherShiftReady = securityShifts.some(s => 
@@ -201,19 +223,25 @@ export default function Security() {
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
       <div className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x">
-        {securityShifts.map(s => (
-          <button
-            key={s.id}
-            onClick={() => setActiveTab(s.id)}
-            className={`px-5 py-2.5 rounded-2xl text-sm font-normal whitespace-nowrap transition-all shadow-sm snap-start ${
-              activeTab === s.id 
-                ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]' 
-                : 'bg-card text-muted-foreground hover:bg-secondary border border-border'
-            }`}
-          >
-            {s.name}
-          </button>
-        ))}
+        {securityShifts.map(s => {
+          const shiftActive = shifts.some(session => s.visitorIds.includes(session.guardId) && !session.endTime) || s.status === 'active';
+          return (
+            <button
+              key={s.id}
+              onClick={() => setActiveTab(s.id)}
+              className={`px-5 py-2.5 rounded-2xl text-sm font-normal whitespace-nowrap transition-all shadow-sm snap-start flex items-center gap-2 ${
+                activeTab === s.id 
+                  ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]' 
+                  : 'bg-card text-muted-foreground hover:bg-secondary border border-border'
+              }`}
+            >
+              <span>{s.name}</span>
+              {shiftActive && (
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="На чергуванні" />
+              )}
+            </button>
+          );
+        })}
         <button 
           onClick={openAddModal} 
           className="px-5 py-2.5 rounded-2xl text-sm font-normal bg-card text-muted-foreground border border-border border-dashed hover:bg-secondary whitespace-nowrap flex items-center gap-2 transition-colors snap-start"
@@ -227,12 +255,33 @@ export default function Security() {
           <div className="flex flex-col bg-card rounded-3xl p-6 shadow-sm overflow-hidden">
             <div className="flex flex-wrap justify-between items-center gap-4">
               <div className="min-w-0">
-                <h2 className="text-xl font-normal truncate">{activeShift.name}</h2>
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-xl font-normal truncate">{activeShift.name}</h2>
+                  {isShiftOnDuty ? (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> На чергуванні
+                    </span>
+                  ) : (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-muted text-muted-foreground border border-border/50">
+                      Не на чергуванні
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2 font-normal">
                   <Users className="w-4 h-4" /> Чергових: {activeSessions.length} з {activeShift.visitorIds.length}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2 shrink-0">
+                {isShiftOnDuty && (
+                  <button 
+                    onClick={stopShiftWorkSession}
+                    className="flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-xl transition-all text-sm shadow-lg shadow-rose-600/20 active:scale-95 cursor-pointer"
+                    title="Зупинити чергування цієї зміни без будь-яких додаткових умов"
+                  >
+                    <Square className="w-4 h-4 fill-white" />
+                    Зупинити чергування
+                  </button>
+                )}
                 <button 
                   onClick={() => {
                     setHandoverTarget('');
@@ -268,7 +317,7 @@ export default function Security() {
               {isShiftOnDuty ? (
                 <div className="flex flex-col sm:flex-row gap-4 w-full">
                    {(() => {
-                     const firstStart = activeSessions.sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0]?.startTime;
+                     const firstStart = activeSessions.sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0]?.startTime || new Date().toISOString();
                      return (
                        <>
                          <div className="flex flex-1 justify-between items-center bg-emerald-500/5 py-2 px-4 rounded-2xl border border-emerald-500/20">
@@ -299,6 +348,16 @@ export default function Security() {
                              <div className="w-5 h-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
                            </div>
                          </div>
+                         <div className="flex items-center">
+                           <button 
+                             onClick={stopShiftWorkSession}
+                             className="flex items-center gap-2 px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-2xl text-xs uppercase tracking-wider shadow-lg shadow-rose-600/20 transition-all active:scale-95 cursor-pointer whitespace-nowrap"
+                             title="Зупинити чергування цієї зміни"
+                           >
+                             <Square className="w-4 h-4 fill-white" />
+                             Зупинити чергування
+                           </button>
+                         </div>
                        </>
                      );
                    })()}
@@ -310,27 +369,27 @@ export default function Security() {
                       <ShieldAlert className="w-6 h-6 text-muted-foreground/50" />
                     </div>
                     <div>
-                      <span className="text-sm font-medium text-muted-foreground">Група очікує заступлення на чергову зміну</span>
+                      <span className="text-sm font-medium text-foreground">
+                        {!isAnyShiftOnDuty 
+                          ? 'Чергування зупинено. Натисніть «Заступити», щоб розпочати чергування.' 
+                          : 'Група очікує чергової зміни (інша зміна зараз на посту)'}
+                      </span>
                       {finishedSessions.length > 0 && (
                         <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mt-1">
                           Попередня зміна: {formatDuration(finishedSessions[0].startTime, finishedSessions[0].endTime)}
-                        </p>
-                      )}
-                      {!allGuardsIn && (
-                        <p className="text-[10px] text-red-500 font-bold uppercase tracking-wider mt-1">
-                          Не всі охоронці зайшли на локацію!
                         </p>
                       )}
                     </div>
                   </div>
                   <button
                     onClick={startShiftWorkSession}
-                    disabled={!allGuardsIn || !!activeDirtySky}
+                    disabled={isAnyShiftOnDuty && !isShiftOnDuty}
                     className={`flex items-center gap-2 px-8 py-3 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all ${
-                      allGuardsIn && !activeDirtySky
-                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 active:scale-95'
+                      !isAnyShiftOnDuty || isShiftOnDuty
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 active:scale-95 cursor-pointer'
                         : 'bg-muted text-muted-foreground cursor-not-allowed opacity-50 shadow-none'
                     }`}
+                    title={isAnyShiftOnDuty ? "Інша зміна вже на чергуванні. Спочатку зупиніть її чергування або здійсніть передачу" : "Заступити на чергування"}
                   >
                     <Play className="w-4 h-4 fill-white" />
                     Заступити
@@ -480,9 +539,9 @@ export default function Security() {
                   onChange={e => setHandoverTarget(e.target.value)}
                   className="w-full px-4 py-2 border border-border bg-background rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow"
                 >
-                  <option value="">Виберіть групу...</option>
-                  {securityShifts.filter(s => s.id !== activeShift?.id).map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
+                  <option key="default-handover" value="">Виберіть групу...</option>
+                  {securityShifts.filter(s => s.id !== activeShift?.id).map((s, idx) => (
+                    <option key={s.id ? `sec-shift-${s.id}` : `sec-shift-idx-${idx}`} value={s.id}>{s.name}</option>
                   ))}
                 </select>
                 {handoverTarget && (() => {

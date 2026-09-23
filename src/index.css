@@ -96,16 +96,25 @@
 }
 
 @media print {
-  body, html, main {
+  html, body, #root, .h-screen {
+    height: auto !important;
+    min-height: 100% !important;
+    overflow: visible !important;
     background: white !important;
     color: black !important;
     padding: 0 !important;
     margin: 0 !important;
-    min-width: 100% !important;
     width: 100% !important;
   }
   
-  .no-print {
+  main {
+    overflow: visible !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  
+  .no-print, header, nav, [data-modal-header] {
     display: none !important;
   }
   
@@ -114,14 +123,44 @@
   }
 
   @page {
-    size: A4 portrait;
-    margin: 12mm 10mm 12mm 10mm;
+    size: auto;
+    margin: 10mm 12mm 10mm 12mm;
   }
 
   /* Force background colors to print */
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+
+  .printable-document {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: white !important;
+    color: black !important;
+  }
+
+  .doc-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  .doc-table thead {
+    display: table-header-group !important;
+  }
+
+  .doc-table tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .doc-signatures {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   /* Force A4 portrait fit grid */

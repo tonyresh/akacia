@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { differenceInMinutes } from 'date-fns';
-import { Visitor, Guard, Shift, Category, Group, SecurityShift, DirtySkyEvent, CustomIcon, Location } from '../types';
+import { Visitor, Guard, Shift, Category, Group, SecurityShift, DirtySkyEvent, CustomIcon, Location, DutyEvent } from '../types';
 
 interface DataContextType {
   visitors: Visitor[];
@@ -18,6 +18,9 @@ interface DataContextType {
   locations: Location[];
   setLocations: React.Dispatch<React.SetStateAction<Location[]>>;
   dirtySkyEvents: DirtySkyEvent[];
+  dutyEvents: DutyEvent[];
+  setDutyEvents: React.Dispatch<React.SetStateAction<DutyEvent[]>>;
+  addDutyEvent: (shiftId: string, shiftName: string, type: 'start' | 'end', timestamp?: string) => void;
   customIcons: CustomIcon[];
   setCustomIcons: React.Dispatch<React.SetStateAction<CustomIcon[]>>;
   startDirtySky: () => void;
@@ -68,14 +71,29 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       ];
     }
   });
-  const [categories, setCategories] = useState<Category[]>(() => {
+  const [categories, setCategoriesState] = useState<Category[]>(() => {
+    const defaultRanks = ['Рядовий', 'Сержант', 'Лейтенант', 'Капітан', 'Майор', 'Полковник'];
     try {
       const saved = localStorage.getItem('categories');
-      return saved ? JSON.parse(saved) : ['Рядовий', 'Сержант', 'Лейтенант', 'Капітан', 'Майор', 'Полковник'];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const unique = Array.from(new Set(parsed.map(String).map(s => s.trim()).filter(Boolean)));
+          return unique.length > 0 ? unique : defaultRanks;
+        }
+      }
+      return defaultRanks;
     } catch {
-      return ['Рядовий', 'Сержант', 'Лейтенант', 'Капітан', 'Майор', 'Полковник'];
+      return defaultRanks;
     }
   });
+
+  const setCategories = useCallback((action: React.SetStateAction<Category[]>) => {
+    setCategoriesState(prev => {
+      const next = typeof action === 'function' ? action(prev) : action;
+      return Array.from(new Set(next.map(String).map(s => s.trim()).filter(Boolean)));
+    });
+  }, []);
   const [locations, setLocations] = useState<Location[]>(() => {
     try {
       const saved = localStorage.getItem('locations');
@@ -159,6 +177,26 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const saved = localStorage.getItem('dirtySkyEvents');
     return saved ? JSON.parse(saved) : [];
   });
+
+  const [dutyEvents, setDutyEvents] = useState<DutyEvent[]>(() => {
+    try {
+      const saved = localStorage.getItem('dutyEvents');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const addDutyEvent = useCallback((shiftId: string, shiftName: string, type: 'start' | 'end', timestamp?: string) => {
+    const newEvent: DutyEvent = {
+      id: Date.now().toString() + '-' + Math.random().toString(36).substr(2, 6),
+      shiftId,
+      shiftName,
+      type,
+      timestamp: timestamp || new Date().toISOString()
+    };
+    setDutyEvents(prev => [...prev, newEvent]);
+  }, []);
 
   const [customIcons, setCustomIcons] = useState<CustomIcon[]>(() => {
     try {
@@ -400,6 +438,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { localStorage.setItem('locations', JSON.stringify(locations)); }, [locations]);
   useEffect(() => { localStorage.setItem('groups', JSON.stringify(groups)); }, [groups]);
   useEffect(() => { localStorage.setItem('dirtySkyEvents', JSON.stringify(dirtySkyEvents)); }, [dirtySkyEvents]);
+  useEffect(() => { localStorage.setItem('dutyEvents', JSON.stringify(dutyEvents)); }, [dutyEvents]);
   useEffect(() => { localStorage.setItem('customIcons', JSON.stringify(customIcons)); }, [customIcons]);
 
   // Data retention: 60 days
@@ -429,6 +468,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       });
       return filtered.length === prev.length ? prev : filtered;
     });
+
+    setDutyEvents(prev => {
+      const filtered = prev.filter(event => {
+        const eventDate = new Date(event.timestamp);
+        return eventDate > sixtyDaysAgo;
+      });
+      return filtered.length === prev.length ? prev : filtered;
+    });
   }, []);
 
   return (
@@ -441,6 +488,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       groups, setGroups, 
       locations, setLocations, 
       dirtySkyEvents, startDirtySky, endDirtySky,
+      dutyEvents, setDutyEvents, addDutyEvent,
       customIcons, setCustomIcons,
       performShiftBackupAndReset, cleanLogsByPeriod, cleanCurrentShiftLogs 
     }}>

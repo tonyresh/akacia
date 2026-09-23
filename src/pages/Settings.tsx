@@ -28,6 +28,7 @@ export default function Settings() {
   const [newLocationIconId, setNewLocationIconId] = useState<string | undefined>();
   const [newGroup, setNewGroup] = useState('');
   const [newGroupColor, setNewGroupColor] = useState('');
+  const [newGroupShowInVisitors, setNewGroupShowInVisitors] = useState(true);
   
   const [editingRank, setEditingRank] = useState<string | null>(null);
   const [editRankValue, setEditRankValue] = useState('');
@@ -35,6 +36,7 @@ export default function Settings() {
   const [editingGroup, setEditingGroup] = useState<any | null>(null);
   const [editGroupValue, setEditGroupValue] = useState('');
   const [editGroupColor, setEditGroupColor] = useState('');
+  const [editGroupShowInVisitors, setEditGroupShowInVisitors] = useState(true);
 
   const [editingLocation, setEditingLocation] = useState<any | null>(null);
   const [editLocationValue, setEditLocationValue] = useState('');
@@ -152,17 +154,28 @@ export default function Settings() {
       showToast(`Група "${newGroup.trim()}" вже існує!`, 'error');
       return;
     }
-    setGroups([...groups, { id: Date.now().toString(), name: newGroup.trim(), color: newGroupColor }]);
+    setGroups([...groups, { 
+      id: Date.now().toString(), 
+      name: newGroup.trim(), 
+      color: newGroupColor,
+      showInVisitors: newGroupShowInVisitors 
+    }]);
     showToast(`Групу "${newGroup.trim()}" створено`, 'success');
     setNewGroup('');
     setNewGroupColor('');
-  }
+    setNewGroupShowInVisitors(true);
+  };
 
   const saveGroupEdit = () => {
     if (!editingGroup || !editGroupValue.trim()) return;
     
     const trimmed = editGroupValue.trim();
-    setGroups(prev => prev.map(g => g.id === editingGroup.id ? { ...g, name: trimmed, color: editGroupColor } : g));
+    setGroups(prev => prev.map(g => g.id === editingGroup.id ? { 
+      ...g, 
+      name: trimmed, 
+      color: editGroupColor,
+      showInVisitors: editGroupShowInVisitors 
+    } : g));
     
     // Propagate name change to visitors
     if (trimmed !== editingGroup.name) {
@@ -176,6 +189,15 @@ export default function Settings() {
     
     showToast(`Групу "${trimmed}" оновлено`, 'success');
     setEditingGroup(null);
+  };
+
+  const toggleGroupShowInVisitors = (id: string) => {
+    setGroups(prev => prev.map(g => {
+      if (g.id !== id) return g;
+      const nextVal = g.showInVisitors === false ? true : false;
+      showToast(nextVal ? `Кнопку фільтра "${g.name}" увімкнено у Відвідувачах` : `Кнопку фільтра "${g.name}" приховано з панелі фільтрів`, 'info');
+      return { ...g, showInVisitors: nextVal };
+    }));
   };
 
   const removeCat = (cat: string) => {
@@ -331,6 +353,10 @@ export default function Settings() {
               if (cleanHeader.includes('позивний') || cleanHeader.includes('callsign')) obj.callsign = values[idx];
               if (cleanHeader.includes('звання') || cleanHeader.includes('rank') || cleanHeader.includes('category')) obj.category = values[idx];
               if (cleanHeader.includes('група') || cleanHeader.includes('group')) obj.group = values[idx];
+              if (cleanHeader.includes('особлив') || cleanHeader.includes('special')) {
+                const val = (values[idx] || '').trim().toLowerCase();
+                obj.isSpecial = val === 'true' || val === '1' || val === '+' || val === 'так' || val === 'yes' || val === 'особливий';
+              }
             });
             return obj;
           });
@@ -339,6 +365,9 @@ export default function Settings() {
         if (importedUsers.length > 0) {
           const newVisitors: Visitor[] = importedUsers.map(u => {
             const groupObj = groups.find(g => g.name === u.group) || groups[0];
+            const isSpecial = u.isSpecial === true || u.isSpecial === 'true' || u.isSpecial === 1 ||
+              String(u.category || '').trim().toLowerCase() === 'особливий' ||
+              String(u.group || '').trim().toLowerCase() === 'особливий';
             return {
               id: u.id || Math.random().toString(36).substr(2, 9),
               name: u.name || 'Невідомий',
@@ -347,7 +376,8 @@ export default function Settings() {
               group: groupObj?.name || u.group || '',
               groupId: groupObj?.id || 'default',
               status: 'out',
-              totalTimeMinutes: 0
+              totalTimeMinutes: 0,
+              isSpecial: isSpecial ? true : undefined
             };
           });
 
@@ -457,8 +487,8 @@ export default function Settings() {
                   </button>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {categories.map(c => (
-                    <div key={c} className="flex justify-between items-center p-3 bg-muted/40 rounded-xl border border-border/50 text-sm group transition-colors hover:bg-muted/60">
+                  {categories.map((c, idx) => (
+                    <div key={`rank-${c}-${idx}`} className="flex justify-between items-center p-3 bg-muted/40 rounded-xl border border-border/50 text-sm group transition-colors hover:bg-muted/60">
                       {editingRank === c ? (
                         <div className="flex-1 flex gap-2">
                           <input 
@@ -552,8 +582,8 @@ export default function Settings() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {locations.map(loc => (
-                    <div key={loc.id} className="flex flex-col p-3 rounded-xl border border-border/50 text-sm group transition-colors hover:bg-muted/60 bg-muted/40">
+                  {locations.map((loc, idx) => (
+                    <div key={loc.id ? `loc-${loc.id}` : `loc-idx-${idx}`} className="flex flex-col p-3 rounded-xl border border-border/50 text-sm group transition-colors hover:bg-muted/60 bg-muted/40">
                       {editingLocation?.id === loc.id ? (
                         <div className="flex-1 flex flex-col gap-3">
                           <input 
@@ -646,7 +676,7 @@ export default function Settings() {
                       className="flex-1 px-4 py-2 border border-border bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/50 text-sm"
                       placeholder="Назва нової групи..."
                     />
-                    <button onClick={addGroup} className="bg-amber-500 text-amber-950 px-6 py-2 rounded-xl hover:bg-amber-400 text-sm font-medium transition-colors shadow-lg shadow-amber-500/20">
+                    <button onClick={addGroup} className="bg-amber-500 text-amber-950 px-6 py-2 rounded-xl hover:bg-amber-400 text-sm font-medium transition-colors shadow-lg shadow-amber-500/20 cursor-pointer">
                       Додати
                     </button>
                   </div>
@@ -662,10 +692,21 @@ export default function Settings() {
                       />
                     ))}
                   </div>
+                  <div className="pt-1">
+                    <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-muted-foreground hover:text-foreground w-fit">
+                      <input 
+                        type="checkbox" 
+                        checked={newGroupShowInVisitors} 
+                        onChange={e => setNewGroupShowInVisitors(e.target.checked)}
+                        className="w-4 h-4 rounded border-border text-amber-500 focus:ring-amber-500/30 cursor-pointer"
+                      />
+                      <span>Відображати в панелі фільтрів «Відвідувачі»</span>
+                    </label>
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {groups.map(g => (
-                    <div key={g.id} className="flex flex-col p-3 rounded-xl border border-border/50 text-sm transition-colors group relative" style={{ backgroundColor: g.color || 'var(--muted)' }}>
+                  {groups.map((g, idx) => (
+                    <div key={g.id ? `group-${g.id}` : `group-idx-${idx}`} className="flex flex-col p-3 rounded-xl border border-border/50 text-sm transition-colors group relative" style={{ backgroundColor: g.color || 'var(--muted)' }}>
                       {editingGroup?.id === g.id ? (
                         <div className="flex-1 flex flex-col gap-3">
                            <input 
@@ -687,16 +728,26 @@ export default function Settings() {
                             ))}
                           </div>
 
+                          <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-foreground font-medium my-0.5">
+                            <input 
+                              type="checkbox" 
+                              checked={editGroupShowInVisitors} 
+                              onChange={e => setEditGroupShowInVisitors(e.target.checked)}
+                              className="w-4 h-4 rounded border-border text-emerald-500 focus:ring-emerald-500/30 cursor-pointer"
+                            />
+                            <span>Відображати в панелі фільтрів «Відвідувачі»</span>
+                          </label>
+
                           <div className="flex gap-2 justify-end mt-1">
                             <button 
                                 onClick={saveGroupEdit} 
-                                className="px-3 py-1 bg-emerald-500 text-white rounded-lg text-[10px] font-bold uppercase transition-colors"
+                                className="px-3 py-1 bg-emerald-500 text-white rounded-lg text-[10px] font-bold uppercase transition-colors cursor-pointer"
                               >
                                 Зберегти
                               </button>
                               <button 
                                 onClick={() => setEditingGroup(null)} 
-                                className="px-3 py-1 bg-muted text-muted-foreground rounded-lg text-[10px] font-bold uppercase transition-colors"
+                                className="px-3 py-1 bg-muted text-muted-foreground rounded-lg text-[10px] font-bold uppercase transition-colors cursor-pointer"
                               >
                                 Скасувати
                               </button>
@@ -708,23 +759,44 @@ export default function Settings() {
                             <div className="w-8 h-8 rounded-lg bg-card/40 flex items-center justify-center text-foreground shrink-0 overflow-hidden">
                                 <Users className="w-4 h-4 opacity-40" />
                             </div>
-                            <span className="font-medium truncate">{g.name}</span>
+                            <div className="min-w-0">
+                              <span className="font-medium truncate block">{g.name}</span>
+                              <span className={`text-[10px] font-semibold ${g.showInVisitors !== false ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground/70'}`}>
+                                {g.showInVisitors !== false ? '✓ У панелі фільтрів' : '✕ Без кнопки фільтра'}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1.5">
+                            <label 
+                              onClick={e => e.stopPropagation()} 
+                              className="flex items-center gap-1 cursor-pointer select-none text-[11px] px-2 py-1 rounded-lg bg-background/80 hover:bg-background border border-border/50 transition-colors shadow-2xs"
+                              title="Відображати кнопку цієї групи в панелі фільтрів вкладки Відвідувачі чи ні"
+                            >
+                              <input 
+                                type="checkbox" 
+                                checked={g.showInVisitors !== false} 
+                                onChange={() => toggleGroupShowInVisitors(g.id)}
+                                className="rounded border-border w-3.5 h-3.5 text-primary focus:ring-primary/30 cursor-pointer" 
+                              />
+                              <span className="text-[10px] hidden sm:inline font-medium">
+                                {g.showInVisitors !== false ? "Вкл" : "Викл"}
+                              </span>
+                            </label>
                             <button 
                               onClick={() => {
                                 setEditingGroup(g);
                                 setEditGroupValue(g.name);
                                 setEditGroupColor(g.color);
+                                setEditGroupShowInVisitors(g.showInVisitors !== false);
                               }} 
-                              className="text-muted-foreground hover:text-blue-500 p-1.5 rounded-md transition-all sm:opacity-0 group-hover:opacity-100"
+                              className="text-muted-foreground hover:text-blue-500 p-1.5 rounded-md transition-all cursor-pointer sm:opacity-0 group-hover:opacity-100"
                               title="Редагувати"
                             >
                               <Pencil className="w-4 h-4" />
                             </button>
                             <button 
                               onClick={() => removeGroup(g.id)}
-                              className="text-muted-foreground hover:text-red-500 p-1.5 rounded-md transition-all"
+                              className="text-muted-foreground hover:text-red-500 p-1.5 rounded-md transition-all cursor-pointer"
                               title="Видалити"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -991,9 +1063,9 @@ export default function Settings() {
                           ВСІ ГРУПИ
                         </button>
                         <div className="w-px h-6 bg-border/60 mx-1 self-center" />
-                        {groups.map(g => (
+                        {groups.map((g, idx) => (
                           <button
-                            key={g.id}
+                            key={g.id ? `clean-group-${g.id}` : `clean-group-idx-${idx}`}
                             onClick={() => setSelectedCleanGroups(prev => prev.includes(g.id) ? prev.filter(id => id !== g.id) : [...prev, g.id])}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all ${selectedCleanGroups.includes(g.id) ? 'bg-primary text-white border-transparent shadow-sm' : 'bg-background border-border text-muted-foreground hover:bg-muted'}`}
                           >

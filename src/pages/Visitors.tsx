@@ -1,10 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../store/DataContext';
 import { useTheme } from '../store/ThemeContext';
-import { Search, LogIn, LogOut, Download, Mic, MicOff, Star, User, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, LogIn, LogOut, Download, Mic, MicOff, Star, User, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useToast } from '../store/ToastContext';
 import { differenceInMinutes } from 'date-fns';
 import { formatNameAbbreviated, splitNameTwoLines } from '../utils/nameUtils';
+import { 
+  parseVoiceCommand, 
+  matchVisitorVoice 
+} from '../utils/voiceCommandUtils';
+import { Visitor } from '../types';
+import { isSpecialVisitor, compareVisitorsSpecialFirst, isSpecialGroup } from '../utils/visitorUtils';
 
 export default function Visitors() {
   const { visitors, setVisitors, categories, groups, locations, shifts, customIcons, dirtySkyEvents } = useData();
@@ -50,52 +56,180 @@ export default function Visitors() {
   const isListeningRef = useRef(false);
   const recognitionRef = useRef<any>(null);
 
+  const [selectedVoiceVisitor, setSelectedVoiceVisitor] = useState<Visitor | null>(null);
+  const selectedVoiceVisitorRef = useRef<Visitor | null>(null);
+
   useEffect(() => {
     isListeningRef.current = isListening;
   }, [isListening]);
+
+  useEffect(() => {
+    selectedVoiceVisitorRef.current = selectedVoiceVisitor;
+  }, [selectedVoiceVisitor]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const normalizeForSearch = (str: string) => {
-    return str.toLowerCase()
-      .replace(/['`’ʼ.,!?]/g, '')
-      .replace(/[иіїыi]/g, 'i')
-      .replace(/[еєэe]/g, 'e')
-      .replace(/[гґg]/g, 'g')
-      .replace(/[аa]/g, 'a')
-      .replace(/[оo]/g, 'o')
-      .replace(/[рp]/g, 'p')
-      .replace(/[сc]/g, 'c')
-      .replace(/[хx]/g, 'x')
-      .replace(/[уy]/g, 'y');
+  // Update selectedVoiceVisitor whenever visitors list updates
+  useEffect(() => {
+    if (selectedVoiceVisitor) {
+      const updated = visitors.find(v => v.id === selectedVoiceVisitor.id);
+      if (updated && updated.status !== selectedVoiceVisitor.status) {
+        setSelectedVoiceVisitor(updated);
+      }
+    }
+  }, [visitors, selectedVoiceVisitor]);
+
+  const matchesSearch = (name: string, callsign: string | undefined, searchStr: string, category?: string) => {
+    return matchVisitorVoice({ name, callsign, category } as any, searchStr);
   };
 
-  const matchesSearch = (name: string, callsign: string | undefined, searchStr: string) => {
-    const normName = normalizeForSearch(name);
-    const normCallsign = callsign ? normalizeForSearch(callsign) : '';
-    const searchWords = normalizeForSearch(searchStr).split(/\s+/).filter(w => w.length > 0);
-    if (searchWords.length === 0) return true;
-    return searchWords.every(word => normName.includes(word) || normCallsign.includes(word));
-  };
-
-  const executeCommand = (nameQuery: string, action: 'in' | 'out') => {
-    if (!nameQuery || !!activeDirtySky) return;
+  const markIn = (id: string | string[]) => {
+    const ids = Array.isArray(id) ? id : [id];
+    const now = new Date().toISOString();
     
-    const matching = visitors.filter(v => matchesSearch(v.name, v.callsign, nameQuery));
-    if (matching.length === 0) {
-      showToast(`Користувача "${nameQuery}" не знайдено`, 'info');
+    if (ids.length === 1) {
+      const v = visitors.find(vis => vis.id === ids[0]);
+      if (v) {
+        if (v.status === 'in') {
+          showToast(`ℹ️ ${v.name} вже на локації (ВХІД)`, 'info');
+        } else {
+          showToast(`🎙️ ${v.name}: ЗАЙШОВ (+)`, 'success');
+        }
+      }
+    }
+
+    setVisitors(prev => prev.map(v => {
+      if (!ids.includes(v.id)) return v;
+      if (v.status === 'in') return v;
+      
+      const logs = v.logs ? [...v.logs] : (v.lastEntry ? [{ in: v.lastEntry }] : []);
+      if (logs.length === 0 || logs[logs.length - 1].out) {
+        logs.push({ in: now });
+      }
+      
+      return { ...v, status: 'in', lastEntry: now, logs };
+    }));
+  };
+
+  const markOut = (id: string | string[]) => {
+    const ids = Array.isArray(id) ? id : [id];
+    const now = new Date().toISOString();
+    
+    if (ids.length === 1) {
+      const v = visitors.find(vis => vis.id === ids[0]);
+      if (v) {
+        if (v.status === 'out' && !v.lastEntry) {
+          showToast(`ℹ️ ${v.name} вже за межами локації (ВИХІД)`, 'info');
+        } else {
+          showToast(`🎙️ ${v.name}: ВИЙШОВ (-)`, 'info');
+        }
+      }
+    }
+
+    setVisitors(prev => prev.map(v => {
+      if (!ids.includes(v.id)) return v;
+      
+      const isGuardOnDuty = shifts.some(s => s.guardId === v.id && !s.endTime);
+      if (isGuardOnDuty) {
+        showToast(`Не можна вийти: зміна чергування не може вийти з локації, поки не передасть зміну іншій групі`, 'error');
+        return v;
+      }
+
+      if (v.status === 'out' && !v.lastEntry) return v;
+
+      const logs = v.logs ? [...v.logs] : (v.lastEntry ? [{ in: v.lastEntry }] : []);
+      
+      let index = -1;
+      for (let i = logs.length - 1; i >= 0; i--) {
+        if (logs[i].in && !logs[i].out) {
+          index = i;
+          break;
+        }
+      }
+
+      if (index !== -1) {
+        logs[index] = { ...logs[index], out: now };
+        const startTime = logs[index].in;
+        const diff = startTime ? differenceInMinutes(new Date(now), new Date(startTime)) : 0;
+        return { 
+          ...v, 
+          status: 'out', 
+          lastEntry: undefined, 
+          logs,
+          totalTimeMinutes: (v.totalTimeMinutes || 0) + Math.max(0, diff) 
+        };
+      } else {
+        const fallbackIn = v.lastEntry || now;
+        logs.push({ in: fallbackIn, out: now });
+        const diff = differenceInMinutes(new Date(now), new Date(fallbackIn));
+        return {
+          ...v,
+          status: 'out',
+          lastEntry: undefined,
+          logs,
+          totalTimeMinutes: (v.totalTimeMinutes || 0) + Math.max(0, diff)
+        };
+      }
+    }));
+  };
+
+  const executeCommand = (nameQuery: string, action: 'in' | 'out', triggerWord?: string) => {
+    if (!!activeDirtySky) return;
+    
+    let targetVisitor: Visitor | undefined = undefined;
+
+    // 1. Spoken name together with command
+    if (nameQuery && nameQuery.trim()) {
+      const matching = visitors.filter(v => matchVisitorVoice(v, nameQuery));
+      if (matching.length > 0) {
+        targetVisitor = matching[0];
+      }
+    }
+
+    // 2. Previously found visitor via voice search
+    if (!targetVisitor && selectedVoiceVisitorRef.current) {
+      targetVisitor = visitors.find(v => v.id === selectedVoiceVisitorRef.current?.id) || selectedVoiceVisitorRef.current;
+    }
+
+    // 3. Current search query
+    if (!targetVisitor && latestSearch.current && latestSearch.current.trim()) {
+      const matching = visitors.filter(v => matchVisitorVoice(v, latestSearch.current));
+      if (matching.length > 0) {
+        targetVisitor = matching[0];
+      }
+    }
+
+    // 4. Single match in filtered list
+    if (!targetVisitor) {
+      const matching = visitors.filter(v => search.trim() ? matchesSearch(v.name, v.callsign, search) : false);
+      if (matching.length === 1) {
+        targetVisitor = matching[0];
+      }
+    }
+
+    if (!targetVisitor) {
+      if (nameQuery && nameQuery.trim()) {
+        showToast(`Голосова команда: Користувача "${nameQuery}" не знайдено`, 'info');
+      } else {
+        showToast('Спочатку назвіть прізвище або оберіть користувача, потім скажіть «ПЛЮС» чи «МІНУС»', 'info');
+      }
       return;
     }
-    
-    const v = matching[0];
+
     if (action === 'in') {
-      markIn(v.id);
+      markIn(targetVisitor.id);
     } else {
-      markOut(v.id);
+      markOut(targetVisitor.id);
     }
+
+    setSelectedVoiceVisitor(targetVisitor);
+    setTimeout(() => {
+      setSearch('');
+      setSelectedVoiceVisitor(null);
+    }, 2500);
   };
 
 
@@ -135,7 +269,7 @@ export default function Visitors() {
     }
 
     const recognition = new SpeechRecognition();
-    recognition.lang = 'uk-UA'; 
+    recognition.lang = 'uk-UA';
     recognition.continuous = true;
     recognition.interimResults = true;
 
@@ -147,6 +281,7 @@ export default function Visitors() {
       console.log('Speech recognition ended');
       if (isListeningRef.current) {
         try {
+          recognition.lang = 'uk-UA';
           recognition.start();
         } catch (e) {
           console.error('Restart error:', e);
@@ -156,16 +291,19 @@ export default function Visitors() {
     };
 
     recognition.onerror = (event: any) => { 
-      console.error('Speech recognition error:', event.error);
+      if (event.error === 'no-speech' || event.error === 'aborted') {
+        // Non-fatal, silence timeout or stop() called
+        return;
+      }
+      console.warn('Speech recognition notice:', event.error);
       if (event.error === 'not-allowed') {
         showToast("Помилка: Надайте дозвіл на використання мікрофону у браузері.", 'error');
         setIsListening(false);
-      } else if (event.error === 'aborted') {
-        // Ignore aborted error as it happens on stop()
       } else {
         setIsListening(false);
       }
     };
+
     recognition.onresult = (event: any) => {
       let interimTranscript = '';
       let finalTranscript = '';
@@ -178,28 +316,36 @@ export default function Visitors() {
         }
       }
 
-      const text = (finalTranscript + ' ' + interimTranscript).toLowerCase().trim();
+      const text = (finalTranscript + ' ' + interimTranscript).trim();
       if (!text) return;
 
-      const isPlus = /(?:\+|^|плюс|заш|зайш|ввійш|увійш|прийш|заход|зайди|заходь|плюсани|додай|став|постав|вошел|увійшов|зайшов)[а-яіїєґ]*\b/i.test(text);
-      const isMinus = /(?:-|^|мінус|минус|выш|вийш|піш|виход|вийди|виходь|мінусани|відніми|заверш|ушел|вийшов|зовні|випиши)[а-яіїєґ]*\b/i.test(text);
+      const parsed = parseVoiceCommand(text);
 
-      let searchName = text
-        .replace(/(?:\+|-|плюс|минус|мінус|зашел|зашла|зайшов|зайшла|ввійшов|ввійшла|увійшов|увійшла|прийшов|прийшла|зайшли|прийшли|вышел|вышла|вийшов|вийшла|пішов|пішла|вийшли|пішли|заш|зайш|ввійш|увійш|прийш|выш|вийш|піш|заход|виход|зайди|заходь|плюсани|додай|вийди|виходь|мінусани|відніми|став|постав|заверш|ушел|зовні|випиши)[а-яіїєґ/]*\b/gi, '')
-        .replace(/[.,!?]/g, '')
-        .trim();
-
-      if (searchName) {
-        setSearch(searchName);
+      if (parsed.targetQuery) {
+        setSearch(parsed.targetQuery);
+        setShowOnlyIn(false);
+        const matches = visitors.filter(v => matchVisitorVoice(v, parsed.targetQuery));
+        if (matches.length > 0) {
+          setSelectedVoiceVisitor(matches[0]);
+        }
       }
 
-      if (event.results[event.results.length - 1].isFinal && (isPlus || isMinus)) {
-        const finalSearchName = searchName || latestSearch.current;
-        executeCommand(finalSearchName, isPlus ? 'in' : 'out');
-        setTimeout(() => {
-          setSearch('');
-          setShowOnlyIn(true);
-        }, 1500);
+      const isFinal = event.results[event.results.length - 1].isFinal;
+
+      if (isFinal) {
+        if (parsed.isCommand && parsed.action) {
+          executeCommand(parsed.targetQuery, parsed.action, parsed.triggerWord);
+        } else if (parsed.targetQuery) {
+          const matches = visitors.filter(v => matchVisitorVoice(v, parsed.targetQuery));
+          if (matches.length > 0) {
+            const found = matches[0];
+            setSelectedVoiceVisitor(found);
+            setShowOnlyIn(false);
+            showToast(`🎯 Знайдено: ${found.name} (${found.status === 'in' ? 'НА ЛОКАЦІЇ' : 'ЗА МЕЖАМИ'}). Скажіть «ПЛЮС» або «МІНУС»`, 'info');
+          } else {
+            showToast(`Користувача "${parsed.targetQuery}" не знайдено`, 'info');
+          }
+        }
       }
     };
 
@@ -212,103 +358,19 @@ export default function Visitors() {
     }
   };
 
+  const visibleGroups = groups.filter(g => g.showInVisitors !== false && !isSpecialGroup(g));
+
+  useEffect(() => {
+    if (activeGroup !== 'all' && !visibleGroups.some(g => g.id === activeGroup)) {
+      setActiveGroup('all');
+    }
+  }, [groups, visibleGroups, activeGroup]);
+
   const filtered = visitors
     .filter(v => matchesSearch(v.name, v.callsign, search))
-    .filter(v => activeGroup === 'all' || v.groupId === activeGroup || v.group === activeGroup)
+    .filter(v => activeGroup === 'all' || isSpecialVisitor(v, groups) || v.groupId === activeGroup || v.group === activeGroup)
     .filter(v => showOnlyIn ? v.status === 'in' : true)
-    .sort((a, b) => {
-      const specialA = a.isSpecial ? 1 : 0;
-      const specialB = b.isSpecial ? 1 : 0;
-      if (specialA !== specialB) return specialB - specialA;
-      
-      if (a.status === 'in' && b.status !== 'in') return -1;
-      if (a.status !== 'in' && b.status === 'in') return 1;
-      return a.name.localeCompare(b.name);
-    });
-
-  const markIn = (id: string | string[]) => {
-    const ids = Array.isArray(id) ? id : [id];
-    const now = new Date().toISOString();
-    
-    if (ids.length === 1) {
-      const v = visitors.find(vis => vis.id === ids[0]);
-      if (v && v.status !== 'in') {
-        showToast(`${v.name}: ЗАЙШОВ`, 'success');
-      }
-    }
-
-    setVisitors(prev => prev.map(v => {
-      if (!ids.includes(v.id)) return v;
-      if (v.status === 'in') return v;
-      
-      const logs = v.logs ? [...v.logs] : (v.lastEntry ? [{ in: v.lastEntry }] : []);
-      if (logs.length === 0 || logs[logs.length - 1].out) {
-        logs.push({ in: now });
-      }
-      
-      return { ...v, status: 'in', lastEntry: now, logs };
-    }));
-    setSearch('');
-  };
-
-  const markOut = (id: string | string[]) => {
-    const ids = Array.isArray(id) ? id : [id];
-    const now = new Date().toISOString();
-    
-    if (ids.length === 1) {
-      const v = visitors.find(vis => vis.id === ids[0]);
-      if (v && (v.status === 'in' || v.lastEntry)) {
-        showToast(`${v.name}: ВИЙШОВ`, 'info');
-      }
-    }
-
-    setVisitors(prev => prev.map(v => {
-      if (!ids.includes(v.id)) return v;
-      
-      const isGuardOnDuty = shifts.some(s => s.guardId === v.id && !s.endTime);
-      if (isGuardOnDuty) {
-        showToast(`Не можна вийти: зміна чергування не може вийти з локації, поки не передасть зміну іншій групі`, 'error');
-        return v;
-      }
-
-      if (v.status === 'out' && !v.lastEntry) return v;
-
-      const logs = v.logs ? [...v.logs] : (v.lastEntry ? [{ in: v.lastEntry }] : []);
-      
-      let index = -1;
-      for (let i = logs.length - 1; i >= 0; i--) {
-        if (logs[i].in && !logs[i].out) {
-          index = i;
-          break;
-        }
-      }
-
-      if (index !== -1) {
-        logs[index] = { ...logs[index], out: now };
-        const startTime = logs[index].in;
-        const diff = startTime ? differenceInMinutes(new Date(now), new Date(startTime)) : 0;
-        return { 
-          ...v, 
-          status: 'out', 
-          lastEntry: undefined,
-          logs,
-          totalTimeMinutes: (v.totalTimeMinutes || 0) + Math.max(0, diff) 
-        };
-      } else {
-        const fallbackIn = v.lastEntry || now;
-        logs.push({ in: fallbackIn, out: now });
-        const diff = differenceInMinutes(new Date(now), new Date(fallbackIn));
-        return {
-          ...v,
-          status: 'out',
-          lastEntry: undefined,
-          logs,
-          totalTimeMinutes: (v.totalTimeMinutes || 0) + Math.max(0, diff)
-        };
-      }
-    }));
-    setSearch('');
-  };
+    .sort((a, b) => compareVisitorsSpecialFirst(a, b, { prioritizeInStatus: false, groups }));
 
   return (
     <div className="space-y-4 max-w-7xl mx-auto">
@@ -317,21 +379,73 @@ export default function Visitors() {
           <div className="relative flex-1 max-w-xl">
             <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground/60" />
             <input 
-              type="text"
-              placeholder="Швидкий пошук відвідувачів..."
+              type="text" 
+              placeholder={isListening ? "Слухаю... Назвіть прізвище або команду" : "Швидкий пошук відвідувачів..."}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-9 sm:pl-11 pr-4 py-2 bg-muted/40 border border-transparent rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all placeholder:text-muted-foreground/50"
             />
           </div>
+
           <button
-             onClick={toggleListening}
-             className={`w-8 h-8 sm:w-10 sm:h-10 border border-transparent rounded-xl transition-all flex items-center justify-center shrink-0 cursor-pointer ${isListening ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)] animate-pulse' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}`}
-             title="Голосовий пошук"
+            onClick={toggleListening}
+            className={`w-8 h-8 sm:w-10 sm:h-10 border border-transparent rounded-xl transition-all flex items-center justify-center shrink-0 cursor-pointer ${
+              isListening 
+                ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)] animate-pulse' 
+                : 'bg-muted/50 hover:bg-muted text-muted-foreground'
+            }`}
+            title={isListening ? "Зупинити голосовий ввід" : "Голосовий ввід команд"}
           >
-            {isListening ? <Mic className="w-4 h-4 sm:w-5 sm:h-5" /> : <MicOff className="w-4 h-4 sm:w-5 sm:h-5" />}
+            {isListening ? <MicOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Mic className="w-4 h-4 sm:w-5 sm:h-5" />}
           </button>
         </div>
+
+        {/* Found visitor quick voice-action bar */}
+        {selectedVoiceVisitor && (
+          <div className="w-full max-w-xl mx-auto mt-2 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 p-2.5 px-3 sm:px-4 bg-primary/10 border border-primary/25 rounded-2xl shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${selectedVoiceVisitor.status === 'in' ? 'bg-emerald-500' : 'bg-amber-500'} animate-pulse`} />
+              <div className="text-xs truncate">
+                <span className="font-bold text-foreground mr-1.5">{selectedVoiceVisitor.name}</span>
+                {selectedVoiceVisitor.callsign && (
+                  <span className="text-muted-foreground font-medium mr-1.5">«{selectedVoiceVisitor.callsign}»</span>
+                )}
+                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                  selectedVoiceVisitor.status === 'in' ? 'bg-emerald-500/20 text-emerald-600' : 'bg-amber-500/20 text-amber-700'
+                }`}>
+                  {selectedVoiceVisitor.status === 'in' ? 'НА ЛОКАЦІЇ' : 'ЗА МЕЖАМИ'}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+              <span className="text-[11px] text-muted-foreground hidden md:inline font-medium">
+                Скажіть <strong>«ПЛЮС»</strong> чи <strong>«МІНУС»</strong>
+              </span>
+              <button 
+                onClick={() => executeCommand('', 'in')}
+                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center gap-1"
+                title="Вхід на локацію (або скажіть «ПЛЮС»)"
+              >
+                + Вхід
+              </button>
+              <button 
+                onClick={() => executeCommand('', 'out')}
+                className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center gap-1"
+                title="Вихід з локації (або скажіть «МІНУС»)"
+              >
+                - Вихід
+              </button>
+              <button 
+                onClick={() => { setSelectedVoiceVisitor(null); setSearch(''); }}
+                className="p-1 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/80 transition-all cursor-pointer"
+                title="Закрити"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col relative">
@@ -362,7 +476,7 @@ export default function Visitors() {
                На локації
              </button>
             <div className="w-px h-6 bg-border/60 mx-1 shrink-0 self-center" />
-            {[{ id: 'all', name: 'Всі', color: '' }, ...groups].map(g => (
+            {[{ id: 'all', name: 'Всі', color: '' }, ...visibleGroups].map(g => (
                <button
                  key={g.id}
                  onClick={() => setActiveGroup(g.id)}
@@ -408,6 +522,7 @@ export default function Visitors() {
             const visitorGroup = groups.find(g => g.id === v.groupId) || groups.find(g => g.name === v.group);
             const visitorLocation = locations.find(l => l.id === v.locationId) || locations.find(l => l.name === v.location);
             const customIcon = customIcons.find(icon => icon.id === v.customIconId) || (visitorLocation?.iconId ? customIcons.find(icon => icon.id === visitorLocation.iconId) : null);
+            const isSpecial = isSpecialVisitor(v, groups);
             const bgColor = v.color || visitorGroup?.color || 'transparent';
             const hasGroupColor = bgColor !== 'transparent';
             
@@ -434,7 +549,9 @@ export default function Visitors() {
             return (
               <div 
                 key={v.id} 
-                className={`flex flex-col relative rounded-xl h-full overflow-hidden shadow-sm hover:shadow transition-all ${hasGroupColor ? 'opacity-100 ring-1 ring-inset ring-white/10' : 'bg-card'}`}
+                className={`flex flex-col relative rounded-xl h-full overflow-hidden shadow-sm hover:shadow transition-all ${
+                  hasGroupColor ? 'opacity-100 ring-1 ring-inset ring-white/10' : 'bg-card'
+                }`}
                 style={cardStyles}
               >
                 <div 
@@ -445,19 +562,21 @@ export default function Visitors() {
                 <div className="py-1.5 px-2.5 pl-3.5 flex-1 flex flex-col gap-1.5 min-w-0">
                   <div className="flex justify-between items-start gap-2">
                     <div className="flex gap-2.5 items-center min-w-0">
-                      <div className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (v.isSpecial ? '#fbbf24' : (v.color || visitorGroup?.color || '#5b6984')) }}>
+                      <div className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (v.color || visitorGroup?.color || '#5b6984') }}>
                         {customIcon ? (
                           <img src={customIcon.data} alt="icon" className="w-full h-full object-cover" />
-                        ) : (v.isSpecial ? (
-                          <Star className="w-5 h-5 text-white fill-white" />
                         ) : (
                           <User className="w-4 h-4 text-[#e5e9ec]" />
-                        ))}
+                        )}
                       </div>
                       <div className="flex flex-col min-w-0">
-                        <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground/60 mb-0.5">
-                          {v.category}
-                        </span>
+                        {v.category && !v.category.toLowerCase().includes('особлив') && (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground/60 mb-0.5">
+                              {v.category}
+                            </span>
+                          </div>
+                        )}
                         <h3 className="font-bold text-foreground leading-tight text-[13px] flex flex-col uppercase tracking-tight min-w-0" style={{ fontFamily: 'Roboto, sans-serif' }}>
                           {(() => {
                             const { first, second } = splitNameTwoLines(v.name);
@@ -481,7 +600,9 @@ export default function Visitors() {
                   <div className="flex flex-col gap-0.5 text-[11px] text-muted-foreground mt-0.5">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className="font-semibold text-foreground text-[9px] uppercase tracking-wider opacity-60 shrink-0">Звідки:</span>
-                      <span className="break-words">{v.location || v.locationId || v.group}</span>
+                      <span className="break-words">
+                        {v.location || (v.group && !v.group.toLowerCase().includes('особлив') ? v.group : '—')}
+                      </span>
                     </div>
                   </div>
 

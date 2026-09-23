@@ -12,7 +12,13 @@ import {
   ChevronLeft,
   ChevronRight,
   Users,
-  ArrowRightCircle
+  ArrowRightCircle,
+  Printer,
+  FileDown,
+  X,
+  Eye,
+  Shield,
+  Check
 } from 'lucide-react';
 import { 
   format, 
@@ -29,17 +35,20 @@ import {
 import { uk } from 'date-fns/locale';
 
 import { formatNameAbbreviated } from '../utils/nameUtils';
+import PrintableReportDocument from '../components/PrintableReportDocument';
 
 type SortField = 'date' | 'user' | 'brigade' | 'group' | 'timeIn' | 'timeOut';
 
 export default function Reports() {
-  const { visitors, groups, dirtySkyEvents, securityShifts } = useData();
+  const { visitors, groups, dirtySkyEvents, securityShifts, dutyEvents } = useData();
   const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'));
   const [searchQuery, setSearchQuery] = useState('');
   const [filterGroup, setFilterGroup] = useState<string>('all');
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [selectedShiftId, setSelectedShiftId] = useState<string>('');
+  const [showPdfPreview, setShowPdfPreview] = useState(false);
+  const [pdfOrientation, setPdfOrientation] = useState<'portrait' | 'landscape'>('portrait');
 
   useEffect(() => {
     if (securityShifts && securityShifts.length > 0 && !selectedShiftId) {
@@ -161,8 +170,32 @@ export default function Reports() {
       });
     });
 
+    (dutyEvents || []).forEach(de => {
+      const eventDate = parseISO(de.timestamp);
+      if (eventDate >= dateRange.start && eventDate <= dateRange.end) {
+        if (searchQuery) {
+          const q = searchQuery.toLowerCase();
+          const matchShift = (de.shiftName || '').toLowerCase().includes(q);
+          const matchAction = de.type === 'start' ? 'заступила'.includes(q) : 'закінчила'.includes(q);
+          const matchGeneral = 'чергування'.includes(q) || 'чергова зміна'.includes(q) || 'охорона'.includes(q);
+          if (!matchShift && !matchAction && !matchGeneral) return;
+        }
+        if (filterGroup !== 'all' && filterGroup !== 'Рота охорони' && filterGroup !== 'Охорона' && filterGroup !== 'Чергова служба') {
+          return;
+        }
+        const t = eventDate.getTime();
+        rows.push({
+          type: 'dutyEvent',
+          event: de,
+          date: eventDate,
+          maxTime: t,
+          log: de.type === 'start' ? { in: de.timestamp } : { out: de.timestamp }
+        });
+      }
+    });
+
     return rows;
-  }, [visitors, dirtySkyVisits, dateRange, searchQuery, filterGroup]);
+  }, [visitors, dirtySkyVisits, dutyEvents, dateRange, searchQuery, filterGroup]);
 
   // Dynamic sorting of the results
   const sortedReportRows = useMemo(() => {
@@ -180,13 +213,13 @@ export default function Reports() {
         }
         return sortOrder === 'asc' ? a.maxTime - b.maxTime : b.maxTime - a.maxTime;
       } else if (sortField === 'user') {
-        const nameA = a.type === 'dirtySky' ? 'Брудне небо' : (a.visitor?.name || '');
-        const nameB = b.type === 'dirtySky' ? 'Брудне небо' : (b.visitor?.name || '');
+        const nameA = a.type === 'dirtySky' ? 'Брудне небо' : a.type === 'dutyEvent' ? `Чергова зміна ${a.event?.shiftName}` : (a.visitor?.name || '');
+        const nameB = b.type === 'dirtySky' ? 'Брудне небо' : b.type === 'dutyEvent' ? `Чергова зміна ${b.event?.shiftName}` : (b.visitor?.name || '');
         valA = nameA.toLowerCase();
         valB = nameB.toLowerCase();
       } else if (sortField === 'brigade') {
-        const locA = a.type === 'dirtySky' ? '' : (a.visitor?.location || '');
-        const locB = b.type === 'dirtySky' ? '' : (b.visitor?.location || '');
+        const locA = a.type === 'dirtySky' ? '' : a.type === 'dutyEvent' ? 'КПП' : (a.visitor?.location || '');
+        const locB = b.type === 'dirtySky' ? '' : b.type === 'dutyEvent' ? 'КПП' : (b.visitor?.location || '');
         
         // Extract numbers for sorting: "по бригадах по номеру в назві бригади"
         const numA = parseInt(locA.match(/\d+/)?.[0] || '0', 10);
@@ -200,8 +233,8 @@ export default function Reports() {
           valB = locB.toLowerCase();
         }
       } else if (sortField === 'group') {
-        const grpA = a.type === 'dirtySky' ? 'Спец. події' : (a.visitor?.group || '');
-        const grpB = b.type === 'dirtySky' ? 'Спец. події' : (b.visitor?.group || '');
+        const grpA = a.type === 'dirtySky' ? 'Спец. події' : a.type === 'dutyEvent' ? 'Рота охорони' : (a.visitor?.group || '');
+        const grpB = b.type === 'dirtySky' ? 'Спец. події' : b.type === 'dutyEvent' ? 'Рота охорони' : (b.visitor?.group || '');
         valA = grpA.toLowerCase();
         valB = grpB.toLowerCase();
       } else if (sortField === 'timeIn') {
@@ -228,6 +261,14 @@ export default function Reports() {
   }, [reportRows, sortField, sortOrder]);
 
   const uniqueVisitors = filteredData.length;
+
+  const currentlyOnSiteCount = useMemo(() => {
+    return visitors.filter(v => {
+      const logs = v.logs || (v.lastEntry ? [{ in: v.lastEntry }] : []);
+      const lastLog = logs[logs.length - 1];
+      return lastLog && lastLog.in && !lastLog.out;
+    }).length;
+  }, [visitors]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -263,6 +304,20 @@ export default function Reports() {
           '—',
           format(parseISO(e.startTime), 'HH:mm'),
           e.endTime ? format(parseISO(e.endTime), 'HH:mm') : 'триває'
+        ];
+      } else if (row.type === 'dutyEvent') {
+        const e = row.event;
+        const isStart = e.type === 'start';
+        const timeStr = format(parseISO(e.timestamp), 'HH:mm');
+        return [
+          dateStr,
+          'Чергування',
+          `Чергова зміна "${e.shiftName}" (${isStart ? 'Заступила на чергування' : 'Закінчила чергування'})`,
+          isStart ? 'Заступила' : 'Закінчила',
+          'Рота охорони',
+          'КПП',
+          isStart ? timeStr : '—',
+          !isStart ? timeStr : '—'
         ];
       } else {
         const v = row.visitor;
@@ -309,169 +364,357 @@ export default function Reports() {
   const generatePDF = async () => {
     setIsGeneratingPdf(true);
     try {
+      const isLandscape = pdfOrientation === 'landscape';
       const doc = new jsPDF({
-        orientation: 'portrait',
+        orientation: isLandscape ? 'landscape' : 'portrait',
         unit: 'mm',
         format: 'a4'
       });
 
-      // Fetch a clean Cyrillic open font to write Ukrainian letters perfectly
-      const fontUrl = 'https://cdn.jsdelivr.net/npm/roboto-fontface@0.10.0/fonts/roboto/Roboto-Regular.ttf';
-      const response = await fetch(fontUrl);
-      if (!response.ok) throw new Error('Failed to fetch font');
-      const blob = await response.blob();
-      
-      const base64Font = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const dataUrl = reader.result as string;
-          const base64 = dataUrl.split(',')[1];
-          resolve(base64);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
+      const pageWidth = isLandscape ? 297 : 210;
+      const pageHeight = isLandscape ? 210 : 297;
+      const marginX = 10;
+      const printableWidth = pageWidth - (marginX * 2);
 
-      doc.addFileToVFS('Roboto-Regular.ttf', base64Font);
-      doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
-      doc.setFont('Roboto');
-      
-      // Document Title
-      doc.setFontSize(14);
-      doc.text('ЗВІТ ВІДВІДУВАНЬ СИСТЕМИ', 10, 15);
-      
-      doc.setFontSize(9);
-      doc.text(`Період звіту: ${format(parseISO(startDate), 'dd.MM.yyyy')} - ${format(parseISO(endDate), 'dd.MM.yyyy')}`, 10, 22);
-      doc.text(`Згенеровано: ${format(new Date(), 'dd.MM.yyyy HH:mm:ss')}`, 10, 27);
-      doc.text(`Відвідувань: ${totalVisits}  |  Відвідувачів: ${uniqueVisitors}`, 10, 32);
-      
-      // Horizontal separator
-      doc.setDrawColor(200, 200, 200);
-      doc.line(10, 35, 200, 35);
+      // Load fonts from local public directory
+      try {
+        const fontRes = await fetch('/fonts/Roboto-Regular.ttf');
+        if (fontRes.ok) {
+          const blob = await fontRes.blob();
+          const base64Font = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const res = reader.result as string;
+              resolve(res.split(',')[1]);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+          doc.addFileToVFS('Roboto-Regular.ttf', base64Font);
+          doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
+          doc.setFont('Roboto', 'normal');
+        }
+      } catch (fontErr) {
+        console.warn('Could not load local font', fontErr);
+      }
 
-      // Table Header row (x boundaries from 10 to 200 represents full 190mm printable width)
-      doc.setFillColor(240, 240, 240);
-      doc.rect(10, 38, 190, 8, 'F');
-      doc.setFontSize(8);
-      doc.setTextColor(80, 80, 80);
-      
-      doc.text('Дата', 12, 43.5);
-      doc.text('Користувач', 34, 43.5);
-      doc.text('Звідки (Бригада)', 85, 43.5);
-      doc.text('Група', 132, 43.5);
-      doc.text('Вхід', 176, 43.5, { align: 'center' });
-      doc.text('Вихід', 192, 43.5, { align: 'center' });
+      try {
+        const fontBoldRes = await fetch('/fonts/Roboto-Bold.ttf');
+        if (fontBoldRes.ok) {
+          const blobB = await fontBoldRes.blob();
+          const base64Bold = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const res = reader.result as string;
+              resolve(res.split(',')[1]);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blobB);
+          });
+          doc.addFileToVFS('Roboto-Bold.ttf', base64Bold);
+          doc.addFont('Roboto-Bold.ttf', 'Roboto', 'bold');
+        }
+      } catch (boldErr) {
+        console.warn('Could not load bold font', boldErr);
+      }
 
-      let y = 46;
-      const pageHeight = 297;
-      const marginBottom = 15;
+      const formattedStart = format(parseISO(startDate), 'dd.MM.yyyy');
+      const formattedEnd = format(parseISO(endDate), 'dd.MM.yyyy');
+      const docRegNumber = `ЗВ-${format(new Date(), 'yyyyMMdd')}/${format(parseISO(startDate), 'dd')}`;
 
-      doc.setTextColor(0, 0, 0);
+      // Column widths based on orientation
+      const colWidths = isLandscape
+        ? { num: 10, date: 24, name: 78, brigade: 48, group: 40, in: 22, out: 22, status: 21 }
+        : { num: 9, date: 20, name: 54, brigade: 33, group: 30, in: 16, out: 16, status: 12 };
+
+      const colX = {
+        num: marginX,
+        date: marginX + colWidths.num,
+        name: marginX + colWidths.num + colWidths.date,
+        brigade: marginX + colWidths.num + colWidths.date + colWidths.name,
+        group: marginX + colWidths.num + colWidths.date + colWidths.name + colWidths.brigade,
+        in: marginX + colWidths.num + colWidths.date + colWidths.name + colWidths.brigade + colWidths.group,
+        out: marginX + colWidths.num + colWidths.date + colWidths.name + colWidths.brigade + colWidths.group + colWidths.in,
+        status: marginX + colWidths.num + colWidths.date + colWidths.name + colWidths.brigade + colWidths.group + colWidths.in + colWidths.out
+      };
 
       const truncateText = (text: string, maxLen: number) => {
         if (!text) return '—';
         return text.length > maxLen ? text.substring(0, maxLen - 2) + '..' : text;
       };
 
-      sortedReportRows.forEach((row) => {
-        if (y > pageHeight - marginBottom) {
-          doc.addPage();
-          y = 15;
-          // Render Table Header on new page
-          doc.setFillColor(240, 240, 240);
-          doc.rect(10, y, 190, 8, 'F');
+      let pageNum = 1;
+
+      const renderHeader = (isFirstPage: boolean) => {
+        if (isFirstPage) {
+          // Document Title & Subtitle
+          doc.setFont('Roboto', 'bold');
+          doc.setFontSize(13);
+          doc.setTextColor(20, 20, 20);
+          doc.text('ЖУРНАЛ ОБЛІКУ ВІДВІДУВАЧІВ ТА ПЕРЕМІЩЕНЬ (КПП)', marginX, 13);
+          
+          doc.setFont('Roboto', 'normal');
           doc.setFontSize(8);
-          doc.setTextColor(80, 80, 80);
-          doc.text('Дата', 12, y + 5.5);
-          doc.text('Користувач', 34, y + 5.5);
-          doc.text('Звідки (Бригада)', 85, y + 5.5);
-          doc.text('Група', 132, y + 5.5);
-          doc.text('Вхід', 176, y + 5.5, { align: 'center' });
-          doc.text('Вихід', 192, y + 5.5, { align: 'center' });
-          y += 8;
-          doc.setTextColor(0, 0, 0);
+          doc.setTextColor(100, 100, 100);
+          doc.text('Контрольно-пропускний пункт • Військова частина • Офіційний зведений звіт', marginX, 17.5);
+          
+          doc.text(`Реєстраційний номер: ${docRegNumber}   |   Сформовано: ${format(new Date(), 'dd.MM.yyyy HH:mm:ss')}`, marginX, 22);
+          doc.text(`Період звітування: ${formattedStart} — ${formattedEnd}`, marginX, 26);
+          doc.text(`Чергова зміна: ${selectedShift?.name || '—'}   |   Склад наряду: ${truncateText(selectedShiftComposition, isLandscape ? 110 : 70)}`, marginX, 30);
+          doc.text(`Всього фіксацій: ${totalVisits}   |   Унікальних осіб: ${uniqueVisitors}   |   «Брудне небо»: ${dirtySkyVisits.length}   |   На території (на посту): ${currentlyOnSiteCount}`, marginX, 34);
+
+          doc.setDrawColor(30, 30, 30);
+          doc.setLineWidth(0.4);
+          doc.line(marginX, 37, marginX + printableWidth, 37);
+
+          return 40;
+        } else {
+          // Running header on page 2+
+          doc.setFont('Roboto', 'normal');
+          doc.setFontSize(7.5);
+          doc.setTextColor(120, 120, 120);
+          doc.text(`Журнал обліку КПП (${formattedStart} — ${formattedEnd}) • Реєстр: ${docRegNumber}`, marginX, 10);
+          doc.line(marginX, 12, marginX + printableWidth, 12);
+          return 14;
+        }
+      };
+
+      const renderTableHeader = (currentY: number) => {
+        doc.setFillColor(242, 242, 245);
+        doc.rect(marginX, currentY, printableWidth, 7, 'F');
+        doc.setDrawColor(200, 200, 200);
+        doc.rect(marginX, currentY, printableWidth, 7, 'S');
+
+        doc.setFont('Roboto', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(50, 50, 50);
+
+        doc.text('№', colX.num + colWidths.num / 2, currentY + 4.8, { align: 'center' });
+        doc.text('Дата', colX.date + colWidths.date / 2, currentY + 4.8, { align: 'center' });
+        doc.text('Звання, ПІБ, Позивний', colX.name + 2, currentY + 4.8);
+        doc.text('Звідки (Бригада)', colX.brigade + 2, currentY + 4.8);
+        doc.text('Група', colX.group + 2, currentY + 4.8);
+        doc.text('Вхід', colX.in + colWidths.in / 2, currentY + 4.8, { align: 'center' });
+        doc.text('Вихід', colX.out + colWidths.out / 2, currentY + 4.8, { align: 'center' });
+        doc.text('Статус', colX.status + colWidths.status / 2, currentY + 4.8, { align: 'center' });
+
+        return currentY + 7;
+      };
+
+      let y = renderHeader(true);
+      y = renderTableHeader(y);
+
+      sortedReportRows.forEach((row, idx) => {
+        const rowHeight = 7.5;
+        if (y + rowHeight > pageHeight - 20) {
+          // Bottom footer
+          doc.setFont('Roboto', 'normal');
+          doc.setFontSize(7);
+          doc.setTextColor(140, 140, 140);
+          doc.text(`Сторінка ${pageNum}`, pageWidth / 2, pageHeight - 7, { align: 'center' });
+
+          doc.addPage();
+          pageNum++;
+          y = renderHeader(false);
+          y = renderTableHeader(y);
         }
 
-        doc.setDrawColor(235, 235, 235);
-        doc.line(10, y, 200, y);
+        // Row background
+        if (row.type === 'dirtySky') {
+          doc.setFillColor(254, 243, 199); // amber 100
+          doc.rect(marginX, y, printableWidth, rowHeight, 'F');
+        } else if (row.type === 'dutyEvent') {
+          if (row.event?.type === 'start') {
+            doc.setFillColor(236, 253, 245); // emerald 50
+          } else {
+            doc.setFillColor(255, 241, 242); // rose 50
+          }
+          doc.rect(marginX, y, printableWidth, rowHeight, 'F');
+        } else if (idx % 2 === 1) {
+          doc.setFillColor(249, 250, 251);
+          doc.rect(marginX, y, printableWidth, rowHeight, 'F');
+        }
+
+        // Thin separator
+        doc.setDrawColor(225, 225, 230);
+        doc.setLineWidth(0.1);
+        doc.line(marginX, y + rowHeight, marginX + printableWidth, y + rowHeight);
 
         const dateStr = format(row.date, 'dd.MM.yyyy');
-        doc.setFontSize(8);
+
+        // Column 1: Index
+        doc.setFont('Roboto', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`${idx + 1}`, colX.num + colWidths.num / 2, y + 4.8, { align: 'center' });
+
+        // Column 2: Date
+        doc.setTextColor(50, 50, 50);
+        doc.text(dateStr, colX.date + colWidths.date / 2, y + 4.8, { align: 'center' });
 
         if (row.type === 'dirtySky') {
           const e = row.event;
           const timeInStr = format(parseISO(e.startTime), 'HH:mm');
           const timeOutStr = e.endTime ? format(parseISO(e.endTime), 'HH:mm') : 'триває';
+          const isOngoing = !e.endTime;
 
-          doc.text(dateStr, 12, y + 5.5);
-          doc.setTextColor(180, 83, 9); // Amber
-          doc.text('Брудне небо', 34, y + 4.2);
-          doc.setFontSize(7);
+          doc.setFont('Roboto', 'bold');
+          doc.setTextColor(180, 83, 9);
+          doc.text('⚠️ БРУДНЕ НЕБО (Спец. подія)', colX.name + 2, y + 4.8);
+
+          doc.setFont('Roboto', 'normal');
           doc.setTextColor(120, 120, 120);
-          doc.text('Спеціальна подія', 34, y + 7.5);
-          
-          doc.setFontSize(8);
-          doc.setTextColor(0, 0, 0);
-          doc.text('—', 85, y + 5.5);
-          doc.text('Спец. події', 132, y + 5.5);
-          
-          doc.setTextColor(5, 150, 105); // emerald
-          doc.text(timeInStr, 176, y + 5.5, { align: 'center' });
-          doc.setTextColor(220, 38, 38); // red
-          doc.text(timeOutStr, 192, y + 5.5, { align: 'center' });
-          doc.setTextColor(0, 0, 0);
+          doc.text('—', colX.brigade + 2, y + 4.8);
+          doc.text('Спец. події', colX.group + 2, y + 4.8);
+
+          doc.setFont('Roboto', 'bold');
+          doc.setTextColor(180, 83, 9);
+          doc.text(timeInStr, colX.in + colWidths.in / 2, y + 4.8, { align: 'center' });
+          doc.setTextColor(isOngoing ? 220 : 50, isOngoing ? 38 : 50, isOngoing ? 38 : 50);
+          doc.text(timeOutStr, colX.out + colWidths.out / 2, y + 4.8, { align: 'center' });
+
+          doc.setFontSize(6.5);
+          doc.setTextColor(isOngoing ? 180 : 100, isOngoing ? 83 : 100, isOngoing ? 9 : 100);
+          doc.text(isOngoing ? 'Триває' : 'Закрито', colX.status + colWidths.status / 2, y + 4.8, { align: 'center' });
+        } else if (row.type === 'dutyEvent') {
+          const e = row.event;
+          const isStart = e.type === 'start';
+          const timeStr = format(parseISO(e.timestamp), 'HH:mm');
+          const actionText = isStart ? 'Заступила на чергування' : 'Закінчила чергування';
+
+          doc.setFont('Roboto', 'bold');
+          if (isStart) {
+            doc.setTextColor(5, 150, 105);
+          } else {
+            doc.setTextColor(225, 29, 72);
+          }
+          doc.text(`[ЧЕРГУВАННЯ] ${e.shiftName}: ${actionText}`, colX.name + 2, y + 4.8);
+
+          doc.setFont('Roboto', 'normal');
+          doc.setTextColor(120, 120, 120);
+          doc.text('КПП', colX.brigade + 2, y + 4.8);
+          doc.text('Рота охорони', colX.group + 2, y + 4.8);
+
+          if (isStart) {
+            doc.setFont('Roboto', 'bold');
+            doc.setTextColor(5, 150, 105);
+            doc.text(timeStr, colX.in + colWidths.in / 2, y + 4.8, { align: 'center' });
+            doc.setFont('Roboto', 'normal');
+            doc.setTextColor(120, 120, 120);
+            doc.text('—', colX.out + colWidths.out / 2, y + 4.8, { align: 'center' });
+          } else {
+            doc.setFont('Roboto', 'normal');
+            doc.setTextColor(120, 120, 120);
+            doc.text('—', colX.in + colWidths.in / 2, y + 4.8, { align: 'center' });
+            doc.setFont('Roboto', 'bold');
+            doc.setTextColor(225, 29, 72);
+            doc.text(timeStr, colX.out + colWidths.out / 2, y + 4.8, { align: 'center' });
+          }
+
+          doc.setFontSize(6.5);
+          doc.setTextColor(isStart ? 5 : 225, isStart ? 150 : 29, isStart ? 105 : 72);
+          doc.text(isStart ? 'Заступила' : 'Закінчила', colX.status + colWidths.status / 2, y + 4.8, { align: 'center' });
         } else {
           const v = row.visitor;
           const log = row.log;
           const timeInStr = log?.in ? format(parseISO(log.in), 'HH:mm') : '—';
           const timeOutStr = log?.out ? format(parseISO(log.out), 'HH:mm') : 'на посту';
+          const isOnSite = !log?.out;
 
-          doc.text(dateStr, 12, y + 5.5);
-
-          // Render Category above name inside Visitor cell
-          doc.setFontSize(7);
-          doc.setTextColor(120, 120, 120);
-          doc.text(truncateText(v.category, 30), 34, y + 3.2);
-
-          doc.setFontSize(8);
-          doc.setTextColor(0, 0, 0);
+          // Person
+          const categoryStr = v.category ? `${v.category.toUpperCase()} ` : '';
           const namePart = formatNameAbbreviated(v.name);
-          doc.text(namePart, 34, y + 6.2);
-          
-          if (v.callsign) {
-            doc.setFontSize(7);
-            doc.setTextColor(30, 41, 59);
-            doc.text(`[${v.callsign}]`, 34 + doc.getTextWidth(namePart) + 1.5, y + 6.2);
-            doc.setFontSize(8);
-            doc.setTextColor(0, 0, 0);
-          }
+          const callsignPart = v.callsign ? ` [${v.callsign}]` : '';
+          const fullPersonText = truncateText(`${categoryStr}${namePart}${callsignPart}`, isLandscape ? 45 : 30);
 
-          doc.text(truncateText(v.location, 25), 85, y + 5.5);
-          doc.text(truncateText(v.group, 20), 132, y + 5.5);
-          
-          doc.setTextColor(5, 150, 105); // emerald
-          doc.text(timeInStr, 176, y + 5.5, { align: 'center' });
-          doc.setTextColor(timeOutStr === 'на посту' ? 100 : 220, timeOutStr === 'на посту' ? 116 : 38, timeOutStr === 'на посту' ? 139 : 38);
-          doc.text(timeOutStr, 192, y + 5.5, { align: 'center' });
-          doc.setTextColor(0, 0, 0);
+          doc.setFont('Roboto', 'normal');
+          doc.setTextColor(20, 20, 20);
+          doc.text(fullPersonText, colX.name + 2, y + 4.8);
+
+          // Brigade
+          doc.setTextColor(60, 60, 60);
+          doc.text(truncateText(v.location, isLandscape ? 28 : 18), colX.brigade + 2, y + 4.8);
+
+          // Group
+          doc.text(truncateText(v.group, isLandscape ? 24 : 16), colX.group + 2, y + 4.8);
+
+          // In time
+          doc.setFont('Roboto', 'normal');
+          doc.setTextColor(5, 150, 105);
+          doc.text(timeInStr, colX.in + colWidths.in / 2, y + 4.8, { align: 'center' });
+
+          // Out time
+          doc.setTextColor(isOnSite ? 180 : 50, isOnSite ? 83 : 50, isOnSite ? 9 : 50);
+          doc.text(timeOutStr, colX.out + colWidths.out / 2, y + 4.8, { align: 'center' });
+
+          // Status badge
+          doc.setFontSize(6.5);
+          doc.setTextColor(isOnSite ? 5 : 120, isOnSite ? 150 : 120, isOnSite ? 105 : 120);
+          doc.text(isOnSite ? 'На посту' : 'Вибув', colX.status + colWidths.status / 2, y + 4.8, { align: 'center' });
         }
 
-        y += 10;
+        y += rowHeight;
       });
 
+      // Signature block on the last page
+      if (y + 32 > pageHeight - 15) {
+        // Bottom footer
+        doc.setFont('Roboto', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(140, 140, 140);
+        doc.text(`Сторінка ${pageNum}`, pageWidth / 2, pageHeight - 7, { align: 'center' });
+
+        doc.addPage();
+        pageNum++;
+        y = 15;
+      }
+
+      y += 8;
+      doc.setDrawColor(30, 30, 30);
+      doc.setLineWidth(0.3);
+      doc.line(marginX, y, marginX + printableWidth, y);
+      y += 5;
+
+      doc.setFont('Roboto', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(60, 60, 60);
+
+      const sigColW = printableWidth / 3;
+      // Col 1: Звіт склав
+      doc.text('Звіт склав (Черговий КПП):', marginX, y);
+      doc.text('Підпис: ____________ / ПІБ: ________________', marginX, y + 6);
+
+      // Col 2: Зміну здав
+      doc.text('Зміну здав:', marginX + sigColW, y);
+      doc.text('Підпис: ____________ / ПІБ: ________________', marginX + sigColW, y + 6);
+
+      // Col 3: Зміну прийняв
+      doc.text('Зміну прийняв:', marginX + sigColW * 2, y);
+      doc.text('Підпис: ____________ / ПІБ: ________________', marginX + sigColW * 2, y + 6);
+
+      y += 12;
+      doc.setFontSize(7);
+      doc.setTextColor(120, 120, 120);
+      doc.text('Дата засвідчення: «___» ____________ 2026 р.         М. П.         Автоматизований комплекс КПП', marginX, y);
+
+      // Last page footer
+      doc.text(`Сторінка ${pageNum}`, pageWidth / 2, pageHeight - 7, { align: 'center' });
+
       let pdfFilename = '';
-      const formattedStart = format(parseISO(startDate), 'ddMMyyyy');
-      const formattedEnd = format(parseISO(endDate), 'ddMMyyyy');
-      if (formattedStart === formattedEnd) {
-        pdfFilename = `Звіт_${formattedStart}.pdf`;
+      const formattedStartFile = format(parseISO(startDate), 'ddMMyyyy');
+      const formattedEndFile = format(parseISO(endDate), 'ddMMyyyy');
+      if (formattedStartFile === formattedEndFile) {
+        pdfFilename = `Звіт_КПП_${formattedStartFile}.pdf`;
       } else {
-        pdfFilename = `Звіт_${formattedStart}-${formattedEnd}.pdf`;
+        pdfFilename = `Звіт_КПП_${formattedStartFile}-${formattedEndFile}.pdf`;
       }
 
       doc.save(pdfFilename);
     } catch (e) {
       console.error(e);
-      alert('Помилка формування PDF звіту. Будь ласка, спробуйте ще раз.');
+      if (confirm('Помилка при генерації файлу. Відкрити вікно друку / збереження в PDF браузера?')) {
+        window.print();
+      }
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -503,26 +746,45 @@ export default function Reports() {
           </div>
         </div>
 
-        {/* Polished Save Card with Shift dropdown and Print button */}
+        {/* Polished Save & Export Card */}
         <div className="bg-card border border-border/50 rounded-xl py-1.5 px-3 sm:px-[14px] flex flex-row items-center justify-between gap-3 shadow-sm hover:shadow-md transition-all h-[52px] sm:h-[60px]">
-          <div className="min-w-[62px] sm:min-w-[72px] shrink-0 opacity-0 select-none pointer-events-none" />
-          <div className="flex flex-col flex-1 text-center justify-center font-roboto">
-            <span className="text-xs sm:text-sm text-foreground font-bold uppercase tracking-wider leading-tight">Сформувати</span>
+          <div className="flex flex-col justify-center font-roboto">
+            <span className="text-xs sm:text-sm text-foreground font-bold uppercase tracking-wider leading-tight">Експорт звіту</span>
             <span className="text-[10px] text-muted-foreground mt-0.5 lowercase">за обраний період</span>
           </div>
-          <div className="flex shrink-0 items-center justify-center">
+          <div className="flex shrink-0 items-center justify-center gap-1.5 sm:gap-2">
+            <button 
+              onClick={() => setShowPdfPreview(true)}
+              className="px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl flex items-center justify-center gap-1.5 font-bold text-[10px] sm:text-xs uppercase cursor-pointer select-none active:scale-95 transition-all shadow-md shadow-red-600/20"
+              title="Експорт та друк у форматі PDF"
+            >
+              <FileDown className="w-3.5 h-3.5" />
+              <span>PDF</span>
+            </button>
+            <button 
+              onClick={() => {
+                setShowPdfPreview(true);
+                setTimeout(() => window.print(), 250);
+              }}
+              className="px-2 sm:px-3 py-1.5 sm:py-2 bg-secondary hover:bg-muted text-foreground border border-border/60 rounded-xl flex items-center justify-center gap-1.5 font-bold text-[10px] sm:text-xs uppercase cursor-pointer select-none active:scale-95 transition-all"
+              title="Швидкий друк офіційного звіту"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Друк</span>
+            </button>
             <button 
               onClick={downloadCSV}
-              className="px-3 py-1.5 sm:py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl flex items-center justify-center gap-1.5 font-bold text-[10px] sm:text-xs uppercase cursor-pointer select-none active:scale-95 transition-all shadow-md shadow-emerald-500/10 min-w-[62px] sm:min-w-[72px]"
+              className="px-2 sm:px-3 py-1.5 sm:py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl flex items-center justify-center gap-1.5 font-bold text-[10px] sm:text-xs uppercase cursor-pointer select-none active:scale-95 transition-all shadow-md shadow-emerald-500/10"
+              title="Експорт таблиці в CSV"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>CSV</span>
+              <span className="hidden sm:inline">CSV</span>
             </button>
           </div>
         </div>
       </div>
 
-      <div className="flex justify-center no-print">
+      <div className="flex flex-wrap items-center justify-center gap-3 no-print">
         <div className="flex flex-col sm:flex-row items-center gap-3 bg-card rounded-2xl p-2 shadow-sm border border-border/50">
           <div className="flex items-center gap-2 px-2">
             <CalendarIcon className="w-4 h-4 text-muted-foreground/60" />
@@ -545,47 +807,44 @@ export default function Reports() {
             />
           </div>
         </div>
+
+        {securityShifts && securityShifts.length > 0 && (
+          <div className="flex items-center gap-2 bg-card rounded-2xl px-3 py-2 shadow-sm border border-border/50 text-xs">
+            <Shield className="w-4 h-4 text-primary" />
+            <span className="text-muted-foreground uppercase font-bold tracking-wider text-[10px]">Зміна:</span>
+            <select
+              value={selectedShiftId}
+              onChange={(e) => setSelectedShiftId(e.target.value)}
+              className="bg-transparent border-none outline-none font-semibold text-foreground text-xs cursor-pointer focus:ring-0"
+            >
+              {securityShifts.map((s, idx) => (
+                <option key={s.id || `shift-opt-${idx}`} value={s.id} className="bg-card text-foreground">
+                  {s.name} {s.status === 'active' ? '(чергує)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
-      {/* Print-Only Report Header (Visually rendered on A4 landscape/portrait printer output only) */}
-      <div className="hidden print:block text-black mb-6 font-roboto">
-        <div className="border-b-2 border-black pb-3 mb-3 flex justify-between items-start">
-          <div>
-            <h1 className="text-xl font-bold uppercase tracking-wide">Звіт відвідувань системи</h1>
-            <p className="text-xs text-neutral-600 mt-1">
-              Діапазон дат: {format(parseISO(startDate), 'dd.MM.yyyy')} — {format(parseISO(endDate), 'dd.MM.yyyy')}
-            </p>
-          </div>
-          <p className="text-right text-xs text-neutral-500">
-            Згенеровано: {format(new Date(), 'dd.MM.yyyy HH:mm')}
-          </p>
-        </div>
-        
-        <div className="border border-neutral-300 p-3 rounded-xl text-xs mb-4 space-y-2">
-          <div>
-            <span className="font-bold uppercase tracking-wider text-[10px] text-neutral-500 block">Чергова зміна:</span>
-            <span className="text-sm font-semibold">{selectedShift?.name || '—'}</span>
-          </div>
-          <div>
-            <span className="font-bold uppercase tracking-wider text-[10px] text-neutral-500 block">Склад зміни:</span>
-            <span className="text-xs font-normal text-neutral-800">{selectedShiftComposition}</span>
-          </div>
-        </div>
-
-        <div className="flex gap-8 text-xs mb-2">
-          <div>
-            <span className="font-bold">Кількість відвідувань: </span>
-            <span>{totalVisits}</span>
-          </div>
-          <div>
-            <span className="font-bold">Кількість відвідувачів: </span>
-            <span>{uniqueVisitors}</span>
-          </div>
-        </div>
+      {/* Print-Only Professional Document Layout (Rendered on A4 landscape/portrait printer output) */}
+      <div className="hidden print:block">
+        <PrintableReportDocument
+          startDate={startDate}
+          endDate={endDate}
+          reportRows={sortedReportRows}
+          totalVisits={totalVisits}
+          uniqueVisitors={uniqueVisitors}
+          dirtySkyCount={dirtySkyVisits.length}
+          currentlyOnSiteCount={currentlyOnSiteCount}
+          selectedShift={selectedShift}
+          selectedShiftComposition={selectedShiftComposition}
+          orientation={pdfOrientation}
+        />
       </div>
 
       {/* Main Content Area */}
-      <div className="bg-card rounded-3xl overflow-hidden shadow-sm">
+      <div className="bg-card rounded-3xl overflow-hidden shadow-sm no-print">
         <div className="p-3">
           <div className="space-y-2">
             <div className="flex flex-col sm:flex-row gap-4 no-print">
@@ -605,9 +864,9 @@ export default function Reports() {
                     value={filterGroup}
                     onChange={(e) => setFilterGroup(e.target.value)}
                   >
-                    <option value="all">Всі групи</option>
-                    {(groups || []).map(g => (
-                      <option key={g.id || g.name} value={g.name}>{g.name}</option>
+                    <option key="default-all-groups" value="all">Всі групи</option>
+                    {(groups || []).map((g, idx) => (
+                      <option key={g.id ? `report-grp-${g.id}` : `report-grp-idx-${idx}`} value={g.name}>{g.name}</option>
                     ))}
                   </select>
                 </div>
@@ -692,6 +951,54 @@ export default function Reports() {
                         );
                       }
 
+                      if (row.type === 'dutyEvent') {
+                        const e = row.event;
+                        const isStart = e.type === 'start';
+                        const timeStr = format(parseISO(e.timestamp), 'HH:mm');
+                        return (
+                          <div 
+                            key={`duty-${e.id}-${idx}`} 
+                            className={`reports-table-grid grid grid-cols-1 md:grid-cols-[90px_1fr_130px_180px_60px_70px] md:items-center transition-colors p-2 md:p-0 ${
+                              isStart ? 'bg-emerald-500/5 hover:bg-emerald-500/10' : 'bg-rose-500/5 hover:bg-rose-500/10'
+                            }`}
+                          >
+                            <div className="px-0 md:px-2 md:py-2 md:border-r md:border-border text-xs flex justify-between md:flex md:items-center md:justify-center md:text-center mb-2 md:mb-0 h-full font-mono">
+                              <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground no-print">Дата</span>
+                              {dateStr}
+                            </div>
+                            <div className="px-0 md:px-3 md:py-2 md:border-r md:border-border mb-3 md:mb-0 h-full flex flex-col justify-center">
+                              <div className="md:hidden text-[9px] font-bold text-muted-foreground uppercase mb-1 no-print">Подія чергування</div>
+                              <div className="text-[10px] uppercase font-bold tracking-wider flex items-center gap-1.5 text-muted-foreground">
+                                <Shield className={`w-3 h-3 ${isStart ? 'text-emerald-500' : 'text-rose-500'}`} />
+                                <span>Чергова служба • Охорона</span>
+                              </div>
+                              <div className="text-sm font-semibold text-foreground">
+                                Чергова зміна: {e.shiftName}
+                              </div>
+                              <div className={`text-[11px] font-medium ${isStart ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                {isStart ? `Заступила на чергування о ${timeStr}` : `Закінчила чергування о ${timeStr}`}
+                              </div>
+                            </div>
+                            <div className="px-0 md:px-3 md:py-2 md:border-r md:border-border text-xs flex justify-between md:flex md:items-center mb-2 md:mb-0 truncate whitespace-nowrap h-full">
+                              <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground no-print">Звідки</span>
+                              КПП
+                            </div>
+                            <div className="px-0 md:px-3 md:py-2 md:border-r md:border-border text-xs flex justify-between md:flex md:items-center mb-2 md:mb-0 truncate whitespace-nowrap h-full">
+                              <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground no-print">Група</span>
+                              Рота охорони
+                            </div>
+                            <div className="px-0 md:px-2 md:py-2 md:border-r md:border-border text-xs tabular-nums text-emerald-600 font-bold flex justify-between md:flex md:items-center md:justify-center mb-2 md:mb-0 md:text-center h-full">
+                              <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground no-print">Вхід</span>
+                              {isStart ? timeStr : '—'}
+                            </div>
+                            <div className="px-0 md:px-2 md:py-2 text-xs tabular-nums text-rose-600 font-bold flex justify-between md:flex md:items-center md:justify-center h-full">
+                              <span className="md:hidden font-bold uppercase text-[9px] text-muted-foreground no-print">Вихід</span>
+                              <span className="md:w-full md:text-center md:block">{!isStart ? timeStr : '—'}</span>
+                            </div>
+                          </div>
+                        );
+                      }
+
                       const v = row.visitor;
                       const visitorGroup = groups.find(g => g.name === v.group);
                       const blockColor = v.color || visitorGroup?.color;
@@ -745,6 +1052,123 @@ export default function Reports() {
             </div>
         </div>
       </div>
+
+      {/* PDF Export & Printable Document Preview Modal */}
+      {showPdfPreview && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex flex-col no-print animate-in fade-in duration-200">
+          {/* Modal Header Toolbar */}
+          <div className="bg-neutral-900 border-b border-neutral-800 text-white px-4 py-3 flex flex-wrap items-center justify-between gap-3 shrink-0 shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-red-600/20 text-red-500 border border-red-500/30 flex items-center justify-center">
+                <FileDown className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-sm sm:text-base font-bold tracking-wide flex items-center gap-2">
+                  <span>Експорт та друк звіту</span>
+                  <span className="text-[10px] bg-red-600/30 text-red-300 font-semibold px-2 py-0.5 rounded-full border border-red-500/30 uppercase">PDF A4</span>
+                </h2>
+                <p className="text-[11px] text-neutral-400">
+                  Офіційний бланк зведеного обліку КПП з електронним реєстром та блоком підписів
+                </p>
+              </div>
+            </div>
+
+            {/* Controls */}
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+              {/* Shift selection */}
+              {securityShifts && securityShifts.length > 0 && (
+                <div className="flex items-center gap-1.5 bg-neutral-800 px-2.5 py-1.5 rounded-xl border border-neutral-700 text-xs">
+                  <span className="text-[10px] text-neutral-400 uppercase font-semibold">Зміна:</span>
+                  <select
+                    value={selectedShiftId}
+                    onChange={(e) => setSelectedShiftId(e.target.value)}
+                    className="bg-transparent text-white border-none outline-none text-xs cursor-pointer font-medium focus:ring-0"
+                  >
+                    {securityShifts.map((s, idx) => (
+                      <option key={`modal-shift-${s.id || idx}`} value={s.id} className="bg-neutral-900 text-white">
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Orientation toggle */}
+              <div className="flex items-center bg-neutral-800 p-0.5 rounded-xl border border-neutral-700 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setPdfOrientation('portrait')}
+                  className={`px-2.5 py-1 rounded-lg font-medium text-xs transition-all cursor-pointer ${
+                    pdfOrientation === 'portrait' ? 'bg-neutral-700 text-white shadow-sm font-bold' : 'text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  Книжкова
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPdfOrientation('landscape')}
+                  className={`px-2.5 py-1 rounded-lg font-medium text-xs transition-all cursor-pointer ${
+                    pdfOrientation === 'landscape' ? 'bg-neutral-700 text-white shadow-sm font-bold' : 'text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  Альбомна
+                </button>
+              </div>
+
+              {/* Print / Save to PDF */}
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-3.5 py-1.5 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer"
+                title="Відкрити системне вікно друку або збереження в PDF"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Зберегти як PDF / Друк</span>
+              </button>
+
+              {/* Direct PDF Download button */}
+              <button
+                type="button"
+                onClick={generatePDF}
+                disabled={isGeneratingPdf}
+                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-md active:scale-95 cursor-pointer"
+                title="Завантажити готовий PDF-файл на пристрій"
+              >
+                <FileDown className="w-4 h-4" />
+                <span>{isGeneratingPdf ? 'Формування...' : 'Завантажити .PDF'}</span>
+              </button>
+
+              {/* Close Modal button */}
+              <button
+                type="button"
+                onClick={() => setShowPdfPreview(false)}
+                className="w-8 h-8 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer ml-1"
+                title="Закрити вікно перегляду"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Modal Preview Area */}
+          <div className="flex-1 overflow-y-auto p-4 sm:p-8 flex justify-center bg-neutral-950/80">
+            <div className="my-auto shadow-2xl rounded bg-white">
+              <PrintableReportDocument
+                startDate={startDate}
+                endDate={endDate}
+                reportRows={sortedReportRows}
+                totalVisits={totalVisits}
+                uniqueVisitors={uniqueVisitors}
+                dirtySkyCount={dirtySkyVisits.length}
+                currentlyOnSiteCount={currentlyOnSiteCount}
+                selectedShift={selectedShift}
+                selectedShiftComposition={selectedShiftComposition}
+                orientation={pdfOrientation}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
