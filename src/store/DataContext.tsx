@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { differenceInMinutes } from 'date-fns';
 import { Visitor, Guard, Shift, Category, Group, SecurityShift, DirtySkyEvent, CustomIcon, Location, DutyEvent } from '../types';
+import { realtimeSync, SyncStatus } from '../services/realtimeSync';
 
 interface DataContextType {
   visitors: Visitor[];
@@ -28,6 +29,17 @@ interface DataContextType {
   performShiftBackupAndReset: () => void;
   cleanLogsByPeriod: (minutes: number, groupIds?: string[]) => void;
   cleanCurrentShiftLogs: (groupIds?: string[]) => void;
+  reportRetentionHours: number;
+  setReportRetentionHours: (hours: number) => number;
+  purgeReportsByDateRange: (startDate: string | Date, endDate: string | Date) => { logsCleared: number; eventsCleared: number; dutyEventsCleared: number };
+  purgeAllReports: () => { logsCleared: number; eventsCleared: number; dutyEventsCleared: number };
+  syncStatus: SyncStatus;
+  onlineClientsCount: number;
+  lastAutoBackupTime: Date | null;
+  isAutoUploading: boolean;
+  isAutoUploadEnabled: boolean;
+  setIsAutoUploadEnabled: (enabled: boolean) => void;
+  triggerServerDatabaseSync: () => Promise<boolean>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -206,6 +218,136 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       return [];
     }
   });
+
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => realtimeSync.getStatus());
+  const [onlineClientsCount, setOnlineClientsCount] = useState<number>(() => realtimeSync.getOnlineCount());
+  const isRemoteUpdateRef = useRef<Record<string, boolean>>({});
+
+  useEffect(() => {
+    // 1. Connect WebSocket
+    realtimeSync.connect();
+
+    // 2. Subscribe to status & presence
+    const unsubStatus = realtimeSync.onStatusChange(setSyncStatus);
+    const unsubPresence = realtimeSync.onPresenceChange(setOnlineClientsCount);
+
+    // 3. Handle full sync init from server
+    const unsubInit = realtimeSync.onInit((serverState) => {
+      if (!serverState) return;
+
+      if (Array.isArray(serverState.visitors)) {
+        isRemoteUpdateRef.current.visitors = true;
+        setVisitors(serverState.visitors);
+      }
+      if (Array.isArray(serverState.locations)) {
+        isRemoteUpdateRef.current.locations = true;
+        setLocations(serverState.locations);
+      }
+      if (Array.isArray(serverState.groups)) {
+        isRemoteUpdateRef.current.groups = true;
+        setGroups(serverState.groups);
+      }
+      if (Array.isArray(serverState.categories)) {
+        isRemoteUpdateRef.current.categories = true;
+        setCategories(serverState.categories);
+      }
+      if (Array.isArray(serverState.securityShifts)) {
+        isRemoteUpdateRef.current.securityShifts = true;
+        setSecurityShifts(serverState.securityShifts);
+      }
+      if (Array.isArray(serverState.shifts)) {
+        isRemoteUpdateRef.current.shifts = true;
+        setShifts(serverState.shifts);
+      }
+      if (Array.isArray(serverState.dirtySkyEvents)) {
+        isRemoteUpdateRef.current.dirtySkyEvents = true;
+        setDirtySkyEvents(serverState.dirtySkyEvents);
+      }
+      if (Array.isArray(serverState.dutyEvents)) {
+        isRemoteUpdateRef.current.dutyEvents = true;
+        setDutyEvents(serverState.dutyEvents);
+      }
+      if (Array.isArray(serverState.customIcons)) {
+        isRemoteUpdateRef.current.customIcons = true;
+        setCustomIcons(serverState.customIcons);
+      }
+      if (typeof serverState.reportRetentionHours === 'number') {
+        isRemoteUpdateRef.current.reportRetentionHours = true;
+        setReportRetentionHoursState(serverState.reportRetentionHours);
+      }
+    });
+
+    // 4. Handle incoming incremental updates from other clients
+    const unsubUpdate = realtimeSync.onUpdate((key, data, updatedBy) => {
+      if (updatedBy === realtimeSync.getClientId()) return;
+
+      isRemoteUpdateRef.current[key] = true;
+      switch (key) {
+        case 'visitors': setVisitors(data); break;
+        case 'guards': setGuards(data); break;
+        case 'shifts': setShifts(data); break;
+        case 'securityShifts': setSecurityShifts(data); break;
+        case 'categories': setCategories(data); break;
+        case 'locations': setLocations(data); break;
+        case 'groups': setGroups(data); break;
+        case 'dirtySkyEvents': setDirtySkyEvents(data); break;
+        case 'dutyEvents': setDutyEvents(data); break;
+        case 'customIcons': setCustomIcons(data); break;
+        case 'reportRetentionHours': setReportRetentionHoursState(data); break;
+      }
+    });
+
+    // 5. Handle patch updates
+    const unsubPatch = realtimeSync.onPatch((patch, updatedBy) => {
+      if (updatedBy === realtimeSync.getClientId()) return;
+
+      Object.entries(patch).forEach(([key, val]) => {
+        isRemoteUpdateRef.current[key] = true;
+        switch (key) {
+          case 'visitors': setVisitors(val); break;
+          case 'guards': setGuards(val); break;
+          case 'shifts': setShifts(val); break;
+          case 'securityShifts': setSecurityShifts(val); break;
+          case 'categories': setCategories(val); break;
+          case 'locations': setLocations(val); break;
+          case 'groups': setGroups(val); break;
+          case 'dirtySkyEvents': setDirtySkyEvents(val); break;
+          case 'dutyEvents': setDutyEvents(val); break;
+          case 'customIcons': setCustomIcons(val); break;
+          case 'reportRetentionHours': setReportRetentionHoursState(val); break;
+        }
+      });
+    });
+
+    // 6. Fast HTTP bootstrap + seed if server has no visitors
+    realtimeSync.fetchStateViaHttp().then((serverState) => {
+      if (serverState) {
+        if (serverState.visitors && serverState.visitors.length > 0) {
+          isRemoteUpdateRef.current.visitors = true;
+          setVisitors(serverState.visitors);
+        } else {
+          // If server has no visitors, but this client has some in localStorage, seed server
+          try {
+            const localVis = localStorage.getItem('visitors');
+            if (localVis) {
+              const parsed = JSON.parse(localVis);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                realtimeSync.seedIfEmpty({ visitors: parsed });
+              }
+            }
+          } catch (e) {}
+        }
+      }
+    });
+
+    return () => {
+      unsubStatus();
+      unsubPresence();
+      unsubInit();
+      unsubUpdate();
+      unsubPatch();
+    };
+  }, []);
 
   const startDirtySky = () => {
     const newEvent: DirtySkyEvent = {
@@ -430,21 +572,246 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }));
   };
 
-  useEffect(() => { localStorage.setItem('visitors', JSON.stringify(visitors)); }, [visitors]);
-  useEffect(() => { localStorage.setItem('guards', JSON.stringify(guards)); }, [guards]);
-  useEffect(() => { localStorage.setItem('shifts', JSON.stringify(shifts)); }, [shifts]);
-  useEffect(() => { localStorage.setItem('securityShifts', JSON.stringify(securityShifts)); }, [securityShifts]);
-  useEffect(() => { localStorage.setItem('categories', JSON.stringify(categories)); }, [categories]);
-  useEffect(() => { localStorage.setItem('locations', JSON.stringify(locations)); }, [locations]);
-  useEffect(() => { localStorage.setItem('groups', JSON.stringify(groups)); }, [groups]);
-  useEffect(() => { localStorage.setItem('dirtySkyEvents', JSON.stringify(dirtySkyEvents)); }, [dirtySkyEvents]);
-  useEffect(() => { localStorage.setItem('dutyEvents', JSON.stringify(dutyEvents)); }, [dutyEvents]);
-  useEffect(() => { localStorage.setItem('customIcons', JSON.stringify(customIcons)); }, [customIcons]);
-
-  // Data retention: 60 days
   useEffect(() => {
-    const sixtyDaysAgo = new Date();
-    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+    localStorage.setItem('visitors', JSON.stringify(visitors));
+    if (isRemoteUpdateRef.current.visitors) {
+      isRemoteUpdateRef.current.visitors = false;
+      return;
+    }
+    realtimeSync.sendUpdate('visitors', visitors);
+  }, [visitors]);
+
+  useEffect(() => {
+    localStorage.setItem('guards', JSON.stringify(guards));
+    if (isRemoteUpdateRef.current.guards) {
+      isRemoteUpdateRef.current.guards = false;
+      return;
+    }
+    realtimeSync.sendUpdate('guards', guards);
+  }, [guards]);
+
+  useEffect(() => {
+    localStorage.setItem('shifts', JSON.stringify(shifts));
+    if (isRemoteUpdateRef.current.shifts) {
+      isRemoteUpdateRef.current.shifts = false;
+      return;
+    }
+    realtimeSync.sendUpdate('shifts', shifts);
+  }, [shifts]);
+
+  useEffect(() => {
+    localStorage.setItem('securityShifts', JSON.stringify(securityShifts));
+    if (isRemoteUpdateRef.current.securityShifts) {
+      isRemoteUpdateRef.current.securityShifts = false;
+      return;
+    }
+    realtimeSync.sendUpdate('securityShifts', securityShifts);
+  }, [securityShifts]);
+
+  useEffect(() => {
+    localStorage.setItem('categories', JSON.stringify(categories));
+    if (isRemoteUpdateRef.current.categories) {
+      isRemoteUpdateRef.current.categories = false;
+      return;
+    }
+    realtimeSync.sendUpdate('categories', categories);
+  }, [categories]);
+
+  useEffect(() => {
+    localStorage.setItem('locations', JSON.stringify(locations));
+    if (isRemoteUpdateRef.current.locations) {
+      isRemoteUpdateRef.current.locations = false;
+      return;
+    }
+    realtimeSync.sendUpdate('locations', locations);
+  }, [locations]);
+
+  useEffect(() => {
+    localStorage.setItem('groups', JSON.stringify(groups));
+    if (isRemoteUpdateRef.current.groups) {
+      isRemoteUpdateRef.current.groups = false;
+      return;
+    }
+    realtimeSync.sendUpdate('groups', groups);
+  }, [groups]);
+
+  useEffect(() => {
+    localStorage.setItem('dirtySkyEvents', JSON.stringify(dirtySkyEvents));
+    if (isRemoteUpdateRef.current.dirtySkyEvents) {
+      isRemoteUpdateRef.current.dirtySkyEvents = false;
+      return;
+    }
+    realtimeSync.sendUpdate('dirtySkyEvents', dirtySkyEvents);
+  }, [dirtySkyEvents]);
+
+  useEffect(() => {
+    localStorage.setItem('dutyEvents', JSON.stringify(dutyEvents));
+    if (isRemoteUpdateRef.current.dutyEvents) {
+      isRemoteUpdateRef.current.dutyEvents = false;
+      return;
+    }
+    realtimeSync.sendUpdate('dutyEvents', dutyEvents);
+  }, [dutyEvents]);
+
+  useEffect(() => {
+    localStorage.setItem('customIcons', JSON.stringify(customIcons));
+    if (isRemoteUpdateRef.current.customIcons) {
+      isRemoteUpdateRef.current.customIcons = false;
+      return;
+    }
+    realtimeSync.sendUpdate('customIcons', customIcons);
+  }, [customIcons]);
+
+  const [reportRetentionHours, setReportRetentionHoursState] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('report_retention_hours');
+      if (saved) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed > 0) return parsed;
+      }
+    } catch {}
+    return 1440; // Default: 60 days (1440 hours)
+  });
+
+  const setReportRetentionHours = useCallback((hours: number): number => {
+    const safe = Math.max(1, Math.round(hours));
+    setReportRetentionHoursState(safe);
+    localStorage.setItem('report_retention_hours', safe.toString());
+    realtimeSync.sendUpdate('reportRetentionHours', safe);
+
+    // Immediately remove logs older than safe hours
+    const cutoff = new Date(Date.now() - safe * 60 * 60 * 1000);
+    let totalCleared = 0;
+
+    setVisitors(prev => prev.map(v => {
+      if (!v.logs || v.logs.length === 0) return v;
+      const remaining = v.logs.filter(log => {
+        if (!log.in) return false;
+        return new Date(log.in) >= cutoff;
+      });
+      if (remaining.length !== v.logs.length) {
+        totalCleared += (v.logs.length - remaining.length);
+        const totalTime = remaining.reduce((acc, log) => {
+          if (log.in && log.out) {
+            return acc + differenceInMinutes(new Date(log.out), new Date(log.in));
+          }
+          return acc;
+        }, 0);
+        return { ...v, logs: remaining, totalTimeMinutes: totalTime };
+      }
+      return v;
+    }));
+
+    setDirtySkyEvents(prev => prev.filter(e => new Date(e.startTime) >= cutoff || !e.endTime));
+    setDutyEvents(prev => prev.filter(de => new Date(de.timestamp) >= cutoff));
+
+    return totalCleared;
+  }, []);
+
+  const purgeReportsByDateRange = useCallback((startDate: string | Date, endDate: string | Date) => {
+    const from = typeof startDate === 'string' ? new Date(startDate.includes('T') ? startDate : `${startDate}T00:00:00`) : new Date(startDate);
+    const to = typeof endDate === 'string' ? new Date(endDate.includes('T') ? endDate : `${endDate}T23:59:59.999`) : new Date(endDate);
+
+    let logsCleared = 0;
+    let eventsCleared = 0;
+    let dutyEventsCleared = 0;
+
+    setVisitors(prev => prev.map(v => {
+      if (!v.logs || v.logs.length === 0) return v;
+
+      const remainingLogs = v.logs.filter(log => {
+        if (!log.in) return false;
+        const logDate = new Date(log.in);
+        const isInside = logDate >= from && logDate <= to;
+        if (isInside) {
+          logsCleared++;
+          return false;
+        }
+        return true;
+      });
+
+      if (remainingLogs.length === v.logs.length) return v;
+
+      const totalTime = remainingLogs.reduce((acc, log) => {
+        if (log.in && log.out) {
+          return acc + differenceInMinutes(new Date(log.out), new Date(log.in));
+        }
+        return acc;
+      }, 0);
+
+      let lastEntry = v.lastEntry;
+      let status = v.status;
+      if (lastEntry && new Date(lastEntry) >= from && new Date(lastEntry) <= to) {
+        if (remainingLogs.length > 0 && !remainingLogs[remainingLogs.length - 1].out) {
+          status = 'in';
+          lastEntry = remainingLogs[remainingLogs.length - 1].in;
+        } else {
+          status = 'out';
+          lastEntry = undefined;
+        }
+      }
+
+      return { ...v, status, lastEntry, logs: remainingLogs, totalTimeMinutes: totalTime };
+    }));
+
+    setDirtySkyEvents(prev => {
+      const remaining = prev.filter(e => {
+        const eDate = new Date(e.startTime);
+        const isInside = eDate >= from && eDate <= to;
+        if (isInside) {
+          eventsCleared++;
+          return false;
+        }
+        return true;
+      });
+      return remaining;
+    });
+
+    setDutyEvents(prev => {
+      const remaining = prev.filter(de => {
+        const deDate = new Date(de.timestamp);
+        const isInside = deDate >= from && deDate <= to;
+        if (isInside) {
+          dutyEventsCleared++;
+          return false;
+        }
+        return true;
+      });
+      return remaining;
+    });
+
+    return { logsCleared, eventsCleared, dutyEventsCleared };
+  }, []);
+
+  const purgeAllReports = useCallback(() => {
+    let logsCleared = 0;
+    let eventsCleared = 0;
+    let dutyEventsCleared = 0;
+
+    setVisitors(prev => prev.map(v => {
+      logsCleared += (v.logs?.length || 0);
+      if (v.status === 'in' && v.lastEntry) {
+        return { ...v, logs: [{ in: v.lastEntry }], totalTimeMinutes: 0 };
+      }
+      return { ...v, logs: [], totalTimeMinutes: 0, lastEntry: undefined, status: 'out' };
+    }));
+
+    setDirtySkyEvents(prev => {
+      eventsCleared += prev.filter(e => !!e.endTime).length;
+      return prev.filter(e => !e.endTime);
+    });
+
+    setDutyEvents(prev => {
+      dutyEventsCleared += prev.length;
+      return [];
+    });
+
+    return { logsCleared, eventsCleared, dutyEventsCleared };
+  }, []);
+
+  // Data retention: based on reportRetentionHours (default 1440 hours / 60 days)
+  useEffect(() => {
+    const cutoff = new Date(Date.now() - reportRetentionHours * 60 * 60 * 1000);
 
     setVisitors(prev => {
       let changed = false;
@@ -452,11 +819,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         if (!v.logs) return v;
         const filteredLogs = v.logs.filter(log => {
           const logDate = log.in ? new Date(log.in) : null;
-          return logDate && logDate > sixtyDaysAgo;
+          return logDate && logDate >= cutoff;
         });
         if (filteredLogs.length === v.logs.length) return v;
         changed = true;
-        return { ...v, logs: filteredLogs };
+        const totalTime = filteredLogs.reduce((acc, log) => {
+          if (log.in && log.out) {
+            return acc + differenceInMinutes(new Date(log.out), new Date(log.in));
+          }
+          return acc;
+        }, 0);
+        return { ...v, logs: filteredLogs, totalTimeMinutes: totalTime };
       });
       return changed ? updated : prev;
     });
@@ -464,7 +837,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setDirtySkyEvents(prev => {
       const filtered = prev.filter(event => {
         const eventDate = new Date(event.startTime);
-        return eventDate > sixtyDaysAgo;
+        return eventDate >= cutoff || !event.endTime;
       });
       return filtered.length === prev.length ? prev : filtered;
     });
@@ -472,11 +845,98 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setDutyEvents(prev => {
       const filtered = prev.filter(event => {
         const eventDate = new Date(event.timestamp);
-        return eventDate > sixtyDaysAgo;
+        return eventDate >= cutoff;
       });
       return filtered.length === prev.length ? prev : filtered;
     });
+  }, [reportRetentionHours]);
+
+  const [lastAutoBackupTime, setLastAutoBackupTime] = useState<Date | null>(() => {
+    try {
+      const saved = localStorage.getItem('last_server_backup_time');
+      return saved ? new Date(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [isAutoUploading, setIsAutoUploading] = useState<boolean>(false);
+  const [isAutoUploadEnabled, setIsAutoUploadEnabledState] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('auto_server_backup_enabled');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const setIsAutoUploadEnabled = useCallback((enabled: boolean) => {
+    setIsAutoUploadEnabledState(enabled);
+    try {
+      localStorage.setItem('auto_server_backup_enabled', String(enabled));
+    } catch {}
   }, []);
+
+  const autoBackupDebounceRef = useRef<any>(null);
+
+  const triggerServerDatabaseSync = useCallback(async (): Promise<boolean> => {
+    try {
+      setIsAutoUploading(true);
+      const payload = {
+        visitors,
+        guards,
+        shifts,
+        securityShifts,
+        categories,
+        groups,
+        locations,
+        dirtySkyEvents,
+        dutyEvents,
+        customIcons,
+        reportRetentionHours
+      };
+      const res = await fetch('/api/backup/upload-to-server', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: payload,
+          userEmail: 'auto-database-sync'
+        })
+      });
+      if (res.ok) {
+        const now = new Date();
+        setLastAutoBackupTime(now);
+        try {
+          localStorage.setItem('last_server_backup_time', now.toISOString());
+        } catch {}
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.warn('[AutoBackup] Error syncing database to server:', e);
+      return false;
+    } finally {
+      setIsAutoUploading(false);
+    }
+  }, [visitors, guards, shifts, securityShifts, categories, groups, locations, dirtySkyEvents, dutyEvents, customIcons, reportRetentionHours]);
+
+  // Automatic upload of updated database to server after ANY change in the database
+  useEffect(() => {
+    if (!isAutoUploadEnabled) return;
+
+    if (autoBackupDebounceRef.current) {
+      clearTimeout(autoBackupDebounceRef.current);
+    }
+
+    autoBackupDebounceRef.current = setTimeout(() => {
+      triggerServerDatabaseSync();
+    }, 1200);
+
+    return () => {
+      if (autoBackupDebounceRef.current) {
+        clearTimeout(autoBackupDebounceRef.current);
+      }
+    };
+  }, [visitors, guards, shifts, securityShifts, categories, groups, locations, dirtySkyEvents, dutyEvents, customIcons, reportRetentionHours, isAutoUploadEnabled, triggerServerDatabaseSync]);
 
   return (
     <DataContext.Provider value={{ 
@@ -490,7 +950,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       dirtySkyEvents, startDirtySky, endDirtySky,
       dutyEvents, setDutyEvents, addDutyEvent,
       customIcons, setCustomIcons,
-      performShiftBackupAndReset, cleanLogsByPeriod, cleanCurrentShiftLogs 
+      performShiftBackupAndReset, cleanLogsByPeriod, cleanCurrentShiftLogs,
+      reportRetentionHours, setReportRetentionHours, purgeReportsByDateRange, purgeAllReports,
+      syncStatus, onlineClientsCount,
+      lastAutoBackupTime, isAutoUploading, isAutoUploadEnabled, setIsAutoUploadEnabled, triggerServerDatabaseSync
     }}>
       {children}
     </DataContext.Provider>

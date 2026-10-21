@@ -1,12 +1,16 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useTheme } from '../store/ThemeContext';
 import { useData } from '../store/DataContext';
+import { useAuth } from '../store/AuthContext';
 import { useToast } from '../store/ToastContext';
-import { X, Check, Type, AppWindow, Database, Download, Upload, MapPin, Users, UserRound, Archive, Palette, LayoutDashboard, Bell, BellOff, Volume2, Clock, Pencil, Trash2, Sliders, Sun, Moon } from 'lucide-react';
+import { X, Check, Type, AppWindow, Database, Download, Upload, MapPin, Users, UserRound, Archive, Palette, LayoutDashboard, Bell, BellOff, Volume2, Clock, Pencil, Trash2, Sliders, Sun, Moon, ShieldCheck, BookOpen, Printer, CloudUpload, Server, HardDrive, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { Visitor } from '../types';
 import VisitorManagement from '../components/VisitorManagement';
+import { Logo } from '../components/Logo';
+import UserManualView from '../components/UserManualView';
 
-type SettingsTab = 'database' | 'ranks' | 'locations' | 'groups' | 'backup' | 'appearance' | 'other';
+type SettingsTab = 'database' | 'ranks' | 'locations' | 'groups' | 'backup' | 'appearance' | 'other' | 'manual';
 
 export default function Settings() {
   const { 
@@ -19,7 +23,7 @@ export default function Settings() {
   } = useTheme();
   const { showToast } = useToast();
   const dataContext = useData();
-  const { categories, setCategories, groups, setGroups, visitors, setVisitors, guards, setGuards, shifts, setShifts, securityShifts, setSecurityShifts, locations, setLocations, customIcons, setCustomIcons, cleanCurrentShiftLogs, cleanLogsByPeriod } = dataContext;
+  const { categories, setCategories, groups, setGroups, visitors, setVisitors, guards, setGuards, shifts, setShifts, securityShifts, setSecurityShifts, locations, setLocations, customIcons, setCustomIcons, cleanCurrentShiftLogs, cleanLogsByPeriod, lastAutoBackupTime, isAutoUploading, isAutoUploadEnabled, setIsAutoUploadEnabled, triggerServerDatabaseSync } = dataContext;
 
   const [activeTab, setActiveTab] = useState<SettingsTab>('database');
 
@@ -213,6 +217,122 @@ export default function Settings() {
     const group = groups.find(g => g.id === id);
     setGroups(groups.filter(g => g.id !== id));
     showToast(`Групу "${group?.name || ''}" видалено`, 'info');
+  };
+
+  const { authorizedUsers, roles, currentUser } = useAuth();
+  const [isUploadingToServer, setIsUploadingToServer] = useState(false);
+  const [isRestoringServerBackup, setIsRestoringServerBackup] = useState<string | null>(null);
+  const [serverBackups, setServerBackups] = useState<Array<{ filename: string; timestamp: string; size: number; totalVisitors: number }>>([]);
+  const [lastServerBackupSuccess, setLastServerBackupSuccess] = useState<string | null>(null);
+  const [isLoadingServerBackups, setIsLoadingServerBackups] = useState(false);
+
+  const fetchServerBackups = useCallback(async () => {
+    setIsLoadingServerBackups(true);
+    try {
+      const res = await fetch('/api/backup/server-backups');
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.backups)) {
+          setServerBackups(json.backups);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch server backups:', e);
+    } finally {
+      setIsLoadingServerBackups(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'backup') {
+      fetchServerBackups();
+    }
+  }, [activeTab, fetchServerBackups]);
+
+  const handleToggleAutoUpload = async (enabled: boolean) => {
+    if (enabled === isAutoUploadEnabled) return;
+    setIsAutoUploadEnabled(enabled);
+    if (enabled) {
+      showToast('Автоматичне вивантаження на сервер увімкнено (ON)', 'success');
+      await triggerServerDatabaseSync();
+    } else {
+      showToast('Автоматичне вивантаження на сервер вимкнено (OFF)', 'info');
+    }
+  };
+
+  const handleUploadFullDatabaseToServer = async () => {
+    setIsUploadingToServer(true);
+    try {
+      const fullDatabasePayload = {
+        visitors,
+        guards,
+        shifts,
+        securityShifts,
+        categories,
+        groups,
+        locations,
+        dirtySkyEvents: dataContext.dirtySkyEvents,
+        dutyEvents: dataContext.dutyEvents,
+        customIcons,
+        reportRetentionHours: dataContext.reportRetentionHours,
+        authorizedUsers,
+        roles
+      };
+
+      const res = await fetch('/api/backup/upload-to-server', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: fullDatabasePayload,
+          userEmail: currentUser?.email || 'operator'
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP error ${res.status}`);
+      }
+
+      const json = await res.json();
+      if (json.success) {
+        setLastServerBackupSuccess(new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+        showToast(`Повну базу успішно вивантажено на сервер (${visitors.length} осіб)`, 'success');
+        fetchServerBackups();
+      } else {
+        throw new Error(json.error || 'Помилка вивантаження');
+      }
+    } catch (err: any) {
+      console.error('Upload to server failed:', err);
+      showToast('Не вдалося вивантажити базу на сервер. Перевірте зв\'язок із сервером', 'error');
+    } finally {
+      setIsUploadingToServer(false);
+    }
+  };
+
+  const handleRestoreFromServer = async (filename: string) => {
+    if (!window.confirm(`Відновити базу даних із серверного знімка ${filename}? Поточні дані будуть замінені цим станом.`)) {
+      return;
+    }
+
+    setIsRestoringServerBackup(filename);
+    try {
+      const res = await fetch('/api/backup/restore-from-server', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename })
+      });
+
+      const json = await res.json();
+      if (res.ok && json.success) {
+        showToast('Базу успішно відновлено із серверного знімка!', 'success');
+      } else {
+        throw new Error(json.error || 'Помилка відновлення');
+      }
+    } catch (e: any) {
+      console.error('Restore error:', e);
+      showToast(e.message || 'Не вдалося відновити базу із сервера', 'error');
+    } finally {
+      setIsRestoringServerBackup(null);
+    }
   };
 
   const handleExportData = () => {
@@ -419,7 +539,12 @@ export default function Settings() {
         data: base64
       };
       setCustomIcons(prev => [...prev, newIcon]);
-      showToast('Іконку успішно завантажено', 'success');
+      showToast('Іконку бригади успішно завантажено', 'success');
+      if (editingLocation) {
+        setEditLocationIconId(newIcon.id);
+      } else {
+        setNewLocationIconId(newIcon.id);
+      }
     };
     reader.readAsDataURL(file);
     if (iconInputRef.current) iconInputRef.current.value = '';
@@ -438,6 +563,7 @@ export default function Settings() {
     { id: 'backup', label: 'Бэкап', icon: Archive, color: 'text-indigo-500' },
     { id: 'appearance', label: 'Зовнішній вигляд', icon: Palette, color: 'text-primary' },
     { id: 'other', label: 'Інше', icon: Sliders, color: 'text-rose-500' },
+    { id: 'manual', label: 'Посібник (PDF)', icon: BookOpen, color: 'text-primary' },
   ];
 
   return (
@@ -458,6 +584,15 @@ export default function Settings() {
               <span>{item.label}</span>
             </button>
           ))}
+
+          <Link
+            to="/roles"
+            className="h-10 px-4 rounded-xl flex items-center gap-2.5 text-[10px] sm:text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all border shrink-0 bg-primary/10 hover:bg-primary/20 border-primary/30 text-primary cursor-pointer"
+            title="Перейти до керування ролями та списком email"
+          >
+            <ShieldCheck className="w-4 h-4 text-primary" />
+            <span>Ролі та доступ (СКУД)</span>
+          </Link>
         </div>
       </div>
 
@@ -544,125 +679,172 @@ export default function Settings() {
             )}
 
             {activeTab === 'locations' && (
-              <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 max-w-2xl">
-                <div className="space-y-4 mb-6 p-4 bg-muted/30 rounded-2xl border border-border/50">
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 max-w-3xl space-y-6">
+                {/* 1. Add New Brigade Form */}
+                <div className="space-y-4 p-4 bg-muted/30 rounded-2xl border border-border/50">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-orange-500" />
+                    <span>Додати нову бригаду</span>
+                  </h3>
                   <div className="flex gap-3">
                     <input 
                       value={newLocation} onChange={e => setNewLocation(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && addLocation()}
                       className="flex-1 px-4 py-2 border border-border bg-background rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/50 text-sm"
-                      placeholder="Введіть нову бригаду..."
+                      placeholder="Введіть назву нової бригади..."
                     />
                     <button onClick={addLocation} className="bg-orange-500 text-orange-950 px-6 py-2 rounded-xl hover:bg-orange-400 text-sm font-medium transition-colors shadow-lg shadow-orange-500/20">
                       Додати
                     </button>
                   </div>
                   
-                  {customIcons.length > 0 && (
-                    <div className="flex gap-2 flex-wrap items-center mt-2">
-                       <span className="text-[10px] uppercase font-bold text-muted-foreground mr-2">Іконка бригади:</span>
-                       <div className="flex flex-wrap gap-2 bg-background/50 p-2 rounded-xl border border-border/50 max-w-full">
-                         <button 
-                           onClick={() => setNewLocationIconId(undefined)}
-                           className={`w-8 h-8 rounded-lg flex items-center justify-center border text-[10px] ${!newLocationIconId ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'}`}
-                         >
-                           DEF
-                         </button>
-                         {customIcons.map(icon => (
-                           <button
-                             key={icon.id}
-                             onClick={() => setNewLocationIconId(icon.id)}
-                             className={`w-8 h-8 rounded-lg overflow-hidden border transition-all ${newLocationIconId === icon.id ? 'border-primary scale-110 ring-2 ring-primary/20' : 'border-border opacity-60 hover:opacity-100'}`}
-                           >
-                             <img src={icon.data} alt={icon.name} className="w-full h-full object-cover" />
-                           </button>
-                         ))}
-                       </div>
+                  {/* Select Icon for New Brigade */}
+                  <div className="flex gap-2 flex-wrap items-center pt-1">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground mr-2">Іконка бригади:</span>
+                    <div className="flex flex-wrap gap-2 bg-background/50 p-2 rounded-xl border border-border/50 items-center max-w-full">
+                      <button 
+                        type="button"
+                        onClick={() => setNewLocationIconId(undefined)}
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center border text-[10px] font-bold ${!newLocationIconId ? 'border-primary bg-primary/10 text-primary ring-2 ring-primary/20' : 'border-border text-muted-foreground hover:bg-muted'}`}
+                        title="Без шеврону (стандартна)"
+                      >
+                        DEF
+                      </button>
+                      {customIcons.map(icon => (
+                        <button
+                          key={icon.id}
+                          type="button"
+                          onClick={() => setNewLocationIconId(icon.id)}
+                          className={`w-8 h-8 rounded-lg overflow-hidden border transition-all ${newLocationIconId === icon.id ? 'border-primary scale-110 ring-2 ring-primary/20' : 'border-border opacity-60 hover:opacity-100'}`}
+                          title={icon.name}
+                        >
+                          <img src={icon.data} alt={icon.name} className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                      <button 
+                        type="button"
+                        onClick={() => iconInputRef.current?.click()}
+                        className="h-8 px-2.5 bg-background border border-dashed border-orange-500/50 rounded-lg flex items-center gap-1.5 text-xs text-orange-600 dark:text-orange-400 hover:bg-orange-500/10 transition-all font-medium shrink-0"
+                        title="Завантажити нову іконку з пристрою"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span className="text-[10px] font-semibold">Завантажити</span>
+                      </button>
                     </div>
-                  )}
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {locations.map((loc, idx) => (
-                    <div key={loc.id ? `loc-${loc.id}` : `loc-idx-${idx}`} className="flex flex-col p-3 rounded-xl border border-border/50 text-sm group transition-colors hover:bg-muted/60 bg-muted/40">
-                      {editingLocation?.id === loc.id ? (
-                        <div className="flex-1 flex flex-col gap-3">
-                          <input 
-                            autoFocus
-                            value={editLocationValue}
-                            onChange={e => setEditLocationValue(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && saveLocationEdit()}
-                            className="w-full bg-background border border-border rounded px-2 py-1 text-xs focus:outline-none"
-                          />
+                {/* Hidden File Input for Brigade Icons */}
+                <input 
+                  type="file" 
+                  accept="image/*,.svg,image/svg+xml" 
+                  className="hidden" 
+                  ref={iconInputRef} 
+                  onChange={handleIconUpload} 
+                />
 
-                          <div className="flex flex-wrap gap-2 items-center bg-background/30 p-1.5 rounded-lg border border-border/20 max-w-full">
-                            <button 
-                              onClick={() => setEditLocationIconId(undefined)}
-                              className={`w-6 h-6 rounded-md flex items-center justify-center border text-[8px] ${!editLocationIconId ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'}`}
-                            >
-                              DEF
-                            </button>
-                            {customIcons.map(icon => (
-                              <button
-                                key={icon.id}
-                                onClick={() => setEditLocationIconId(icon.id)}
-                                className={`w-6 h-6 rounded-md overflow-hidden border transition-all ${editLocationIconId === icon.id ? 'border-primary scale-110' : 'border-border opacity-60'}`}
+                {/* 3. List of Brigades */}
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-muted-foreground" />
+                    <span>Список бригад ({locations.length})</span>
+                  </h3>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {locations.map((loc, idx) => (
+                      <div key={loc.id ? `loc-${loc.id}` : `loc-idx-${idx}`} className="flex flex-col p-3 rounded-xl border border-border/50 text-sm group transition-colors hover:bg-muted/60 bg-muted/40">
+                        {editingLocation?.id === loc.id ? (
+                          <div className="flex-1 flex flex-col gap-3">
+                            <input 
+                              autoFocus
+                              value={editLocationValue}
+                              onChange={e => setEditLocationValue(e.target.value)}
+                              onKeyDown={e => e.key === 'Enter' && saveLocationEdit()}
+                              className="w-full bg-background border border-border rounded px-2 py-1 text-xs focus:outline-none"
+                            />
+
+                            <div className="flex flex-wrap gap-2 items-center bg-background/30 p-1.5 rounded-lg border border-border/20 max-w-full">
+                              <button 
+                                type="button"
+                                onClick={() => setEditLocationIconId(undefined)}
+                                className={`w-6 h-6 rounded-md flex items-center justify-center border text-[8px] font-bold ${!editLocationIconId ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground'}`}
                               >
-                                <img src={icon.data} alt={icon.name} className="w-full h-full object-cover" />
+                                DEF
                               </button>
-                            ))}
-                          </div>
-
-                          <div className="flex gap-2 justify-end">
-                            <button 
-                              onClick={saveLocationEdit} 
-                              className="px-3 py-1 bg-emerald-500 text-white rounded-lg text-[10px] font-bold uppercase transition-colors"
-                            >
-                              Зберегти
-                            </button>
-                            <button 
-                              onClick={() => setEditingLocation(null)} 
-                              className="px-3 py-1 bg-muted text-muted-foreground rounded-lg text-[10px] font-bold uppercase transition-colors"
-                            >
-                              Скасувати
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex justify-between items-center w-full">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-8 h-8 rounded-lg bg-card/40 flex items-center justify-center text-foreground shrink-0 overflow-hidden">
-                              {loc.iconId && customIcons.find(i => i.id === loc.iconId) ? (
-                                <img src={customIcons.find(i => i.id === loc.iconId)?.data} alt="icon" className="w-full h-full object-cover" />
-                              ) : (
-                                <MapPin className="w-4 h-4 opacity-40" />
-                              )}
+                              {customIcons.map(icon => (
+                                <button
+                                  key={icon.id}
+                                  type="button"
+                                  onClick={() => setEditLocationIconId(icon.id)}
+                                  className={`w-6 h-6 rounded-md overflow-hidden border transition-all ${editLocationIconId === icon.id ? 'border-primary scale-110 ring-1 ring-primary' : 'border-border opacity-60 hover:opacity-100'}`}
+                                  title={icon.name}
+                                >
+                                  <img src={icon.data} alt={icon.name} className="w-full h-full object-cover" />
+                                </button>
+                              ))}
+                              <button 
+                                type="button"
+                                onClick={() => iconInputRef.current?.click()}
+                                className="h-6 px-1.5 bg-background border border-dashed border-orange-500/50 rounded-md flex items-center gap-1 text-[9px] text-orange-600 dark:text-orange-400 hover:bg-orange-500/10 transition-all font-medium shrink-0"
+                                title="Завантажити іконку"
+                              >
+                                <Upload className="w-2.5 h-2.5" />
+                                <span>+</span>
+                              </button>
                             </div>
-                            <span className="font-medium truncate">{loc.name}</span>
+
+                            <div className="flex gap-2 justify-end">
+                              <button 
+                                onClick={saveLocationEdit} 
+                                className="px-3 py-1 bg-emerald-500 text-white rounded-lg text-[10px] font-bold uppercase transition-colors"
+                              >
+                                Зберегти
+                              </button>
+                              <button 
+                                onClick={() => setEditingLocation(null)} 
+                                className="px-3 py-1 bg-muted text-muted-foreground rounded-lg text-[10px] font-bold uppercase transition-colors"
+                              >
+                                Скасувати
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <button 
-                              onClick={() => {
-                                setEditingLocation(loc);
-                                setEditLocationValue(loc.name);
-                                setEditLocationIconId(loc.iconId);
-                              }} 
-                              className="text-muted-foreground hover:text-blue-500 p-1.5 rounded-md transition-all sm:opacity-0 group-hover:opacity-100"
-                              title="Редагувати"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button 
-                              onClick={() => removeLocation(loc.id)}
-                              className="text-muted-foreground hover:text-red-500 p-1.5 rounded-md transition-all"
-                              title="Видалити"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                        ) : (
+                          <div className="flex justify-between items-center w-full">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-8 h-8 rounded-lg bg-card/40 flex items-center justify-center text-foreground shrink-0 overflow-hidden border border-border/40">
+                                {loc.iconId && customIcons.find(i => i.id === loc.iconId) ? (
+                                  <img src={customIcons.find(i => i.id === loc.iconId)?.data} alt="icon" className="w-full h-full object-cover" />
+                                ) : (
+                                  <MapPin className="w-4 h-4 opacity-40 text-orange-500" />
+                                )}
+                              </div>
+                              <span className="font-medium truncate">{loc.name}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <button 
+                                onClick={() => {
+                                  setEditingLocation(loc);
+                                  setEditLocationValue(loc.name);
+                                  setEditLocationIconId(loc.iconId);
+                                }} 
+                                className="text-muted-foreground hover:text-blue-500 p-1.5 rounded-md transition-all sm:opacity-0 group-hover:opacity-100"
+                                title="Редагувати"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button 
+                                onClick={() => removeLocation(loc.id)}
+                                className="text-muted-foreground hover:text-red-500 p-1.5 rounded-md transition-all"
+                                title="Видалити"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -812,27 +994,259 @@ export default function Settings() {
 
             {activeTab === 'backup' && (
               <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <div className="space-y-8">
-                  <div className="p-6 bg-blue-500/5 rounded-2xl">
-                    <h3 className="text-sm font-semibold mb-2">Зберігання даних</h3>
-                    <p className="text-sm text-muted-foreground leading-relaxed">
-                      Ваш додаток працює <strong>автономно</strong>. Дані зберігаються локально в браузері. Ми рекомендуємо регулярно робити експорт бази даних для запобігання втраті інформації.
-                    </p>
+                <div className="space-y-6">
+                  {/* 1. Main Server Database Backup & Snapshot Section */}
+                  <div className="p-5 sm:p-6 bg-card border border-border/70 rounded-2xl shadow-xs space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/50">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+                          <Server className="w-5 h-5 sm:w-6 sm:h-6" />
+                        </div>
+                        <div>
+                          <h3 className="text-sm sm:text-base font-bold text-foreground flex items-center gap-2">
+                            Вивантаження всієї бази на сервер
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                              В мережі
+                            </span>
+                          </h3>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Зберігає повний знімок системи (відвідувачі, журнали входу/виходу, чергування, бригади, групи та ролі) на сервері.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Main Action Button */}
+                      <button
+                        onClick={handleUploadFullDatabaseToServer}
+                        disabled={isUploadingToServer}
+                        className={`inline-flex items-center justify-center gap-2.5 px-5 py-3 rounded-xl font-bold text-xs sm:text-sm uppercase tracking-wider transition-all cursor-pointer shadow-md select-none shrink-0 ${
+                          isUploadingToServer
+                            ? 'bg-muted text-muted-foreground cursor-not-allowed'
+                            : 'bg-primary hover:bg-primary/90 text-primary-foreground shadow-primary/25 active:scale-95'
+                        }`}
+                        title="Зберегти та створити архівний знімок бази на сервері"
+                      >
+                        {isUploadingToServer ? (
+                          <>
+                            <RefreshCw className="w-4 h-4 animate-spin" />
+                            <span>Вивантаження...</span>
+                          </>
+                        ) : (
+                          <>
+                            <CloudUpload className="w-4 h-4 sm:w-5 sm:h-5" />
+                            <span>Вивантажити всю базу на сервер</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Automatic Database Sync to Server Status & ON/OFF Controls */}
+                    <div className={`p-4 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs ${
+                      isAutoUploadEnabled
+                        ? 'bg-gradient-to-r from-emerald-500/10 via-primary/5 to-card border-emerald-500/30 shadow-2xs'
+                        : 'bg-muted/30 border-border/60'
+                    }`}>
+                      <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+                        <div className="relative flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
+                          <div className={`w-3.5 h-3.5 rounded-full ${
+                            !isAutoUploadEnabled 
+                              ? 'bg-muted-foreground/40' 
+                              : isAutoUploading 
+                                ? 'bg-amber-500 animate-ping' 
+                                : 'bg-emerald-500'
+                          }`} />
+                          <div className={`w-2.5 h-2.5 rounded-full absolute ${
+                            !isAutoUploadEnabled 
+                              ? 'bg-muted-foreground/60' 
+                              : isAutoUploading 
+                                ? 'bg-amber-500' 
+                                : 'bg-emerald-500'
+                          }`} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-foreground text-xs sm:text-sm">
+                              Автоматичне вивантаження на сервер:
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                              !isAutoUploadEnabled
+                                ? 'bg-muted text-muted-foreground border border-border/80'
+                                : isAutoUploading 
+                                  ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30' 
+                                  : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
+                            }`}>
+                              {!isAutoUploadEnabled ? 'ВИМКНЕНО (OFF)' : isAutoUploading ? 'Вивантаження...' : 'АКТИВНО (ON)'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                            {isAutoUploadEnabled
+                              ? 'Після будь-якої зміни в базі даних оновлена версія автоматично зберігається на сервері.'
+                              : 'Автоматичне збереження призупинено. Зміни зберігаються локально в браузері. Використовуйте кнопку «Вивантажити всю базу на сервер» для ручного збереження.'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Controls and Last sync timestamp */}
+                      <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2.5 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-border/40">
+                        {/* ON / OFF Toggle Buttons */}
+                        <div className="inline-flex items-center p-1 rounded-xl bg-background border border-border shadow-xs select-none">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleAutoUpload(true)}
+                            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${
+                              isAutoUploadEnabled
+                                ? 'bg-emerald-500 text-white shadow-sm scale-100'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-muted/70'
+                            }`}
+                            title="Увімкнути автоматичне вивантаження на сервер"
+                          >
+                            <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                            <span>ON</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleAutoUpload(false)}
+                            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer ${
+                              !isAutoUploadEnabled
+                                ? 'bg-destructive text-destructive-foreground shadow-sm scale-100'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-muted/70'
+                            }`}
+                            title="Вимкнути автоматичне вивантаження на сервер"
+                          >
+                            <X className="w-3.5 h-3.5 stroke-[2.5]" />
+                            <span>OFF</span>
+                          </button>
+                        </div>
+
+                        {/* Last Sync Timestamp */}
+                        <div className="text-right">
+                          <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+                            Останнє збереження:
+                          </span>
+                          <span className={`font-mono text-xs font-bold ${
+                            isAutoUploadEnabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'
+                          }`}>
+                            {lastAutoBackupTime 
+                              ? lastAutoBackupTime.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) 
+                              : (lastServerBackupSuccess || 'При зміні даних')}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Stats summary */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
+                      <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">Відвідувачів у базі:</span>
+                        <span className="text-sm font-black text-foreground">{visitors.length}</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">Бригад / Локацій:</span>
+                        <span className="text-sm font-black text-foreground">{locations.length}</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">Підрозділів / Груп:</span>
+                        <span className="text-sm font-black text-foreground">{groups.length}</span>
+                      </div>
+                      <div className="p-2.5 rounded-xl bg-muted/40 border border-border/40">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">Останнє вивантаження:</span>
+                        <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                          {lastAutoBackupTime 
+                            ? lastAutoBackupTime.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) 
+                            : (lastServerBackupSuccess || 'Синхронізовано')}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Server Backups Archive List */}
+                    <div className="pt-2">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <HardDrive className="w-3.5 h-3.5" />
+                          Архів серверних копій бази ({serverBackups.length})
+                        </span>
+                        <button
+                          type="button"
+                          onClick={fetchServerBackups}
+                          disabled={isLoadingServerBackups}
+                          className="text-xs text-primary hover:underline flex items-center gap-1 font-semibold cursor-pointer"
+                        >
+                          <RefreshCw className={`w-3 h-3 ${isLoadingServerBackups ? 'animate-spin' : ''}`} />
+                          <span>Оновити</span>
+                        </button>
+                      </div>
+
+                      {serverBackups.length === 0 ? (
+                        <div className="py-4 text-center text-xs text-muted-foreground bg-muted/20 rounded-xl border border-dashed border-border/60">
+                          Серверні копії бази створюються автоматично при вивантаженні. Натисніть кнопку «Вивантажити всю базу на сервер» вище.
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                          {serverBackups.slice(0, 8).map((b) => (
+                            <div
+                              key={b.filename}
+                              className="flex items-center justify-between p-2 sm:px-3 bg-muted/30 border border-border/40 rounded-xl text-xs gap-2"
+                            >
+                              <div className="min-w-0 flex items-center gap-2">
+                                <Archive className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                                <div className="truncate">
+                                  <span className="font-mono font-medium text-foreground">{b.filename}</span>
+                                  <span className="text-[10px] text-muted-foreground ml-2">
+                                    {new Date(b.timestamp).toLocaleString('uk-UA')} • {b.totalVisitors} осіб • {(b.size / 1024).toFixed(1)} КБ
+                                  </span>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleRestoreFromServer(b.filename)}
+                                disabled={isRestoringServerBackup === b.filename}
+                                className="px-2.5 py-1 bg-secondary hover:bg-secondary/80 text-foreground rounded-lg text-[10px] font-bold uppercase shrink-0 transition-colors cursor-pointer"
+                                title="Відновити стан бази з цього файлу"
+                              >
+                                {isRestoringServerBackup === b.filename ? 'Відновлення...' : 'Відновити'}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <button onClick={handleExportData} className="flex items-center justify-center gap-3 px-6 py-4 bg-blue-500 text-white rounded-2xl hover:bg-blue-600 transition-all shadow-lg shadow-blue-500/20 font-medium">
-                      <Download className="w-5 h-5"/> Експорт бази (.json)
-                    </button>
-                    <button onClick={exportToCSV} className="flex items-center justify-center gap-3 px-6 py-4 bg-emerald-500 text-emerald-950 rounded-2xl hover:bg-emerald-400 transition-all shadow-lg shadow-emerald-500/20 font-medium">
-                      <Download className="w-5 h-5"/> Експорт відвідувань (.csv)
-                    </button>
-                    <button onClick={() => fileInputRef.current?.click()} className="flex items-center justify-center gap-3 px-6 py-4 bg-secondary text-secondary-foreground rounded-2xl border border-border hover:bg-secondary/80 transition-all font-medium">
-                      <Upload className="w-5 h-5"/> Імпорт бази (.json)
-                    </button>
-                    <button onClick={() => usersFileInputRef.current?.click()} className="flex items-center justify-center gap-3 px-6 py-4 bg-indigo-500 text-white rounded-2xl hover:bg-indigo-600 transition-all shadow-lg shadow-indigo-500/20 font-medium">
-                      <Upload className="w-5 h-5"/> Імпорт користувачів (CSV/JSON)
-                    </button>
+                  {/* 2. Local File Export & Import Options */}
+                  <div className="space-y-3">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                      Локальний експорт та імпорт файлів (на пристрій)
+                    </h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                      <button 
+                        onClick={handleExportData} 
+                        className="flex items-center justify-center gap-2.5 px-4 py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 transition-all shadow-sm font-medium text-xs sm:text-sm cursor-pointer"
+                      >
+                        <Download className="w-4 h-4"/> 
+                        <span>Експорт бази (.json)</span>
+                      </button>
+                      <button 
+                        onClick={exportToCSV} 
+                        className="flex items-center justify-center gap-2.5 px-4 py-3 bg-emerald-500 text-emerald-950 rounded-xl hover:bg-emerald-400 transition-all shadow-sm font-medium text-xs sm:text-sm cursor-pointer"
+                      >
+                        <Download className="w-4 h-4"/> 
+                        <span>Експорт відвідувань (.csv)</span>
+                      </button>
+                      <button 
+                        onClick={() => fileInputRef.current?.click()} 
+                        className="flex items-center justify-center gap-2.5 px-4 py-3 bg-secondary text-secondary-foreground rounded-xl border border-border hover:bg-secondary/80 transition-all font-medium text-xs sm:text-sm cursor-pointer"
+                      >
+                        <Upload className="w-4 h-4"/> 
+                        <span>Імпорт бази (.json)</span>
+                      </button>
+                      <button 
+                        onClick={() => usersFileInputRef.current?.click()} 
+                        className="flex items-center justify-center gap-2.5 px-4 py-3 bg-indigo-500 text-white rounded-xl hover:bg-indigo-600 transition-all shadow-sm font-medium text-xs sm:text-sm cursor-pointer"
+                      >
+                        <Upload className="w-4 h-4"/> 
+                        <span>Імпорт користувачів (.csv)</span>
+                      </button>
+                    </div>
                   </div>
                   
                   <input type="file" accept=".json" className="hidden" ref={fileInputRef} onChange={handleImportData} />
@@ -934,40 +1348,11 @@ export default function Settings() {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-4">Користувацькі іконки</label>
-                    <div className="p-6 bg-muted/30 rounded-2xl border border-border/50">
-                      <p className="text-xs text-muted-foreground mb-4">Завантажте власні іконки, щоб використовувати їх замість стандартних для користувачів.</p>
-                      
-                      <div className="flex flex-wrap gap-2 sm:gap-3 mb-6">
-                        {customIcons.map(icon => (
-                          <div key={icon.id} className="relative group w-8 h-8 sm:w-10 sm:h-10 bg-background rounded-lg border border-border overflow-hidden flex items-center justify-center shrink-0">
-                            <img src={icon.data} alt={icon.name} className="w-full h-full object-cover" />
-                            <button 
-                              onClick={() => removeIcon(icon.id)}
-                              className="absolute inset-0 bg-red-500/80 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
-                              title="Видалити іконку"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                        <button 
-                          onClick={() => iconInputRef.current?.click()}
-                          className="w-8 h-8 sm:w-10 sm:h-10 bg-background border border-border border-dashed rounded-lg flex flex-col items-center justify-center text-muted-foreground hover:bg-muted/50 transition-all shrink-0"
-                        >
-                          <Upload className="w-3 h-3 sm:w-4 sm:h-4 mb-0.5" />
-                          <span className="text-[7px] sm:text-[8px] leading-tight font-bold">Додати</span>
-                        </button>
-                      </div>
-                      <input type="file" accept="image/*,.svg,image/svg+xml" className="hidden" ref={iconInputRef} onChange={handleIconUpload} />
-                    </div>
-                  </div>
 
                   <div>
                     <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-4">Кількість колонок на сторінці відвідувачів</label>
                     <div className="flex flex-wrap gap-2">
-                      {[3, 4, 5, 6, 7, 8].map(cols => (
+                      {[2, 3, 4, 5, 6, 7, 8].map(cols => (
                         <button
                           key={cols}
                           onClick={() => setVisitorsColumns(cols)}
@@ -1004,31 +1389,97 @@ export default function Settings() {
                   </div>
 
                   <div>
-                    <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-4">Тема оформлення (Світла / Темна)</label>
-                    <div className="flex flex-wrap gap-3">
-                      {(['light', 'dark'] as const).map(t => (
-                        <button
-                          key={t}
-                          onClick={() => setTheme(t)}
-                          className={`px-8 py-3 rounded-xl text-sm font-medium transition-all flex items-center gap-2 ${
-                            theme === t 
-                              ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]' 
-                              : 'bg-muted text-muted-foreground hover:bg-secondary/50 hover:text-foreground border border-border/50'
-                          }`}
-                        >
-                          {t === 'light' ? (
-                            <>
-                              <Sun className="w-4.5 h-4.5" />
-                              <span>Світла</span>
-                            </>
-                          ) : (
-                            <>
-                              <Moon className="w-4.5 h-4.5" />
-                              <span>Темна</span>
-                            </>
-                          )}
-                        </button>
-                      ))}
+                    <div className="flex items-center justify-between mb-4">
+                      <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground">
+                        Тема оформлення системи (Світла / Темна)
+                      </label>
+                      <span className="text-[11px] text-muted-foreground">
+                        Виберіть світлу або темну тему інтерфейсу
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 max-w-2xl">
+                      {[
+                        {
+                          id: 'light' as const,
+                          name: 'Світла тема',
+                          badge: 'Класична',
+                          desc: 'Чистий світлий інтерфейс для денної зміни та яскравого освітлення',
+                          icon: Sun,
+                          bg: '#ffffff',
+                          card: '#f1f5f9',
+                          accent: '#2563eb',
+                          border: '#cbd5e1'
+                        },
+                        {
+                          id: 'dark' as const,
+                          name: 'Темна тема',
+                          badge: 'За замовчуванням',
+                          desc: 'Глибока темна графітова палітра для роботи та чергування (встановлена за замовчуванням)',
+                          icon: Moon,
+                          bg: '#0b1120',
+                          card: '#151f32',
+                          accent: '#3b82f6',
+                          border: '#334155'
+                        }
+                      ].map((t) => {
+                        const isCurrent = theme === t.id;
+                        const Icon = t.icon;
+                        return (
+                          <div
+                            key={t.id}
+                            onClick={() => setTheme(t.id)}
+                            className={`relative rounded-2xl p-4 border transition-all cursor-pointer select-none flex flex-col justify-between ${
+                              isCurrent
+                                ? 'bg-primary/10 border-primary ring-2 ring-primary/30 shadow-md scale-[1.01]'
+                                : 'bg-card hover:bg-muted/40 border-border hover:border-border/80'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3 mb-2.5">
+                              <div className="flex items-center gap-2.5">
+                                <div
+                                  className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                                    isCurrent ? 'bg-primary text-primary-foreground shadow-xs' : 'bg-muted text-muted-foreground'
+                                  }`}
+                                >
+                                  <Icon className="w-4.5 h-4.5" />
+                                </div>
+                                <div>
+                                  <div className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                                    <span>{t.name}</span>
+                                    {isCurrent && (
+                                      <span className="w-2 h-2 rounded-full bg-primary shrink-0 animate-pulse" />
+                                    )}
+                                  </div>
+                                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                    {t.badge}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Color palette preview circles */}
+                              <div className="flex items-center -space-x-1.5 shrink-0 bg-background/60 p-1 rounded-full border border-border/50">
+                                <span className="w-3.5 h-3.5 rounded-full border border-black/20 shrink-0" style={{ backgroundColor: t.bg }} />
+                                <span className="w-3.5 h-3.5 rounded-full border border-black/20 shrink-0" style={{ backgroundColor: t.card }} />
+                                <span className="w-3.5 h-3.5 rounded-full border border-black/20 shrink-0" style={{ backgroundColor: t.accent }} />
+                              </div>
+                            </div>
+
+                            <p className="text-xs text-muted-foreground leading-relaxed">
+                              {t.desc}
+                            </p>
+
+                            <div className="mt-3 pt-2.5 border-t border-border/40 flex items-center justify-between text-[11px] font-bold">
+                              <span className={isCurrent ? 'text-primary' : 'text-muted-foreground'}>
+                                {isCurrent ? '✓ Активна тема' : 'Натисніть для вибору'}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground/60 uppercase font-mono">
+                                {t.id}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -1114,8 +1565,8 @@ export default function Settings() {
 
                     {/* Confirmation Modal */}
                     {showConfirmModal && (
-                      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-                        <div className="bg-card border border-border w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-in zoom-in-95 duration-200">
+                      <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+                        <div className="bg-card border border-border w-full max-w-sm rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl animate-in zoom-in-95 duration-150 max-h-[92dvh] overflow-y-auto my-auto">
                           <div className="w-12 h-12 rounded-2xl bg-rose-500/10 flex items-center justify-center text-rose-500 mb-4 mx-auto">
                             <Trash2 className="w-6 h-6" />
                           </div>
@@ -1146,6 +1597,12 @@ export default function Settings() {
                     )}
                   </div>
                 </div>
+              </div>
+            )}
+
+            {activeTab === 'manual' && (
+              <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <UserManualView embeddedInSettings={true} />
               </div>
             )}
           </div>

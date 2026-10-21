@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useData } from '../store/DataContext';
 import { useToast } from '../store/ToastContext';
-import { Users, User, Clock, ArrowRightCircle, X, Search, Mic, MicOff, LogIn, LogOut, Play, Square, CloudRain, TriangleAlert, CheckCircle2 } from 'lucide-react';
+import { Users, User, Clock, X, Search, Mic, MicOff, LogIn, LogOut, Play, Square, CloudRain, TriangleAlert, CheckCircle2 } from 'lucide-react';
 import { differenceInMinutes, format } from 'date-fns';
-import { formatNameAbbreviated } from '../utils/nameUtils';
+import { formatNameAbbreviated, splitNameTwoLines } from '../utils/nameUtils';
 import { 
   parseVoiceCommand, 
   matchVisitorVoice 
 } from '../utils/voiceCommandUtils';
 import { Visitor } from '../types';
 import { isSpecialVisitor, compareVisitorsSpecialFirst } from '../utils/visitorUtils';
+import VisitorCard from '../components/VisitorCard';
 
 export default function Dashboard() {
   const { 
@@ -18,7 +19,7 @@ export default function Dashboard() {
   } = useData();
   const { showToast } = useToast();
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [modalType, setModalType] = useState<'entered' | 'exited' | 'on_location' | null>(null);
+  const [modalType, setModalType] = useState<'entered' | 'exited' | 'on_location' | 'unique_visitors' | 'all_visits' | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
   const [isListening, setIsListening] = useState(false);
@@ -344,6 +345,8 @@ export default function Dashboard() {
 
   const enteredTodayVisitors: any[] = [];
   const exitedTodayVisitors: any[] = [];
+  let totalEntriesCount = 0;
+  let totalExitsCount = 0;
   
   visitors.forEach(v => {
     let enteredToday = false;
@@ -355,17 +358,20 @@ export default function Dashboard() {
     
     if (v.lastEntry && new Date(v.lastEntry) >= shiftStart) {
       enteredToday = true;
+      totalEntriesCount++;
       enterTime = new Date(v.lastEntry);
     }
     for (const log of logs) {
       if (log.in && new Date(log.in) >= shiftStart) {
         enteredToday = true;
+        totalEntriesCount++;
         if (!enterTime || new Date(log.in) < enterTime) {
           enterTime = new Date(log.in);
         }
       }
       if (log.out && new Date(log.out) >= shiftStart) {
         exitedToday = true;
+        totalExitsCount++;
         if (!exitTime || new Date(log.out) > exitTime) {
           exitTime = new Date(log.out);
         }
@@ -379,18 +385,22 @@ export default function Dashboard() {
   enteredTodayVisitors.sort((a, b) => compareVisitorsSpecialFirst(a, b, { groups }));
   exitedTodayVisitors.sort((a, b) => compareVisitorsSpecialFirst(a, b, { groups }));
 
-  const enteredTodayCount = enteredTodayVisitors.length;
-  const exitedTodayCount = exitedTodayVisitors.length;
+  const uniqueVisitorsCount = enteredTodayVisitors.length;
+  const totalVisitsCount = Math.max(totalEntriesCount, uniqueVisitorsCount);
+  const enteredTodayCount = totalEntriesCount > 0 ? totalEntriesCount : uniqueVisitorsCount;
+  const exitedTodayCount = totalExitsCount;
 
   const currentlyInVisitors = visitors.filter(v => v.status === 'in').sort((a,b) => compareVisitorsSpecialFirst(a, b, { groups }));
   const currentlyInCount = currentlyInVisitors.length;
 
   const modalVisitors = 
-    modalType === 'entered' ? enteredTodayVisitors : 
+    modalType === 'entered' || modalType === 'all_visits' || modalType === 'unique_visitors' ? enteredTodayVisitors : 
     modalType === 'exited' ? exitedTodayVisitors : 
     currentlyInVisitors;
 
   const modalTitle = 
+    modalType === 'all_visits' ? "Всі відвідування за зміну" :
+    modalType === 'unique_visitors' ? "Відвідувачі (унікальні особи) за зміну" :
     modalType === 'entered' ? "Зайшли за зміну" : 
     modalType === 'exited' ? "Вийшли за зміну" : 
     "Зараз на локації";
@@ -481,68 +491,105 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+      {/* 4 Compact Metric Cards with Adaptive Scaling (Single Line: Label - Count in Middle - Icon) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 w-full">
+        {/* 1. Відвідувачів (унікальні особи) */}
+        <div 
+          onClick={() => setModalType('unique_visitors')}
+          className="bg-indigo-500/10 hover:bg-indigo-500/15 rounded-xl px-2 sm:px-2 md:px-2.5 py-1 flex items-center justify-between min-w-0 flex-nowrap shadow-2xs hover:shadow-xs transition-all active:scale-95 cursor-pointer h-9 sm:h-9 md:h-10"
+          title="Унікальні відвідувачі за зміну"
+        >
+          <span className="text-[9px] min-[380px]:text-[9.5px] sm:text-[8.5px] md:text-[10px] lg:text-[11px] text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-wider shrink-0 select-none truncate">
+            Відвідувачів:
+          </span>
+          <span className="flex-1 text-center text-xs min-[380px]:text-sm sm:text-xs md:text-sm lg:text-base font-black text-indigo-700 dark:text-indigo-300 tabular-nums px-1 min-w-0 truncate">
+            {uniqueVisitorsCount}
+          </span>
+          <div className="w-5 h-5 sm:w-5.5 sm:h-5.5 md:w-6 md:h-6 shrink-0 bg-indigo-500 rounded-lg flex items-center justify-center text-white shadow-2xs">
+            <Users className="w-2.5 h-2.5 sm:w-3 sm:h-3 md:w-3.5 md:h-3.5" />
+          </div>
+        </div>
+
+        {/* 2. На локації (скільки зараз людей) */}
         <div 
           onClick={() => setModalType('on_location')}
-          className="bg-emerald-500/10 rounded-2xl py-2 sm:py-2.5 px-3 sm:px-[14px] flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer h-[52px] sm:h-[60px]"
+          className="bg-emerald-500/10 hover:bg-emerald-500/15 rounded-xl px-2 sm:px-2 md:px-2.5 py-1 flex items-center justify-between min-w-0 flex-nowrap shadow-2xs hover:shadow-xs transition-all active:scale-95 cursor-pointer h-9 sm:h-9 md:h-10"
+          title="Кількість людей зараз на локації"
         >
-          <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 opacity-0 select-none pointer-events-none" />
-          <div className="flex items-center justify-center gap-2 flex-1 text-center font-roboto">
-            <span className="text-xs sm:text-sm text-emerald-600 font-bold uppercase tracking-wider">На локації:</span>
-            <span className="text-xs sm:text-sm font-bold text-emerald-700">{currentlyInCount}</span>
-          </div>
-          <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 bg-emerald-500 rounded-xl flex items-center justify-center text-white font-normal shadow-lg shadow-emerald-500/20">
-             <Users className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
+          <span className="text-[9px] min-[380px]:text-[9.5px] sm:text-[8.5px] md:text-[10px] lg:text-[11px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider shrink-0 select-none truncate">
+            На локації:
+          </span>
+          <span className="flex-1 text-center text-xs min-[380px]:text-sm sm:text-xs md:text-sm lg:text-base font-black text-emerald-700 dark:text-emerald-300 tabular-nums px-1 min-w-0 truncate">
+            {currentlyInCount}
+          </span>
+          <div className="w-5 h-5 sm:w-5.5 sm:h-5.5 md:w-6 md:h-6 shrink-0 bg-emerald-500 rounded-lg flex items-center justify-center text-white shadow-2xs">
+            <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3 md:w-3.5 md:h-3.5" />
           </div>
         </div>
 
+        {/* 3. Зайшло (кількість входів) */}
         <div 
           onClick={() => setModalType('entered')}
-          className="bg-primary/10 rounded-2xl py-2 sm:py-2.5 px-3 sm:px-[14px] flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer h-[52px] sm:h-[60px]"
+          className="bg-sky-500/10 hover:bg-sky-500/15 rounded-xl px-2 sm:px-2 md:px-2.5 py-1 flex items-center justify-between min-w-0 flex-nowrap shadow-2xs hover:shadow-xs transition-all active:scale-95 cursor-pointer h-9 sm:h-9 md:h-10"
+          title="Кількість зафіксованих входів за зміну"
         >
-          <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 opacity-0 select-none pointer-events-none" />
-          <div className="flex items-center justify-center gap-2 flex-1 text-center font-roboto">
-            <span className="text-xs sm:text-sm text-primary font-bold uppercase tracking-wider">Зайшло:</span>
-            <span className="text-xs sm:text-sm font-bold text-primary">{enteredTodayCount}</span>
-          </div>
-          <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 bg-primary rounded-xl flex items-center justify-center text-primary-foreground font-normal shadow-lg shadow-primary/20">
-              <ArrowRightCircle className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
+          <span className="text-[9px] min-[380px]:text-[9.5px] sm:text-[8.5px] md:text-[10px] lg:text-[11px] text-sky-600 dark:text-sky-400 font-bold uppercase tracking-wider shrink-0 select-none truncate">
+            Зайшло:
+          </span>
+          <span className="flex-1 text-center text-xs min-[380px]:text-sm sm:text-xs md:text-sm lg:text-base font-black text-sky-700 dark:text-sky-300 tabular-nums px-1 min-w-0 truncate">
+            {enteredTodayCount}
+          </span>
+          <div className="w-5 h-5 sm:w-5.5 sm:h-5.5 md:w-6 md:h-6 shrink-0 bg-sky-500 rounded-lg flex items-center justify-center text-white shadow-2xs">
+            <LogIn className="w-2.5 h-2.5 sm:w-3 sm:h-3 md:w-3.5 md:h-3.5" />
           </div>
         </div>
 
+        {/* 4. Вийшло (кількість виходів) */}
         <div 
           onClick={() => setModalType('exited')}
-          className="bg-red-500/10 rounded-2xl py-2 sm:py-2.5 px-3 sm:px-[14px] flex items-center justify-between shadow-sm hover:shadow-md transition-all active:scale-95 cursor-pointer h-[52px] sm:h-[60px]"
+          className="bg-rose-500/10 hover:bg-rose-500/15 rounded-xl px-2 sm:px-2 md:px-2.5 py-1 flex items-center justify-between min-w-0 flex-nowrap shadow-2xs hover:shadow-xs transition-all active:scale-95 cursor-pointer h-9 sm:h-9 md:h-10"
+          title="Кількість зафіксованих виходів за зміну"
         >
-          <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 opacity-0 select-none pointer-events-none" />
-          <div className="flex items-center justify-center gap-2 flex-1 text-center font-roboto">
-            <span className="text-xs sm:text-sm text-red-500 font-bold uppercase tracking-wider">Вийшло:</span>
-            <span className="text-xs sm:text-sm font-bold text-red-600">{exitedTodayCount}</span>
-          </div>
-          <div className="w-7 h-7 sm:w-9 sm:h-9 shrink-0 bg-red-500 rounded-xl flex items-center justify-center text-white font-normal shadow-lg shadow-red-500/20">
-            <ArrowRightCircle className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 rotate-180" />
+          <span className="text-[9px] min-[380px]:text-[9.5px] sm:text-[8.5px] md:text-[10px] lg:text-[11px] text-rose-600 dark:text-rose-400 font-bold uppercase tracking-wider shrink-0 select-none truncate">
+            Вийшло:
+          </span>
+          <span className="flex-1 text-center text-xs min-[380px]:text-sm sm:text-xs md:text-sm lg:text-base font-black text-rose-700 dark:text-rose-300 tabular-nums px-1 min-w-0 truncate">
+            {exitedTodayCount}
+          </span>
+          <div className="w-5 h-5 sm:w-5.5 sm:h-5.5 md:w-6 md:h-6 shrink-0 bg-rose-500 rounded-lg flex items-center justify-center text-white shadow-2xs">
+            <LogOut className="w-2.5 h-2.5 sm:w-3 sm:h-3 md:w-3.5 md:h-3.5" />
           </div>
         </div>
       </div>
 
       <div className="bg-transparent shadow-none font-roboto font-normal flex items-center justify-center gap-1.5 sm:gap-3 w-full !mt-1 !mb-1 p-0">
         <div className="relative flex-1 max-w-xl">
-          <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground/60" />
+          <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground/80 pointer-events-none" />
           <input 
             type="text"
             placeholder={isListening ? "Слухаю... Назвіть прізвище або команду" : "Швидкий пошук за іменем чи позивним..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 sm:pl-11 pr-4 py-2 bg-muted/40 border border-transparent rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all placeholder:text-muted-foreground/50 font-normal"
+            className="w-full pl-9 sm:pl-11 pr-8 sm:pr-9 py-2 bg-card dark:bg-muted/70 border border-border/80 shadow-xs rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition-all placeholder:text-muted-foreground/75 font-normal text-foreground"
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => { setSelectedVoiceVisitor(null); setSearchQuery(''); }}
+              className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              title="Очистити пошук"
+            >
+              <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </button>
+          )}
         </div>
 
         <button
           onClick={toggleListening}
-          className={`w-8 h-8 sm:w-10 sm:h-10 border border-transparent rounded-xl transition-all flex items-center justify-center shrink-0 cursor-pointer ${
+          className={`w-8 h-8 sm:w-10 sm:h-10 border rounded-xl transition-all flex items-center justify-center shrink-0 cursor-pointer ${
             isListening 
-              ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)] animate-pulse' 
-              : 'bg-muted/50 hover:bg-muted text-muted-foreground'
+              ? 'bg-red-500 border-red-600 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)] animate-pulse' 
+              : 'bg-card dark:bg-muted/70 border-border/80 hover:bg-muted text-muted-foreground shadow-xs'
           }`}
           title={isListening ? "Зупинити голосовий ввід" : "Голосовий ввід команд"}
         >
@@ -556,7 +603,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-2 min-w-0">
             <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${selectedVoiceVisitor.status === 'in' ? 'bg-emerald-500' : 'bg-amber-500'} animate-pulse`} />
             <div className="text-xs truncate">
-              <span className="font-bold text-foreground mr-1.5">{selectedVoiceVisitor.name}</span>
+              <span className="font-medium text-foreground mr-1.5">{selectedVoiceVisitor.name}</span>
               {selectedVoiceVisitor.callsign && (
                 <span className="text-muted-foreground font-medium mr-1.5">«{selectedVoiceVisitor.callsign}»</span>
               )}
@@ -597,111 +644,42 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="bg-card rounded-3xl p-4 flex flex-col shadow-sm">
-        {searchQuery.trim() && (
-          <div className="flex justify-between items-end mb-6">
-            <div>
-              <h2 className="text-lg font-normal">Результати пошуку</h2>
-              <p className="text-xs text-muted-foreground">Знайдені користувачі</p>
-            </div>
-          </div>
-        )}
-        
-        <div className="space-y-2 pr-2 hide-scrollbar">
+      <div className="bg-card rounded-3xl p-3.5 sm:p-5 flex flex-col shadow-sm">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-2.5">
           {commandVisitors.length > 0 ? (
             commandVisitors.map(v => {
               const visitorGroup = groups?.find((g: any) => g.id === v.groupId) || groups?.find((g: any) => g.name === v.group);
               const visitorLocation = locations.find(l => l.id === v.locationId) || locations.find(l => l.name === v.location);
               const customIcon = customIcons.find(icon => icon.id === v.customIconId) || (visitorLocation?.iconId ? customIcons.find(icon => icon.id === visitorLocation.iconId) : null);
-              const isOnLocation = v.status === 'in';
-              const blockColor = v.color || visitorGroup?.color;
-              const hasGroupColor = !!blockColor && blockColor !== 'transparent';
               
-              const rowStyles = hasGroupColor ? {
-                backgroundColor: blockColor.startsWith('#') ? `${blockColor}15` : blockColor,
-                borderColor: blockColor.startsWith('#') ? `${blockColor}60` : blockColor,
-              } : {};
+              const isGuard = v.groupId === '3' || (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') || (v.location || v.locationId || v.group || '').toLowerCase().includes('рота');
+              const isGuardOnDuty = isGuard && shifts.some(s => s.guardId === v.id && !s.endTime);
+
+              const isNotEntered = v.status !== 'in';
 
               return (
-                <div 
-                  key={v.id} 
-                  className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-2 px-4 rounded-2xl transition-colors ${isOnLocation ? 'opacity-100' : 'opacity-50'} ${hasGroupColor ? (isOnLocation ? 'shadow-md ring-1 ring-inset ring-white/10' : '') : (isOnLocation ? 'bg-muted/20 hover:bg-muted/40' : 'bg-black/5')}`}
-                  style={rowStyles}
+                <div
+                  key={v.id}
+                  className={`h-full transition-opacity duration-200 ${
+                    isNotEntered ? 'opacity-30 hover:opacity-100' : 'opacity-100'
+                  }`}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (v.color || visitorGroup?.color || '#5b6984') }}>
-                      {customIcon ? (
-                        <img src={customIcon.data} alt="icon" className="w-full h-full object-cover" />
-                      ) : (
-                        <User className="w-5 h-5 text-[#e5e9ec]" />
-                      )}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                        <span className="text-[9px] text-muted-foreground uppercase font-normal tracking-wider opacity-70 break-words leading-tight">
-                          {v.category && !v.category.toLowerCase().includes('особлив') ? v.category : ''}
-                          {v.location || v.locationId || (v.group && !v.group.toLowerCase().includes('особлив')) 
-                            ? `${v.category && !v.category.toLowerCase().includes('особлив') ? ' • ' : ''}${v.location || v.locationId || v.group}` 
-                            : ''}
-                        </span>
-                      </div>
-                      <div className="font-normal text-sm">{formatNameAbbreviated(v.name)}</div>
-                      {v.callsign && (
-                        <div className="text-[11px] font-bold text-primary/80 uppercase tracking-widest leading-none mt-1">
-                          {v.callsign}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                    {isOnLocation ? (
-                      <div className="flex items-center gap-3 w-full sm:w-auto">
-                        <div className="text-[10px] sm:text-xs font-normal text-emerald-600 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20 whitespace-nowrap">
-                          з {v.lastEntry ? new Date(v.lastEntry).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false}) : ''}
-                        </div>
-                        {(() => {
-                          const isGuard = v.groupId === '3' || (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') || (v.location || v.locationId || v.group || '').toLowerCase().includes('рота');
-                          const isGuardOnDuty = isGuard && shifts.some(s => s.guardId === v.id && !s.endTime);
-                          const isOutDisabled = isGuardOnDuty || !!activeDirtySky;
-                          
-                          return (
-                            <button
-                              onClick={() => !isOutDisabled && markOut(v.id)}
-                              disabled={isOutDisabled}
-                              title={isGuardOnDuty ? "Не можна вийти до передачі зміни" : activeDirtySky ? "Вихід заблоковано режимом Брудне небо" : undefined}
-                              className={`flex-1 sm:flex-none flex justify-center items-center gap-1.5 px-4 py-1.5 text-[10px] sm:text-xs font-normal uppercase tracking-widest rounded-xl border transition-colors ${
-                                isOutDisabled 
-                                  ? 'border-muted bg-muted/50 text-muted-foreground cursor-not-allowed'
-                                  : 'border-red-500/30 text-red-600 bg-red-500/10 hover:bg-red-500/20 active:bg-red-500/30'
-                              }`}
-                            >
-                              <LogOut className="w-3.5 h-3.5" />
-                              Вийшов
-                            </button>
-                          );
-                        })()}
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => !activeDirtySky && markIn(v.id)}
-                        disabled={!!activeDirtySky}
-                        title={activeDirtySky ? "Вхід заблоковано режимом Брудне небо" : undefined}
-                        className={`w-full sm:w-auto flex justify-center items-center gap-1.5 px-4 py-1.5 text-[10px] sm:text-xs font-normal uppercase tracking-widest rounded-xl border transition-colors ${
-                          activeDirtySky
-                            ? 'border-muted bg-muted/50 text-muted-foreground cursor-not-allowed'
-                            : 'border-emerald-500/30 text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30'
-                        }`}
-                      >
-                        <LogIn className="w-3.5 h-3.5" />
-                        Зайшов
-                      </button>
-                    )}
-                  </div>
+                  <VisitorCard
+                    visitor={v}
+                    group={visitorGroup}
+                    location={visitorLocation}
+                    customIcon={customIcon}
+                    shiftStart={shiftStart}
+                    activeDirtySky={activeDirtySky}
+                    isGuardOnDuty={isGuardOnDuty}
+                    onMarkIn={markIn}
+                    onMarkOut={markOut}
+                  />
                 </div>
               );
             })
           ) : (
-            <div className="py-12 text-center text-muted-foreground bg-muted/10 rounded-2xl">
+            <div className="col-span-full py-12 text-center text-muted-foreground bg-muted/10 rounded-2xl">
                Користувачів не знайдено
             </div>
           )}
@@ -709,19 +687,20 @@ export default function Dashboard() {
       </div>
 
       {modalType && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-background/80 backdrop-blur-sm sm:p-4">
-          <div className="bg-card w-full sm:w-[480px] h-full sm:h-auto sm:max-h-full sm:rounded-3xl shadow-xl border border-border flex flex-col shrink-0 animate-in slide-in-from-right sm:slide-in-from-bottom duration-200">
-            <div className="flex items-center justify-between p-4 border-b border-border shrink-0">
-              <h2 className="text-xl font-bold">{modalTitle}</h2>
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-xs sm:p-3 sm:items-center animate-in fade-in duration-150">
+          <div className="bg-card w-full sm:w-[480px] h-full sm:h-[90dvh] sm:rounded-2xl sm:border border-border shadow-2xl flex flex-col shrink-0 overflow-hidden animate-in slide-in-from-right duration-200">
+            <div className="flex items-center justify-between px-4 py-3 sm:px-5 sm:py-3.5 border-b border-border shrink-0">
+              <h2 className="text-base sm:text-lg font-bold truncate">{modalTitle}</h2>
               <button 
+                type="button"
                 onClick={() => setModalType(null)}
-                className="p-2 bg-muted hover:bg-muted/80 rounded-full transition-colors"
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors cursor-pointer"
                 title="Закрити"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-4 overflow-y-auto flex-1 space-y-3">
+            <div className="p-3.5 sm:p-4 overflow-y-auto flex-1 space-y-2.5">
               {modalVisitors.length === 0 ? (
                 <div className="py-12 text-center text-muted-foreground rounded-2xl bg-muted/20">
                   Немає даних
@@ -743,7 +722,7 @@ export default function Dashboard() {
                   return (
                     <div 
                       key={v.id} 
-                      className={`flex justify-between items-center p-4 rounded-2xl shadow-sm transition-colors ${isOnLocation ? 'opacity-100' : 'opacity-50'} ${hasGroupColor ? '' : 'bg-background'}`}
+                      className={`flex justify-between items-center p-4 rounded-2xl shadow-sm transition-colors ${isOnLocation ? 'opacity-100' : 'opacity-30'} ${hasGroupColor ? '' : 'bg-background'}`}
                       style={rowStyles}
                     >
                       <div className="flex items-center gap-3">
@@ -763,7 +742,7 @@ export default function Dashboard() {
                                 : ''}
                             </span>
                           </div>
-                          <div className="font-semibold text-sm">{formatNameAbbreviated(v.name)}</div>
+                          <div className="font-medium text-sm">{formatNameAbbreviated(v.name)}</div>
                           {v.callsign && (
                             <div className="text-[11px] font-bold text-primary/80 uppercase tracking-widest leading-none mt-1">
                               {v.callsign}

@@ -167,7 +167,7 @@ export default function PrintableReportDocument({
 
                   return (
                     <tr 
-                      key={`print-row-ds-${e.id || idx}`} 
+                      key={`print-row-ds-${e.id || 'ds'}-${idx}-${e.startTime || ''}`} 
                       className="bg-amber-50/70 border-b border-amber-200"
                     >
                       <td className="border border-neutral-300 p-2 text-center font-mono text-neutral-600 font-bold">{idx + 1}</td>
@@ -201,7 +201,7 @@ export default function PrintableReportDocument({
 
                   return (
                     <tr 
-                      key={`print-row-duty-${e.id || idx}`} 
+                      key={`print-row-duty-${e.id || 'duty'}-${idx}-${e.timestamp || ''}`} 
                       className={isStart ? "bg-emerald-50/70 border-b border-emerald-200" : "bg-rose-50/70 border-b border-rose-200"}
                     >
                       <td className="border border-neutral-300 p-2 text-center font-mono text-neutral-600 font-bold">{idx + 1}</td>
@@ -242,7 +242,7 @@ export default function PrintableReportDocument({
 
                 return (
                   <tr 
-                    key={`print-row-vis-${v.id || idx}-${log?.in || ''}`} 
+                    key={`print-row-vis-${v.id || 'vis'}-${idx}-${log?.in || ''}`} 
                     className={idx % 2 === 1 ? 'bg-neutral-50/50' : 'bg-white'}
                   >
                     <td className="border border-neutral-300 p-2 text-center font-mono text-neutral-600">{idx + 1}</td>
@@ -251,7 +251,7 @@ export default function PrintableReportDocument({
                       {v.category && (
                         <div className="text-[9px] text-neutral-500 uppercase font-semibold tracking-wider">{v.category}</div>
                       )}
-                      <div className="font-semibold text-neutral-900">
+                      <div className="font-medium text-neutral-900">
                         {formatNameAbbreviated(v.name)}
                         {v.callsign && (
                           <span className="ml-1.5 text-neutral-600 font-mono font-bold text-[10px]">[{v.callsign}]</span>

@@ -80,3 +80,72 @@ export interface DutyEvent {
   type: 'start' | 'end';
   timestamp: string; // ISO string
 }
+
+export type PermissionKey =
+  // Dashboard
+  | 'dashboard.view'
+  | 'dashboard.actions'
+  // Visitors
+  | 'visitors.view'
+  | 'visitors.create'
+  | 'visitors.edit'
+  | 'visitors.delete'
+  // Security
+  | 'security.view'
+  | 'security.manage_shifts'
+  | 'security.dirty_sky'
+  | 'security.manage_guards'
+  // Reports
+  | 'reports.view'
+  | 'reports.export'
+  | 'reports.print'
+  | 'reports.clean'
+  // Roles & Access Control
+  | 'roles.view'
+  | 'roles.manage_users'
+  | 'roles.manage_permissions'
+  // Settings
+  | 'settings.view'
+  | 'settings.manage_dictionaries'
+  | 'settings.backup'
+  | 'settings.appearance';
+
+export interface PermissionDefinition {
+  key: PermissionKey;
+  label: string;
+  description: string;
+  category: 'dashboard' | 'visitors' | 'security' | 'reports' | 'roles' | 'settings';
+}
+
+export interface UserRole {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+  isSystem?: boolean;
+  permissions: PermissionKey[];
+}
+
+export interface AuthorizedUser {
+  id: string;
+  email: string;
+  name: string;
+  roleId: string;
+  addedAt: string;
+  notes?: string;
+  avatarColor?: string;
+  password?: string;
+}
+
+export interface PasswordResetRequest {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  roleId?: string;
+  requestedAt: string;
+  requestedByEmail?: string;
+  notes?: string;
+  status: 'pending' | 'resolved';
+}
+

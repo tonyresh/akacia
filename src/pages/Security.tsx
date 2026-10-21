@@ -1,12 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useData } from '../store/DataContext';
 import { useToast } from '../store/ToastContext';
-import { ShieldAlert, Plus, Play, Square, Coffee, Trash2, Settings, Users, X, Check } from 'lucide-react';
+import { 
+  ShieldAlert, Plus, Play, Square, Trash2, Settings, Users, X, Check, 
+  ArrowRightLeft, Clock, ShieldCheck, AlertCircle, MapPin
+} from 'lucide-react';
 import { differenceInMinutes } from 'date-fns';
 import { formatNameAbbreviated } from '../utils/nameUtils';
+import VisitorCard from '../components/VisitorCard';
 
 export default function Security() {
-  const { visitors, securityShifts, setSecurityShifts, shifts, setShifts, performShiftBackupAndReset, dirtySkyEvents, customIcons, addDutyEvent } = useData();
+  const { 
+    visitors, securityShifts, setSecurityShifts, shifts, setShifts, 
+    performShiftBackupAndReset, dirtySkyEvents, customIcons, addDutyEvent,
+    groups, locations
+  } = useData();
   const { showToast } = useToast();
   
   const activeDirtySky = dirtySkyEvents.find(e => !e.endTime);
@@ -51,29 +59,28 @@ export default function Security() {
     // Start work sessions for the target group's guards
     const targetGroup = securityShifts.find(s => s.id === handoverTarget);
     if (targetGroup) {
-        const newShifts = targetGroup.visitorIds.map(id => ({
-           id: Date.now().toString() + '-' + id + '-' + Math.random(),
-           guardId: id,
-           startTime: now,
-           restPeriods: []
-        }));
-        
-        // Use a timeout to ensure state settles before adding new
-        setTimeout(() => {
-          setShifts(prev => [...prev, ...newShifts]);
-          setActiveTab(targetGroup.id);
-          showToast(`Чергову зміну передано групі: ${targetGroup.name}`, 'success');
-        }, 50);
+      const newShifts = targetGroup.visitorIds.map(id => ({
+        id: Date.now().toString() + '-' + id + '-' + Math.random(),
+        guardId: id,
+        startTime: now,
+        restPeriods: []
+      }));
+      
+      setTimeout(() => {
+        setShifts(prev => [...prev, ...newShifts]);
+        setActiveTab(targetGroup.id);
+        showToast(`Чергову зміну передано групі: ${targetGroup.name}`, 'success');
+      }, 50);
 
-        setSecurityShifts(prev => prev.map(s => ({
-          ...s,
-          status: s.id === targetGroup.id ? 'active' : 'inactive'
-        })));
+      setSecurityShifts(prev => prev.map(s => ({
+        ...s,
+        status: s.id === targetGroup.id ? 'active' : 'inactive'
+      })));
 
-        if (activeShift) {
-          addDutyEvent(activeShift.id, activeShift.name, 'end', now);
-        }
-        addDutyEvent(targetGroup.id, targetGroup.name, 'start', now);
+      if (activeShift) {
+        addDutyEvent(activeShift.id, activeShift.name, 'end', now);
+      }
+      addDutyEvent(targetGroup.id, targetGroup.name, 'start', now);
     }
     
     performShiftBackupAndReset();
@@ -189,10 +196,8 @@ export default function Security() {
 
   const getFinishedShiftSessions = () => {
     if (!activeShift) return [];
-    // Get last finished sessions for this group
     const groupShifts = shifts.filter(s => activeShift.visitorIds.includes(s.guardId) && s.endTime).sort((a,b) => new Date(b.endTime!).getTime() - new Date(a.endTime!).getTime());
     if (groupShifts.length === 0) return [];
-    // Take sessions that ended around the same time (within 1 minute)
     const lastEnd = new Date(groupShifts[0].endTime!).getTime();
     return groupShifts.filter(s => Math.abs(new Date(s.endTime!).getTime() - lastEnd) < 60000);
   };
@@ -212,6 +217,8 @@ export default function Security() {
   const isAnyShiftOnDuty = securityShifts.some(s => s.status === 'active') || shifts.some(s => !s.endTime);
   const isAfter600 = currentTime.getHours() >= 6;
   const allGuardsIn = shiftVisitors.length > 0 && shiftVisitors.every(guard => guard.status === 'in');
+  const guardsOnLocationCount = shiftVisitors.filter(guard => guard.status === 'in').length;
+  
   const isAnyOtherShiftReady = securityShifts.some(s => 
     s.id !== activeShift?.id && 
     s.visitorIds.length > 0 && 
@@ -221,367 +228,433 @@ export default function Security() {
   const canHandover = isShiftOnDuty && isAfter600 && allGuardsIn && isAnyOtherShiftReady;
 
   return (
-    <div className="space-y-4 max-w-7xl mx-auto">
-      <div className="flex gap-3 overflow-x-auto pb-3 hide-scrollbar snap-x">
+    <div className="space-y-3 sm:space-y-4 max-w-7xl mx-auto px-1 sm:px-0">
+      {/* Top Shift Tabs - Compact & Adaptive */}
+      <div className="flex gap-2 sm:gap-2.5 overflow-x-auto pb-1.5 hide-scrollbar snap-x items-center">
         {securityShifts.map(s => {
           const shiftActive = shifts.some(session => s.visitorIds.includes(session.guardId) && !session.endTime) || s.status === 'active';
           return (
             <button
               key={s.id}
               onClick={() => setActiveTab(s.id)}
-              className={`px-5 py-2.5 rounded-2xl text-sm font-normal whitespace-nowrap transition-all shadow-sm snap-start flex items-center gap-2 ${
+              className={`px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs sm:text-sm font-medium whitespace-nowrap transition-all shadow-2xs snap-start flex items-center gap-2 cursor-pointer ${
                 activeTab === s.id 
-                  ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-[1.02]' 
-                  : 'bg-card text-muted-foreground hover:bg-secondary border border-border'
+                  ? 'bg-primary text-primary-foreground shadow-sm font-semibold' 
+                  : 'bg-card text-muted-foreground hover:text-foreground hover:bg-muted/80'
               }`}
             >
               <span>{s.name}</span>
               {shiftActive && (
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" title="На чергуванні" />
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" title="На чергуванні" />
               )}
             </button>
           );
         })}
         <button 
           onClick={openAddModal} 
-          className="px-5 py-2.5 rounded-2xl text-sm font-normal bg-card text-muted-foreground border border-border border-dashed hover:bg-secondary whitespace-nowrap flex items-center gap-2 transition-colors snap-start"
+          className="px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs sm:text-sm font-medium bg-card text-muted-foreground hover:bg-muted/80 hover:text-foreground whitespace-nowrap flex items-center gap-1.5 transition-colors snap-start shrink-0 cursor-pointer shadow-2xs"
         >
-          <Plus className="w-4 h-4"/> Створити чергову зміну
+          <Plus className="w-3.5 h-3.5"/>
+          <span>Нова зміна</span>
         </button>
       </div>
 
       {activeShift ? (
         <>
-          <div className="flex flex-col bg-card rounded-3xl p-6 shadow-sm overflow-hidden">
-            <div className="flex flex-wrap justify-between items-center gap-4">
+          {/* Active Shift Console - Borderless & Clean */}
+          <div className="bg-card rounded-2xl shadow-xs p-3.5 sm:p-5">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
+              {/* Left Column: Shift Name, Status & Metrics */}
               <div className="min-w-0">
-                <div className="flex items-center gap-2.5">
-                  <h2 className="text-xl font-normal truncate">{activeShift.name}</h2>
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                  <h2 className="text-lg sm:text-xl font-bold truncate text-foreground">{activeShift.name}</h2>
                   {isShiftOnDuty ? (
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> На чергуванні
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                      На чергуванні
                     </span>
                   ) : (
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-muted text-muted-foreground border border-border/50">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold uppercase tracking-wider bg-muted text-muted-foreground">
                       Не на чергуванні
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-muted-foreground mt-1 flex items-center gap-2 font-normal">
-                  <Users className="w-4 h-4" /> Чергових: {activeSessions.length} з {activeShift.visitorIds.length}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2 shrink-0">
-                {isShiftOnDuty && (
-                  <button 
-                    onClick={stopShiftWorkSession}
-                    className="flex items-center gap-2 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-medium rounded-xl transition-all text-sm shadow-lg shadow-rose-600/20 active:scale-95 cursor-pointer"
-                    title="Зупинити чергування цієї зміни без будь-яких додаткових умов"
-                  >
-                    <Square className="w-4 h-4 fill-white" />
-                    Зупинити чергування
-                  </button>
-                )}
-                <button 
-                  onClick={() => {
-                    setHandoverTarget('');
-                    setIsHandoverModalOpen(true);
-                  }}
-                  disabled={!canHandover}
-                  className={`flex items-center gap-2 px-4 py-2 font-normal rounded-xl transition-colors text-sm shadow-lg ${
-                    canHandover 
-                      ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-primary/20'
-                      : 'bg-muted text-muted-foreground cursor-not-allowed opacity-50 shadow-none'
-                  }`}
-                  title={!canHandover ? (!isShiftOnDuty ? "Зміна не на посту" : !isAfter600 ? "Передача можлива тільки після 06:00" : !allGuardsIn ? "Не всі охоронці поточної зміни на локації" : !isAnyOtherShiftReady ? "Немає іншої групи, де всі охоронці зайшли" : "") : "Передати чергову зміну іншій групі"}
-                >
-                  Передати чергову зміну
-                </button>
-                <button 
-                  onClick={() => openEditModal(activeShift)} 
-                  className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground font-normal rounded-xl hover:bg-secondary/80 transition-colors text-sm"
-                >
-                  <Settings className="w-4 h-4"/> Налаштування
-                </button>
-                <button 
-                  onClick={() => deleteShift(activeShift.id)} 
-                  className="p-2 bg-red-500/10 text-red-500 rounded-xl hover:bg-red-500/20 transition-colors"
-                  title="Видалити чергову зміну"
-                >
-                  <Trash2 className="w-5 h-5"/>
-                </button>
-              </div>
-            </div>
 
-            <div className="flex flex-wrap items-center mt-6 pt-6 border-t border-border/50">
-              {isShiftOnDuty ? (
-                <div className="flex flex-col sm:flex-row gap-4 w-full">
-                   {(() => {
-                     const firstStart = activeSessions.sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0]?.startTime || new Date().toISOString();
-                     return (
-                       <>
-                         <div className="flex flex-1 justify-between items-center bg-emerald-500/5 py-2 px-4 rounded-2xl border border-emerald-500/20">
-                           <div className="flex flex-col gap-0.5">
-                             <span className="text-[9px] uppercase font-bold tracking-wider text-emerald-600/70">Чергування розпочато</span>
-                             <span className="text-foreground font-bold text-lg">{new Date(firstStart).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false})}</span>
-                           </div>
-                           <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                             <Play className="w-5 h-5 text-emerald-600 fill-emerald-600" />
-                           </div>
-                         </div>
-                         <div className="flex flex-1 justify-between items-center bg-primary/5 py-2 px-4 rounded-2xl border border-primary/20">
-                           <div className="flex flex-col gap-0.5">
-                             <span className="text-[9px] uppercase font-bold tracking-wider text-primary/70">Тривалість чергування</span>
-                             <span className="text-foreground font-bold text-lg tabular-nums animate-pulse-slow">
-                               {(() => {
-                                 const now = new Date();
-                                 const shiftStart = new Date(now);
-                                 if (now.getHours() < 8) shiftStart.setDate(shiftStart.getDate() - 1);
-                                 shiftStart.setHours(8, 0, 0, 0);
-                                 
-                                 const effectiveStart = new Date(firstStart) > shiftStart ? new Date(firstStart) : shiftStart;
-                                 return formatDuration(effectiveStart.toISOString());
-                               })()}
-                             </span>
-                           </div>
-                           <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-                             <div className="w-5 h-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                           </div>
-                         </div>
-                         <div className="flex items-center">
-                           <button 
-                             onClick={stopShiftWorkSession}
-                             className="flex items-center gap-2 px-5 py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-2xl text-xs uppercase tracking-wider shadow-lg shadow-rose-600/20 transition-all active:scale-95 cursor-pointer whitespace-nowrap"
-                             title="Зупинити чергування цієї зміни"
-                           >
-                             <Square className="w-4 h-4 fill-white" />
-                             Зупинити чергування
-                           </button>
-                         </div>
-                       </>
-                     );
-                   })()}
+                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1.5 flex-wrap">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-primary" />
+                    <span>Склад чергової зміни: <strong>{activeShift.visitorIds.length}</strong></span>
+                  </span>
                 </div>
-              ) : (
-                <div className="flex w-full flex-col sm:flex-row items-center justify-between p-2 gap-4">
-                  <div className="flex items-center gap-4 flex-1">
-                    <div className="w-12 h-12 rounded-2xl bg-muted/50 border border-border border-dashed flex items-center justify-center shrink-0">
-                      <ShieldAlert className="w-6 h-6 text-muted-foreground/50" />
-                    </div>
-                    <div>
-                      <span className="text-sm font-medium text-foreground">
-                        {!isAnyShiftOnDuty 
-                          ? 'Чергування зупинено. Натисніть «Заступити», щоб розпочати чергування.' 
-                          : 'Група очікує чергової зміни (інша зміна зараз на посту)'}
-                      </span>
-                      {finishedSessions.length > 0 && (
-                        <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wider mt-1">
-                          Попередня зміна: {formatDuration(finishedSessions[0].startTime, finishedSessions[0].endTime)}
-                        </p>
-                      )}
-                    </div>
-                  </div>
+              </div>
+
+              {/* Right Column: Actions Toolbar */}
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap shrink-0">
+                {isShiftOnDuty ? (
+                  <>
+                    <button 
+                      onClick={stopShiftWorkSession}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-xl transition-all text-xs shadow-xs active:scale-95 cursor-pointer"
+                      title="Зупинити чергування цієї зміни"
+                    >
+                      <Square className="w-3.5 h-3.5 fill-white" />
+                      <span>Зупинити</span>
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setHandoverTarget('');
+                        setIsHandoverModalOpen(true);
+                      }}
+                      disabled={!canHandover}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 font-semibold rounded-xl transition-all text-xs shadow-xs cursor-pointer ${
+                        canHandover 
+                          ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                          : 'bg-muted text-muted-foreground cursor-not-allowed opacity-50 shadow-none'
+                      }`}
+                      title={!canHandover ? (!isShiftOnDuty ? "Зміна не на посту" : !isAfter600 ? "Передача можлива тільки після 06:00" : !allGuardsIn ? "Не всі охоронці поточної зміни на локації" : !isAnyOtherShiftReady ? "Немає іншої групи, де всі охоронці зайшли" : "") : "Передати чергову зміну іншій групі"}
+                    >
+                      <ArrowRightLeft className="w-3.5 h-3.5" />
+                      <span>Передати зміну</span>
+                    </button>
+                  </>
+                ) : (
                   <button
                     onClick={startShiftWorkSession}
                     disabled={isAnyShiftOnDuty && !isShiftOnDuty}
-                    className={`flex items-center gap-2 px-8 py-3 rounded-2xl text-xs font-bold uppercase tracking-widest transition-all ${
+                    className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
                       !isAnyShiftOnDuty || isShiftOnDuty
-                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 active:scale-95 cursor-pointer'
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm active:scale-95 cursor-pointer'
                         : 'bg-muted text-muted-foreground cursor-not-allowed opacity-50 shadow-none'
                     }`}
                     title={isAnyShiftOnDuty ? "Інша зміна вже на чергуванні. Спочатку зупиніть її чергування або здійсніть передачу" : "Заступити на чергування"}
                   >
-                    <Play className="w-4 h-4 fill-white" />
-                    Заступити
+                    <Play className="w-3.5 h-3.5 fill-white" />
+                    <span>Заступити</span>
                   </button>
+                )}
+
+                <button 
+                  onClick={() => openEditModal(activeShift)} 
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 bg-secondary text-secondary-foreground font-medium rounded-xl hover:bg-secondary/80 transition-colors text-xs cursor-pointer"
+                  title="Налаштування складу зміни"
+                >
+                  <Settings className="w-3.5 h-3.5"/>
+                  <span className="hidden sm:inline">Склад</span>
+                </button>
+                
+                <button 
+                  onClick={() => deleteShift(activeShift.id)} 
+                  className="p-1.5 sm:p-2 bg-destructive/10 text-destructive rounded-xl hover:bg-destructive/20 transition-colors cursor-pointer"
+                  title="Видалити чергову зміну"
+                >
+                  <Trash2 className="w-4 h-4"/>
+                </button>
+              </div>
+            </div>
+
+            {/* Bottom Status Panel */}
+            <div className="mt-3.5 pt-3">
+              {isShiftOnDuty ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-3">
+                  {(() => {
+                    const firstStart = activeSessions.sort((a,b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0]?.startTime || new Date().toISOString();
+                    const now = new Date();
+                    const shiftStart = new Date(now);
+                    if (now.getHours() < 8) shiftStart.setDate(shiftStart.getDate() - 1);
+                    shiftStart.setHours(8, 0, 0, 0);
+                    const effectiveStart = new Date(firstStart) > shiftStart ? new Date(firstStart) : shiftStart;
+                    
+                    return (
+                      <>
+                        <div className="flex items-center justify-between bg-emerald-500/10 px-3.5 py-2.5 rounded-xl">
+                          <div>
+                            <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-600/80 block">Початок чергування</span>
+                            <span className="text-foreground font-bold text-sm sm:text-base font-mono">
+                              {new Date(firstStart).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false})}
+                            </span>
+                          </div>
+                          <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
+                            <Clock className="w-4 h-4 text-emerald-600" />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between bg-primary/10 px-3.5 py-2.5 rounded-xl">
+                          <div>
+                            <span className="text-[10px] uppercase font-bold tracking-wider text-primary/80 block">Тривалість</span>
+                            <span className="text-foreground font-bold text-sm sm:text-base font-mono">
+                              {formatDuration(effectiveStart.toISOString())}
+                            </span>
+                          </div>
+                          <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
+                            <div className="w-4 h-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between bg-muted/60 px-3.5 py-2.5 rounded-xl sm:col-span-2 lg:col-span-1">
+                          <div>
+                            <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground block">Готовність до передачі</span>
+                            <span className={`text-xs font-semibold ${canHandover ? 'text-emerald-600' : 'text-muted-foreground'}`}>
+                              {canHandover ? '✓ Можна передати іншій групі' : 'Очікування умов передачі'}
+                            </span>
+                          </div>
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${canHandover ? 'bg-emerald-500/15 text-emerald-600' : 'bg-muted text-muted-foreground'}`}>
+                            <ShieldCheck className="w-4 h-4" />
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground bg-muted/30 px-3.5 py-2.5 rounded-xl">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert className="w-4 h-4 text-muted-foreground/70 shrink-0" />
+                    <span>
+                      {!isAnyShiftOnDuty 
+                        ? 'Чергування зупинено. Натисніть «Заступити», щоб розпочати зміну.' 
+                        : 'Група очікує чергової зміни (інша зміна зараз на посту).'}
+                    </span>
+                  </div>
+                  {finishedSessions.length > 0 && (
+                    <span className="text-[11px] font-mono text-muted-foreground/80 shrink-0 hidden sm:inline">
+                      Попередня зміна: {formatDuration(finishedSessions[0].startTime, finishedSessions[0].endTime)}
+                    </span>
+                  )}
                 </div>
               )}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {/* Guards Grid - Strictly 3 Columns & Borderless Blocks */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 sm:gap-3">
             {shiftVisitors.map(guard => {
               const activeWorkSession = getActiveWorkSession(guard.id);
-              const activeBreak = activeWorkSession?.restPeriods.find(r => !r.end);
+              const customIcon = customIcons.find(icon => icon.id === guard.customIconId);
+              const guardGroup = groups?.find(g => g.id === guard.groupId) || groups?.find(g => g.name === guard.group);
+              const guardLocation = locations?.find(l => l.id === guard.locationId) || locations?.find(l => l.name === guard.location);
               
               return (
-                <div key={guard.id} className="bg-card rounded-3xl p-6 flex flex-col shadow-sm">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-3 max-w-full">
-                      {(() => {
-                        const customIcon = customIcons.find(icon => icon.id === guard.customIconId);
-                        return (
-                          <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center overflow-hidden ${customIcon ? '' : 'bg-primary/10 text-primary'}`} style={{ backgroundColor: customIcon ? 'transparent' : (guard.color ? guard.color : undefined), color: (!customIcon && guard.color) ? '#fff' : undefined }}>
-                            {customIcon ? <img src={customIcon.data} alt="guard icon" className="w-full h-full object-cover" /> : <ShieldAlert className="w-5 h-5" />}
-                          </div>
-                        );
-                      })()}
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground/60 mb-1">
-                          {guard.category || 'Користувач'}
-                        </span>
-                        <span className="font-normal text-lg truncate" title={guard.name}>{formatNameAbbreviated(guard.name)}</span>
-                        {guard.callsign && (
-                          <div className="text-[11px] font-bold text-primary/80 uppercase tracking-widest leading-none mt-1">
-                            {guard.callsign}
-                          </div>
-                        )}
-                        <div className={`mt-2 self-start px-2 py-0.5 rounded-full text-[9px] font-normal uppercase tracking-wider whitespace-nowrap ${
-                          activeWorkSession 
-                            ? (activeBreak ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-500')
-                            : 'bg-muted text-muted-foreground'
-                        }`}>
-                          {activeWorkSession ? (activeBreak ? 'На відпочинку' : 'На чергуванні') : 'Поза черговою зміною'}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <VisitorCard
+                  key={guard.id}
+                  visitor={guard}
+                  group={guardGroup}
+                  location={guardLocation}
+                  customIcon={customIcon}
+                  mode="security"
+                  activeWorkSession={activeWorkSession}
+                  activeDirtySky={activeDirtySky}
+                />
               );
             })}
+
             {shiftVisitors.length === 0 && (
-              <div className="col-span-full py-12 text-center text-muted-foreground border border-border rounded-3xl border-dashed">
-                У цій черговій зміні поки що немає чергових користувачів. Додайте їх у налаштуваннях складу.
+              <div className="col-span-full py-8 text-center text-muted-foreground rounded-2xl bg-muted/20 text-xs sm:text-sm">
+                У цій черговій зміні поки що немає чергових співробітників. Додайте їх у налаштуваннях складу.
               </div>
             )}
           </div>
         </>
       ) : (
-        <div className="py-16 text-center text-muted-foreground bg-card rounded-3xl shadow-sm">
-          <ShieldAlert className="w-12 h-12 mx-auto mb-4 opacity-50" />
-          <p className="text-lg font-medium">Чергові зміни не знайдені</p>
-          <p className="text-sm mt-2">Створіть нову чергову зміну для початку роботи</p>
+        <div className="py-12 sm:py-16 text-center text-muted-foreground bg-card rounded-2xl shadow-xs p-4">
+          <ShieldAlert className="w-10 h-10 mx-auto mb-3 opacity-50 text-muted-foreground" />
+          <p className="text-base font-semibold text-foreground">Чергові зміни не знайдені</p>
+          <p className="text-xs sm:text-sm mt-1 text-muted-foreground">Створіть нову чергову зміну для початку роботи</p>
           <button 
             onClick={openAddModal} 
-            className="mt-6 px-6 py-2.5 rounded-full text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20"
+            className="mt-4 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm cursor-pointer"
           >
             Створити чергову зміну
           </button>
         </div>
       )}
 
-      {/* Modal Add/Edit Shift */}
+      {/* MODAL 1: Add/Edit Shift - Adaptive & Responsive */}
       {isShiftModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-          <div className="bg-card w-full max-w-lg p-6 sm:p-8 rounded-3xl shadow-xl border border-border flex flex-col max-h-[90vh]">
-            <h2 className="text-xl font-bold mb-6">{editingShiftId ? 'Налаштування чергової зміни' : 'Створити нову чергову зміну'}</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-card w-full max-w-lg max-h-[92dvh] sm:max-h-[85vh] rounded-2xl sm:rounded-3xl shadow-2xl border border-border flex flex-col overflow-hidden my-auto animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="px-4 py-3.5 sm:px-5 sm:py-4 border-b border-border/70 flex items-center justify-between shrink-0">
+              <h2 className="text-base sm:text-lg font-bold text-foreground truncate">
+                {editingShiftId ? 'Налаштування чергової зміни' : 'Створити нову чергову зміну'}
+              </h2>
+              <button 
+                type="button" 
+                onClick={() => setIsShiftModalOpen(false)}
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors cursor-pointer"
+                title="Закрити"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Form Body */}
             <form onSubmit={saveShift} className="flex flex-col flex-1 min-h-0">
-              <div className="mb-6 shrink-0">
-                <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1.5">Назва чергової зміни</label>
-                <input 
-                  autoFocus
-                  required
-                  type="text" 
-                  value={shiftNameInput}
-                  onChange={e => setShiftNameInput(e.target.value)}
-                  placeholder="Наприклад: Денна чергова зміна"
-                  className="w-full px-4 py-2 border border-border bg-background rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow"
-                />
-              </div>
-              
-              <div className="flex-1 min-h-0 flex flex-col">
-                <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1.5">Склад чергових</label>
-                <div className="flex-1 overflow-y-auto border border-border rounded-xl bg-background/50 p-2 space-y-1 relative max-h-80">
-                  {visitors.filter(v => (v.groupId === '3' || (v.group || '').toLowerCase().includes('охорон') || (v.group || '').toLowerCase().includes('рота') || (v.category || '').toLowerCase().includes('охорон') || (v.location || '').toLowerCase().includes('охорон')) && v.name !== 'Невідомий').length === 0 ? (
-                    <p className="text-center text-muted-foreground p-4 text-xs">Немає користувачів з групи охорони або роти</p>
-                  ) : visitors.filter(v => (v.groupId === '3' || (v.group || '').toLowerCase().includes('охорон') || (v.group || '').toLowerCase().includes('рота') || (v.category || '').toLowerCase().includes('охорон') || (v.location || '').toLowerCase().includes('охорон')) && v.name !== 'Невідомий').map(v => (
-                    <label key={v.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-muted/50 cursor-pointer transition-colors border border-transparent hover:border-border/50">
-                      <input 
-                        type="checkbox" 
-                        checked={rosterSelection.includes(v.id)}
-                        onChange={() => toggleRosterSelection(v.id)}
-                        className="w-4 h-4 rounded text-primary focus:ring-primary/50"
-                      />
-                      <div className="flex-1 flex flex-col items-start">
-                        <span className="text-[9px] font-bold text-muted-foreground uppercase">{v.category}</span>
-                        <span className="font-medium text-sm">{formatNameAbbreviated(v.name)}</span>
-                      </div>
+              <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1">
+                <div>
+                  <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1">
+                    Назва чергової зміни *
+                  </label>
+                  <input 
+                    autoFocus
+                    required
+                    type="text" 
+                    value={shiftNameInput}
+                    onChange={e => setShiftNameInput(e.target.value)}
+                    placeholder="Наприклад: Зміна 1 (Денна)"
+                    className="w-full px-3.5 py-2 border border-border bg-background rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow min-h-[40px]"
+                  />
+                </div>
+                
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground">
+                      Склад чергових ({rosterSelection.length} обрано)
                     </label>
-                  ))}
+                  </div>
+                  
+                  <div className="border border-border/80 rounded-xl bg-background/50 divide-y divide-border/40 max-h-56 sm:max-h-64 overflow-y-auto">
+                    {visitors.filter(v => (v.groupId === '3' || (v.group || '').toLowerCase().includes('охорон') || (v.group || '').toLowerCase().includes('рота') || (v.category || '').toLowerCase().includes('охорон') || (v.location || '').toLowerCase().includes('охорон')) && v.name !== 'Невідомий').length === 0 ? (
+                      <p className="text-center text-muted-foreground p-4 text-xs">Немає співробітників з групи охорони або роти</p>
+                    ) : (
+                      visitors.filter(v => (v.groupId === '3' || (v.group || '').toLowerCase().includes('охорон') || (v.group || '').toLowerCase().includes('рота') || (v.category || '').toLowerCase().includes('охорон') || (v.location || '').toLowerCase().includes('охорон')) && v.name !== 'Невідомий').map(v => {
+                        const isChecked = rosterSelection.includes(v.id);
+                        return (
+                          <label key={v.id} className="flex items-center gap-3 p-2.5 sm:p-3 hover:bg-muted/60 cursor-pointer transition-colors">
+                            <input 
+                              type="checkbox" 
+                              checked={isChecked}
+                              onChange={() => toggleRosterSelection(v.id)}
+                              className="w-4 h-4 rounded text-primary focus:ring-primary/50 accent-primary cursor-pointer shrink-0"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-[9px] font-bold text-muted-foreground uppercase block">{v.category || 'Черговий'}</span>
+                              <span className="font-medium text-xs sm:text-sm text-foreground truncate block">{formatNameAbbreviated(v.name)}</span>
+                            </div>
+                            {v.status === 'in' && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 font-semibold shrink-0">
+                                На локації
+                              </span>
+                            )}
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 mt-8 shrink-0">
+              {/* Footer */}
+              <div className="px-4 py-3 sm:px-5 sm:py-3.5 border-t border-border/70 bg-muted/20 shrink-0 flex items-center justify-end gap-2.5">
                 <button 
                   type="button" 
                   onClick={() => setIsShiftModalOpen(false)}
-                  title="Скасувати"
-                  className="p-3 border border-border rounded-2xl hover:bg-muted text-muted-foreground transition-all"
+                  className="px-4 py-2 border border-border rounded-xl text-xs font-semibold hover:bg-muted text-muted-foreground transition-all cursor-pointer"
                 >
-                  <X className="w-5 h-5" />
+                  Скасувати
                 </button>
                 <button 
                   type="submit"
-                  title="Зберегти"
-                  className="p-3 bg-primary text-primary-foreground rounded-2xl hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all"
+                  className="px-5 py-2 bg-primary text-primary-foreground rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-primary/90 shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
                 >
-                  <Check className="w-5 h-5" />
+                  <Check className="w-4 h-4" />
+                  <span>Зберегти</span>
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
-      {/* Modal Handover Shift */}
+
+      {/* MODAL 2: Handover Shift - Adaptive & Responsive */}
       {isHandoverModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-          <div className="bg-card w-full max-w-sm p-6 rounded-3xl shadow-xl border border-border">
-            <h2 className="text-xl font-bold mb-6">Передати чергову зміну</h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              Ця дія завершить чергування всіх співробітників поточної чергової зміни та розпочне чергування для вибраної групи.
-            </p>
-            <form onSubmit={executeHandover}>
-              <div className="mb-6">
-                <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1.5">Кому передати чергову зміну?</label>
-                <select 
-                  required
-                  value={handoverTarget}
-                  onChange={e => setHandoverTarget(e.target.value)}
-                  className="w-full px-4 py-2 border border-border bg-background rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow"
-                >
-                  <option key="default-handover" value="">Виберіть групу...</option>
-                  {securityShifts.filter(s => s.id !== activeShift?.id).map((s, idx) => (
-                    <option key={s.id ? `sec-shift-${s.id}` : `sec-shift-idx-${idx}`} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-card w-full max-w-md max-h-[92dvh] sm:max-h-[85vh] rounded-2xl sm:rounded-3xl shadow-2xl border border-border flex flex-col overflow-hidden my-auto animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="px-4 py-3.5 sm:px-5 sm:py-4 border-b border-border/70 flex items-center justify-between shrink-0">
+              <h2 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
+                <ArrowRightLeft className="w-4.5 h-4.5 text-primary" />
+                <span>Передати чергову зміну</span>
+              </h2>
+              <button 
+                type="button" 
+                onClick={() => setIsHandoverModalOpen(false)}
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={executeHandover} className="flex flex-col flex-1 min-h-0">
+              <div className="p-4 sm:p-5 overflow-y-auto space-y-3.5 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
+                  Ця дія завершить чергування співробітників поточної зміни та передасть чергування обраній групі.
+                </p>
+
+                <div>
+                  <label className="block text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-1.5">
+                    Оберіть зміну для прийому чергування *
+                  </label>
+                  <select 
+                    required
+                    value={handoverTarget}
+                    onChange={e => setHandoverTarget(e.target.value)}
+                    className="w-full px-3.5 py-2 border border-border bg-background rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-shadow min-h-[40px] cursor-pointer"
+                  >
+                    <option value="">Виберіть групу...</option>
+                    {securityShifts.filter(s => s.id !== activeShift?.id).map((s, idx) => (
+                      <option key={s.id ? `sec-shift-${s.id}` : `sec-shift-idx-${idx}`} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+
                 {handoverTarget && (() => {
                   const targetShift = securityShifts.find(s => s.id === handoverTarget);
                   if (!targetShift) return null;
-                  const missingGuards = targetShift.visitorIds.filter(id => visitors.find(v => v.id === id)?.status !== 'in').map(id => formatNameAbbreviated(visitors.find(v => v.id === id)?.name || 'Невідомий'));
+                  const missingGuards = targetShift.visitorIds
+                    .filter(id => visitors.find(v => v.id === id)?.status !== 'in')
+                    .map(id => formatNameAbbreviated(visitors.find(v => v.id === id)?.name || 'Невідомий'));
+                  
                   if (missingGuards.length > 0) {
                     return (
-                      <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-xs text-red-600 space-y-1">
-                        <p className="font-bold">Група не готова заступити на чергову зміну!</p>
-                        <p>Наступні співробітники ще не зайшли:</p>
-                        <ul className="list-disc pl-4 mt-1 opacity-80">
+                      <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-xl text-xs text-destructive space-y-1">
+                        <p className="font-bold flex items-center gap-1.5">
+                          <AlertCircle className="w-4 h-4 shrink-0" />
+                          <span>Зміна не готова до прийому!</span>
+                        </p>
+                        <p className="text-[11px] opacity-90">Наступні співробітники ще не зайшли на КПП:</p>
+                        <ul className="list-disc pl-4 text-[11px] opacity-90 space-y-0.5">
                           {missingGuards.map((name, i) => <li key={i}>{name}</li>)}
                         </ul>
                       </div>
                     );
                   }
                   return (
-                    <div className="mt-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-600">
-                      <p className="font-bold flex items-center gap-2">✓ Група готова заступити на чергову зміну</p>
+                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-600 dark:text-emerald-400">
+                      <p className="font-bold flex items-center gap-1.5">
+                        <Check className="w-4 h-4 shrink-0" />
+                        <span>Всі співробітники зміни присутні на локації</span>
+                      </p>
                     </div>
                   );
                 })()}
               </div>
-              <div className="flex justify-end gap-3">
+
+              {/* Footer */}
+              <div className="px-4 py-3 sm:px-5 sm:py-3.5 border-t border-border/70 bg-muted/20 shrink-0 flex items-center justify-end gap-2.5">
                 <button 
                   type="button" 
                   onClick={() => setIsHandoverModalOpen(false)}
-                  title="Скасувати"
-                  className="p-3 border border-border rounded-2xl hover:bg-muted text-muted-foreground transition-all"
+                  className="px-4 py-2 border border-border rounded-xl text-xs font-semibold hover:bg-muted text-muted-foreground transition-all cursor-pointer"
                 >
-                  <X className="w-5 h-5" />
+                  Скасувати
                 </button>
                 <button 
                   type="submit"
-                  title="Підтвердити"
                   disabled={!handoverTarget || (handoverTarget && securityShifts.find(s => s.id === handoverTarget)?.visitorIds.some(id => visitors.find(v => v.id === id)?.status !== 'in'))}
-                  className="p-3 bg-primary text-primary-foreground rounded-2xl hover:bg-primary/90 shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  className="px-5 py-2 bg-primary text-primary-foreground rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-primary/90 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer flex items-center gap-1.5"
                 >
-                  <Check className="w-5 h-5" />
+                  <Check className="w-4 h-4" />
+                  <span>Передати</span>
                 </button>
               </div>
             </form>
@@ -589,28 +662,31 @@ export default function Security() {
         </div>
       )}
 
-      {/* Modal Confirm Delete */}
+      {/* MODAL 3: Delete Shift Confirmation - Adaptive & Responsive */}
       {shiftToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm">
-          <div className="bg-card w-full max-w-sm p-6 rounded-3xl shadow-xl border border-border">
-            <h2 className="text-xl font-bold mb-4 text-red-500">Видалити чергову зміну?</h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              Ви впевнені, що хочете видалити цю чергову зміну? Цю дію неможливо скасувати.
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-card w-full max-w-sm rounded-2xl sm:rounded-3xl shadow-2xl border border-border p-4 sm:p-5 text-center my-auto animate-in zoom-in-95 duration-150">
+            <div className="w-11 h-11 rounded-2xl bg-destructive/15 text-destructive flex items-center justify-center mx-auto mb-3">
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <h2 className="text-base sm:text-lg font-bold text-foreground">Видалити чергову зміну?</h2>
+            <p className="text-xs text-muted-foreground mt-1.5 mb-5 leading-relaxed">
+              Ви впевнені, що хочете видалити цю чергову зміну? Історію та дані чергувань буде збережено.
             </p>
-            <div className="flex justify-end gap-3">
+            <div className="flex items-center gap-2">
               <button 
+                type="button"
                 onClick={() => setShiftToDelete(null)}
-                title="Скасувати"
-                className="p-3 border border-border rounded-2xl hover:bg-muted text-muted-foreground transition-all"
+                className="flex-1 py-2 px-3 border border-border rounded-xl text-xs font-semibold hover:bg-muted text-muted-foreground transition-all cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                Скасувати
               </button>
               <button 
+                type="button"
                 onClick={confirmDeleteShift}
-                title="Видалити"
-                className="p-3 bg-red-500 text-white rounded-2xl hover:bg-red-600 shadow-lg shadow-red-500/20 transition-all"
+                className="flex-1 py-2 px-3 bg-destructive text-destructive-foreground rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-destructive/90 shadow-sm transition-all cursor-pointer"
               >
-                <Trash2 className="w-5 h-5" />
+                Видалити
               </button>
             </div>
           </div>

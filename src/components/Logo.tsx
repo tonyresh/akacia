@@ -18,10 +18,14 @@ export const Logo = ({ className }: { className?: string }) => {
   }
 
   return (
-    <div className={`flex flex-row items-center gap-3 ${className || ''}`}>
+    <div className={`flex flex-row items-center ${className || ''}`} style={{ gap: 'clamp(6px, 0.75vw, 12px)' }}>
       <svg
         viewBox="0 0 200 220"
-        className="h-[42px] w-[38px] sm:h-[53px] sm:w-[48px] md:h-[60px] md:w-[54px] shrink-0 select-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]"
+        style={{
+          height: 'clamp(36px, 3.8vw, 56px)',
+          width: 'clamp(32px, 3.4vw, 50px)',
+        }}
+        className="shrink-0 select-none drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]"
       >
         <defs>
           <mask id="logo-head-mask">
@@ -57,7 +61,10 @@ export const Logo = ({ className }: { className?: string }) => {
           {stripeElements}
         </g>
       </svg>
-      <span className="text-foreground font-extrabold tracking-[0.08em] text-[20px] uppercase font-sans portrait:hidden">
+      <span
+        style={{ fontSize: 'clamp(13px, 1.35vw, 20px)' }}
+        className="text-foreground font-extrabold tracking-[0.08em] uppercase font-sans portrait:hidden whitespace-nowrap"
+      >
         412 Nemesis
       </span>
     </div>

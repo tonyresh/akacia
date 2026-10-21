@@ -11,10 +11,11 @@ import {
 } from '../utils/voiceCommandUtils';
 import { Visitor } from '../types';
 import { isSpecialVisitor, compareVisitorsSpecialFirst, isSpecialGroup } from '../utils/visitorUtils';
+import VisitorCard from '../components/VisitorCard';
 
 export default function Visitors() {
   const { visitors, setVisitors, categories, groups, locations, shifts, customIcons, dirtySkyEvents } = useData();
-  const { visitorsColumns } = useTheme();
+  const { visitorsColumns, setVisitorsColumns } = useTheme();
   const { showToast } = useToast();
   const [search, setSearch] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -373,299 +374,518 @@ export default function Visitors() {
     .sort((a, b) => compareVisitorsSpecialFirst(a, b, { prioritizeInStatus: false, groups }));
 
   return (
-    <div className="space-y-4 max-w-7xl mx-auto">
-      <div className="bg-transparent shadow-none overflow-hidden border-none font-roboto font-normal p-0">
-        <div className="flex items-center justify-center gap-1.5 sm:gap-3 w-full">
-          <div className="relative flex-1 max-w-xl">
-            <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground/60" />
-            <input 
-              type="text" 
-              placeholder={isListening ? "Слухаю... Назвіть прізвище або команду" : "Швидкий пошук відвідувачів..."}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 sm:pl-11 pr-4 py-2 bg-muted/40 border border-transparent rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all placeholder:text-muted-foreground/50"
-            />
+    <div className="w-full">
+      {/* Attached / Sticky Header with Search and Group Selector */}
+      <div
+        style={{
+          paddingTop: 'clamp(6px, 0.6vw, 10px)',
+          paddingBottom: 'clamp(6px, 0.6vw, 10px)',
+          paddingLeft: 'clamp(10px, 1.4vw, 24px)',
+          paddingRight: 'clamp(10px, 1.4vw, 24px)'
+        }}
+        className="sticky top-0 z-30 w-full bg-card/98 dark:bg-card/95 backdrop-blur-md border-b border-border shadow-xs transition-shadow print:static print:p-0 print:border-none print:shadow-none"
+      >
+        <div className="max-w-7xl mx-auto space-y-2">
+          {/* 7) Поле пошуку в одному рядку з групами, ліворуч від них */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full">
+            {/* 5) Блок пошуку зі зниженою на 30% прозорістю, ліворуч від груп */}
+            <div className="flex items-center gap-1.5 shrink-0 w-full sm:w-64 md:w-72 lg:w-80">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground/80 pointer-events-none" />
+                <input 
+                  type="text" 
+                  placeholder={isListening ? "Слухаю... Назвіть команду" : "Швидкий пошук..."}
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  style={{
+                    fontSize: 'clamp(11px, 0.85vw, 13.5px)',
+                    paddingTop: 'clamp(6px, 0.55vw, 9px)',
+                    paddingBottom: 'clamp(6px, 0.55vw, 9px)'
+                  }}
+                  className="w-full pl-9 sm:pl-10 pr-8 bg-card dark:bg-muted/70 border border-border/80 shadow-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/50 transition-all placeholder:text-muted-foreground/75 font-normal text-foreground"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => { setSelectedVoiceVisitor(null); setSearch(''); }}
+                    className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                    title="Очистити пошук"
+                  >
+                    <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  </button>
+                )}
+              </div>
+
+              <button
+                onClick={toggleListening}
+                style={{
+                  width: 'clamp(32px, 2.5vw, 38px)',
+                  height: 'clamp(32px, 2.5vw, 38px)'
+                }}
+                className={`border rounded-xl transition-all flex items-center justify-center shrink-0 cursor-pointer ${
+                  isListening 
+                    ? 'bg-red-500 border-red-600 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)] animate-pulse' 
+                    : 'bg-card dark:bg-muted/70 border-border/80 hover:bg-muted text-muted-foreground shadow-xs'
+                }`}
+                title={isListening ? "Зупинити голосовий ввід" : "Голосовий ввід команд"}
+              >
+                {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+              </button>
+            </div>
+
+            {/* Group Filter Navigation (Centered between search and column switcher) */}
+            <div className="flex-1 min-w-0 flex items-center justify-center gap-2 group/nav relative">
+              {showLeftArrow && (
+                <button 
+                  onClick={() => scroll('left')}
+                  style={{
+                    width: 'clamp(26px, 2vw, 32px)',
+                    height: 'clamp(26px, 2vw, 32px)'
+                  }}
+                  className="absolute -left-1 sm:-left-2 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center bg-card border border-border/60 rounded-full shadow-lg hover:bg-muted transition-all"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              <div 
+                ref={scrollContainerRef}
+                onScroll={checkScroll}
+                style={{ justifyContent: 'safe center' }}
+                className="flex gap-1.5 sm:gap-2 w-full overflow-x-auto pb-1 hide-scrollbar scroll-smooth items-center justify-center"
+              >
+                <button
+                  onClick={() => setShowOnlyIn(!showOnlyIn)}
+                  style={{
+                    height: 'clamp(32px, 2.5vw, 38px)',
+                    fontSize: 'clamp(9.5px, 0.75vw, 11.5px)',
+                    paddingLeft: 'clamp(8px, 0.8vw, 14px)',
+                    paddingRight: 'clamp(8px, 0.8vw, 14px)'
+                  }}
+                  className={`rounded-xl font-bold uppercase tracking-wider whitespace-nowrap transition-all border shrink-0 flex items-center justify-center gap-1.5 ${
+                    showOnlyIn
+                      ? 'bg-emerald-600 text-white border-transparent shadow-md shadow-emerald-600/20 active:scale-95'
+                      : 'bg-card hover:bg-muted border-border text-muted-foreground'
+                  }`}
+                >
+                  <div className={`w-2 h-2 rounded-full ${showOnlyIn ? 'bg-white animate-pulse' : 'bg-emerald-500'}`} />
+                  На локації
+                </button>
+                <div className="w-px h-5 bg-border/60 mx-0.5 shrink-0 self-center" />
+                {[{ id: 'all', name: 'Всі', color: '' }, ...visibleGroups].map(g => (
+                  <button
+                    key={g.id}
+                    onClick={() => setActiveGroup(g.id)}
+                    style={{
+                      height: 'clamp(32px, 2.5vw, 38px)',
+                      fontSize: 'clamp(9.5px, 0.75vw, 11.5px)',
+                      paddingLeft: 'clamp(8px, 0.8vw, 14px)',
+                      paddingRight: 'clamp(8px, 0.8vw, 14px)'
+                    }}
+                    className={`rounded-xl font-bold uppercase tracking-wider whitespace-nowrap transition-all border shrink-0 ${
+                      activeGroup === g.id 
+                        ? 'bg-primary text-primary-foreground border-transparent shadow-md shadow-primary/20 scale-[1.02]' 
+                        : 'bg-card hover:bg-muted border-border text-muted-foreground'
+                    }`}
+                  >
+                    {g.name}
+                  </button>
+                ))}
+              </div>
+
+              {showRightArrow && (
+                <button 
+                  onClick={() => scroll('right')}
+                  style={{
+                    width: 'clamp(26px, 2vw, 32px)',
+                    height: 'clamp(26px, 2vw, 32px)'
+                  }}
+                  className="absolute -right-1 sm:-right-2 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center bg-card border border-border/60 rounded-full shadow-lg hover:bg-muted transition-all"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Quick column density switcher */}
+            <div className="flex items-center bg-muted/50 border border-border/60 rounded-xl p-0.5 shrink-0 self-end sm:self-center" title="Кількість колонок на екрані">
+              <button
+                onClick={() => setVisitorsColumns(Math.max(2, visitorsColumns - 1))}
+                disabled={visitorsColumns <= 2}
+                style={{
+                  width: 'clamp(24px, 2vw, 30px)',
+                  height: 'clamp(24px, 2vw, 30px)'
+                }}
+                className="flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground disabled:opacity-25 text-xs font-bold cursor-pointer transition-colors active:scale-95"
+                title="Зменшити кількість колонок"
+              >
+                −
+              </button>
+              <div className="px-1 flex flex-col items-center justify-center min-w-[24px] select-none">
+                <span style={{ fontSize: 'clamp(10px, 0.75vw, 11.5px)' }} className="font-black text-foreground leading-none">{visitorsColumns}</span>
+                <span style={{ fontSize: 'clamp(6.5px, 0.5vw, 7.5px)' }} className="text-muted-foreground uppercase font-bold tracking-tight leading-none mt-0.5">кол</span>
+              </div>
+              <button
+                onClick={() => setVisitorsColumns(Math.min(8, visitorsColumns + 1))}
+                disabled={visitorsColumns >= 8}
+                style={{
+                  width: 'clamp(24px, 2vw, 30px)',
+                  height: 'clamp(24px, 2vw, 30px)'
+                }}
+                className="flex items-center justify-center rounded-lg hover:bg-muted text-muted-foreground disabled:opacity-25 text-xs font-bold cursor-pointer transition-colors active:scale-95"
+                title="Збільшити кількість колонок"
+              >
+                +
+              </button>
+            </div>
           </div>
 
-          <button
-            onClick={toggleListening}
-            className={`w-8 h-8 sm:w-10 sm:h-10 border border-transparent rounded-xl transition-all flex items-center justify-center shrink-0 cursor-pointer ${
-              isListening 
-                ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)] animate-pulse' 
-                : 'bg-muted/50 hover:bg-muted text-muted-foreground'
-            }`}
-            title={isListening ? "Зупинити голосовий ввід" : "Голосовий ввід команд"}
-          >
-            {isListening ? <MicOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Mic className="w-4 h-4 sm:w-5 sm:h-5" />}
-          </button>
-        </div>
+          {/* Found visitor quick voice-action bar */}
+          {selectedVoiceVisitor && (
+            <div className="w-full max-w-xl mx-auto flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 p-2.5 px-3 sm:px-4 bg-primary/10 border border-primary/25 rounded-2xl shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${selectedVoiceVisitor.status === 'in' ? 'bg-emerald-500' : 'bg-amber-500'} animate-pulse`} />
+                <div className="text-xs truncate">
+                  <span className="font-bold text-foreground mr-1.5">{selectedVoiceVisitor.name}</span>
+                  {selectedVoiceVisitor.callsign && (
+                    <span className="text-muted-foreground font-medium mr-1.5">«{selectedVoiceVisitor.callsign}»</span>
+                  )}
+                  <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                    selectedVoiceVisitor.status === 'in' ? 'bg-emerald-500/20 text-emerald-600' : 'bg-amber-500/20 text-amber-700'
+                  }`}>
+                    {selectedVoiceVisitor.status === 'in' ? 'НА ЛОКАЦІЇ' : 'ЗА МЕЖАМИ'}
+                  </span>
+                </div>
+              </div>
 
-        {/* Found visitor quick voice-action bar */}
-        {selectedVoiceVisitor && (
-          <div className="w-full max-w-xl mx-auto mt-2 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 p-2.5 px-3 sm:px-4 bg-primary/10 border border-primary/25 rounded-2xl shadow-sm animate-in fade-in slide-in-from-top-2 duration-200">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${selectedVoiceVisitor.status === 'in' ? 'bg-emerald-500' : 'bg-amber-500'} animate-pulse`} />
-              <div className="text-xs truncate">
-                <span className="font-bold text-foreground mr-1.5">{selectedVoiceVisitor.name}</span>
-                {selectedVoiceVisitor.callsign && (
-                  <span className="text-muted-foreground font-medium mr-1.5">«{selectedVoiceVisitor.callsign}»</span>
-                )}
-                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                  selectedVoiceVisitor.status === 'in' ? 'bg-emerald-500/20 text-emerald-600' : 'bg-amber-500/20 text-amber-700'
-                }`}>
-                  {selectedVoiceVisitor.status === 'in' ? 'НА ЛОКАЦІЇ' : 'ЗА МЕЖАМИ'}
+              <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+                <span className="text-[11px] text-muted-foreground hidden md:inline font-medium">
+                  Скажіть <strong>«ПЛЮС»</strong> чи <strong>«МІНУС»</strong>
                 </span>
+                <button 
+                  onClick={() => executeCommand('', 'in')}
+                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center gap-1"
+                  title="Вхід на локацію (або скажіть «ПЛЮС»)"
+                >
+                  + Вхід
+                </button>
+                <button 
+                  onClick={() => executeCommand('', 'out')}
+                  className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center gap-1"
+                  title="Вихід з локації (або скажіть «МІНУС»)"
+                >
+                  - Вихід
+                </button>
+                <button 
+                  onClick={() => { setSelectedVoiceVisitor(null); setSearch(''); }}
+                  className="p-1 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/80 transition-all cursor-pointer"
+                  title="Закрити"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
-
-            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-              <span className="text-[11px] text-muted-foreground hidden md:inline font-medium">
-                Скажіть <strong>«ПЛЮС»</strong> чи <strong>«МІНУС»</strong>
-              </span>
-              <button 
-                onClick={() => executeCommand('', 'in')}
-                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center gap-1"
-                title="Вхід на локацію (або скажіть «ПЛЮС»)"
-              >
-                + Вхід
-              </button>
-              <button 
-                onClick={() => executeCommand('', 'out')}
-                className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer flex items-center gap-1"
-                title="Вихід з локації (або скажіть «МІНУС»)"
-              >
-                - Вихід
-              </button>
-              <button 
-                onClick={() => { setSelectedVoiceVisitor(null); setSearch(''); }}
-                className="p-1 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted/80 transition-all cursor-pointer"
-                title="Закрити"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-col relative">
-        <div className="flex items-center gap-2 mb-6 group/nav relative">
-          {showLeftArrow && (
-            <button 
-              onClick={() => scroll('left')}
-              className="absolute -left-4 top-1/2 -translate-y-1/2 z-10 p-2 bg-card border border-transparent rounded-full shadow-lg hover:bg-muted transition-all"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-          )}
-
-          <div 
-            ref={scrollContainerRef}
-            onScroll={checkScroll}
-            className="flex gap-2 w-full overflow-x-auto pb-2 hide-scrollbar scroll-smooth"
-          >
-            <button
-               onClick={() => setShowOnlyIn(!showOnlyIn)}
-               className={`h-10 px-4 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all border shrink-0 flex items-center justify-center gap-2 ${
-                 showOnlyIn
-                   ? 'bg-emerald-600 text-white border-transparent shadow-lg shadow-emerald-600/20 active:scale-95'
-                   : 'bg-card hover:bg-muted border-border text-muted-foreground'
-               }`}
-             >
-               <div className={`w-2 h-2 rounded-full ${showOnlyIn ? 'bg-white animate-pulse' : 'bg-emerald-500'}`} />
-               На локації
-             </button>
-            <div className="w-px h-6 bg-border/60 mx-1 shrink-0 self-center" />
-            {[{ id: 'all', name: 'Всі', color: '' }, ...visibleGroups].map(g => (
-               <button
-                 key={g.id}
-                 onClick={() => setActiveGroup(g.id)}
-                 className={`h-10 px-4 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all border shrink-0 ${
-                   activeGroup === g.id 
-                     ? 'bg-primary text-primary-foreground border-transparent shadow-lg shadow-primary/20 scale-[1.02]' 
-                     : 'bg-card hover:bg-muted border-border text-muted-foreground'
-                 }`}
-               >
-                 {g.name}
-               </button>
-            ))}
-          </div>
-
-          {showRightArrow && (
-            <button 
-              onClick={() => scroll('right')}
-              className="absolute -right-4 top-1/2 -translate-y-1/2 z-10 p-2 bg-card border border-transparent rounded-full shadow-lg hover:bg-muted transition-all"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
           )}
         </div>
+      </div>
 
-        {/* Divider line between groups and visitor cards list block */}
-        <div className="h-px bg-border/60 w-full mb-6 no-print" />
+      <div className="max-w-7xl mx-auto p-3 md:p-5 pt-3 md:pt-4">
+        <div className="flex flex-col relative">
 
         <style>{`
+          .visitors-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: clamp(4px, 1.2cqw, 10px);
+            width: 100%;
+          }
+          @media (max-width: 479px) {
+            .visitors-grid {
+              grid-template-columns: repeat(${Math.min(visitorsColumns, 2)}, minmax(0, 1fr)) !important;
+              gap: 5px;
+            }
+          }
+          @media (min-width: 480px) and (max-width: 767px) {
+            .visitors-grid {
+              grid-template-columns: repeat(${Math.min(visitorsColumns, 3)}, minmax(0, 1fr)) !important;
+              gap: 6px;
+            }
+          }
+          @media (min-width: 768px) and (max-width: 1023px) {
+            .visitors-grid {
+              grid-template-columns: repeat(${visitorsColumns}, minmax(0, 1fr)) !important;
+              gap: ${visitorsColumns >= 6 ? '5px' : '7px'};
+            }
+          }
           @media (min-width: 1024px) {
             .visitors-grid {
               grid-template-columns: repeat(${visitorsColumns}, minmax(0, 1fr)) !important;
+              gap: ${visitorsColumns >= 7 ? '5px' : visitorsColumns >= 5 ? '7px' : '10px'};
             }
+          }
+
+          /* Container query for continuous, smooth proportional scaling inside each card */
+          .visitor-card {
+            container-type: inline-size;
+            container-name: visitorCard;
+            contain: layout style inline-size;
+            transform: translateZ(0);
+            backface-visibility: hidden;
+          }
+
+          .visitor-card-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+            padding-top: clamp(4px, 2.3cqw, 12px);
+            padding-bottom: clamp(4px, 2.3cqw, 12px);
+            padding-right: clamp(4px, 2.4cqw, 14px);
+            /* 6) Зменшено на 20% відступ зліва від іконки */
+            padding-left: clamp(4.8px, 2.7cqw, 12.8px);
+            /* 6) Зменшено на 20% відступ справа від іконки */
+            gap: clamp(2.4px, 1.4cqw, 8px);
+          }
+
+          .visitor-avatar-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            /* 6) Зменшено на 20% ширину колонки аватара */
+            width: clamp(20px, 13cqw, 52px);
+            text-align: center;
+          }
+
+          .visitor-avatar {
+            width: clamp(20px, 11cqw, 46px);
+            height: clamp(20px, 11cqw, 46px);
+            border-radius: 9999px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+          }
+
+          .visitor-avatar-icon {
+            width: clamp(10px, 5.5cqw, 22px);
+            height: clamp(10px, 5.5cqw, 22px);
+          }
+
+          .visitor-status-dot {
+            width: clamp(5px, 2.6cqw, 9.5px);
+            height: clamp(5px, 2.6cqw, 9.5px);
+          }
+
+          .visitor-brigade-text {
+            font-size: clamp(6px, 2.7cqw, 11px);
+            font-weight: 600;
+            line-height: 1.15;
+            /* 4) Збільшено на 20% відступ назви бригади від іконки */
+            margin-top: clamp(1.2px, 0.6cqw, 4.2px);
+            text-align: center;
+            word-break: break-word;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            width: 100%;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+          }
+
+          .visitor-info-col {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            flex: 0 1 auto;
+            min-width: 0;
+            max-width: 48%;
+            padding-top: 1px;
+            padding-bottom: 1px;
+            overflow: hidden;
+          }
+
+          .visitor-rank-row {
+            margin-bottom: clamp(0.5px, 0.25cqw, 2px);
+          }
+
+          .visitor-rank-text {
+            font-size: clamp(5.6px, 2.2cqw, 9.5px);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            line-height: 1.1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            -webkit-font-smoothing: antialiased;
+          }
+
+          .visitor-name-col {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-width: 0;
+            width: 100%;
+            line-height: 1.14;
+          }
+
+          .visitor-name-line {
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: -0.015em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+          }
+
+          .visitor-surname-text {
+            color: var(--foreground);
+            font-size: clamp(7.8px, 3.7cqw, 15px);
+            font-weight: 500;
+            line-height: 1.14;
+          }
+
+          .visitor-firstname-text {
+            color: var(--foreground);
+            font-size: clamp(7.8px, 3.7cqw, 15px);
+            font-weight: 500;
+            line-height: 1.14;
+            margin-top: clamp(0.5px, 0.2cqw, 1.5px);
+          }
+
+          .visitor-patronymic-text {
+            color: var(--foreground);
+            font-size: clamp(7.8px, 3.7cqw, 15px);
+            font-weight: 500;
+            line-height: 1.14;
+            margin-top: clamp(0.5px, 0.2cqw, 1.5px);
+          }
+
+          .visitor-callsign-text {
+            font-size: clamp(5.8px, 2.4cqw, 10.5px);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            line-height: 1.1;
+            margin-top: clamp(0.5px, 0.3cqw, 2px);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            -webkit-font-smoothing: antialiased;
+          }
+
+          .visitor-time-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            flex-shrink: 0;
+            margin-left: auto;
+            margin-right: auto;
+            padding: clamp(1.5px, 0.5cqw, 4px) clamp(3.5px, 1.2cqw, 8px);
+            border-radius: clamp(3px, 1cqw, 6px);
+            line-height: 1.18;
+            font-family: monospace, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-variant-numeric: tabular-nums;
+            -webkit-font-smoothing: antialiased;
+            min-width: clamp(48px, 22cqw, 88px);
+            box-sizing: border-box;
+          }
+
+          .visitor-time-line {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: clamp(1.5px, 0.45cqw, 3.5px);
+            font-size: clamp(7.8px, 3.1cqw, 13.5px);
+            white-space: nowrap;
+            text-align: center;
+            line-height: 1.18;
+          }
+
+          .visitor-time-label {
+            font-size: 0.88em;
+            font-weight: 700;
+            opacity: 0.72;
+            letter-spacing: -0.02em;
+          }
+
+          .visitor-time-val {
+            font-weight: 800;
+            letter-spacing: -0.01em;
+          }
+
+          .visitor-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            height: clamp(19px, 8.2cqw, 36px);
+            padding-left: clamp(3px, 1.8cqw, 13px);
+            padding-right: clamp(3px, 1.8cqw, 13px);
+            font-size: clamp(6px, 2.6cqw, 11px);
+            gap: clamp(1.5px, 0.6cqw, 4.5px);
+            border-radius: clamp(4px, 1.6cqw, 10px);
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+          }
+
+          .visitor-btn-icon {
+            width: clamp(7px, 2.7cqw, 13px);
+            height: clamp(7px, 2.7cqw, 13px);
+            flex-shrink: 0;
           }
         `}</style>
         
-        <div className="visitors-grid grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="visitors-grid">
           {filtered.length === 0 && (
             <div className="col-span-full py-16 text-center text-muted-foreground rounded-2xl bg-muted/20">
               Немає даних для відображення
             </div>
           )}
-          {filtered.map((v, index) => {
+          {filtered.map(v => {
             const visitorGroup = groups.find(g => g.id === v.groupId) || groups.find(g => g.name === v.group);
             const visitorLocation = locations.find(l => l.id === v.locationId) || locations.find(l => l.name === v.location);
             const customIcon = customIcons.find(icon => icon.id === v.customIconId) || (visitorLocation?.iconId ? customIcons.find(icon => icon.id === visitorLocation.iconId) : null);
-            const bgColor = v.color || visitorGroup?.color || 'transparent';
-            const hasGroupColor = bgColor !== 'transparent';
             
-            const logs = v.logs || (v.lastEntry ? [{ in: v.lastEntry }] : []);
-            
-            const cardStyles = hasGroupColor ? {
-              backgroundColor: bgColor.startsWith('#') ? `${bgColor}15` : bgColor,
-              borderColor: bgColor.startsWith('#') ? `${bgColor}40` : bgColor,
-            } : {};
-            
-            const shiftStart = new Date(currentTime);
-            if (shiftStart.getHours() < 8) {
-              shiftStart.setDate(shiftStart.getDate() - 1);
-            }
-            shiftStart.setHours(8, 0, 0, 0);
- 
-            const shiftLogs = (v.logs || []).filter(log => new Date(log.in!) >= shiftStart);
-            if (v.lastEntry && new Date(v.lastEntry) >= shiftStart && !shiftLogs.some(l => l.in === v.lastEntry)) {
-               // This shouldn't normally happen if logs are synced, but as a safety check
-            }
-            
-            const displayLogs = shiftLogs.length > 0 ? shiftLogs : (v.status === 'in' && v.lastEntry && new Date(v.lastEntry) >= shiftStart ? [{ in: v.lastEntry }] : []);
-            
+            const isGuard = v.groupId === '3' || (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') || (v.location || v.locationId || v.group || '').toLowerCase().includes('рота');
+            const isGuardOnDuty = isGuard && shifts.some(s => s.guardId === v.id && !s.endTime);
+
             return (
-              <div 
-                key={v.id} 
-                className={`flex flex-col relative rounded-xl h-full overflow-hidden shadow-sm hover:shadow transition-all ${
-                  hasGroupColor ? 'opacity-100 ring-1 ring-inset ring-white/10' : 'bg-card'
-                }`}
-                style={cardStyles}
-              >
-                <div 
-                  className="absolute left-0 top-0 bottom-0 w-1.5"
-                  style={{ backgroundColor: hasGroupColor ? bgColor : 'var(--border)' }}
-                />
-                
-                <div className="py-1.5 px-2.5 pl-3.5 flex-1 flex flex-col gap-1.5 min-w-0">
-                  <div className="flex justify-between items-start gap-2">
-                    <div className="flex gap-2.5 items-center min-w-0">
-                      <div className={`w-9 h-9 rounded-full shrink-0 flex items-center justify-center text-white overflow-hidden ${customIcon ? '' : 'shadow-sm'}`} style={{ backgroundColor: customIcon ? 'transparent' : (v.color || visitorGroup?.color || '#5b6984') }}>
-                        {customIcon ? (
-                          <img src={customIcon.data} alt="icon" className="w-full h-full object-cover" />
-                        ) : (
-                          <User className="w-4 h-4 text-[#e5e9ec]" />
-                        )}
-                      </div>
-                      <div className="flex flex-col min-w-0">
-                        {v.category && !v.category.toLowerCase().includes('особлив') && (
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground/60 mb-0.5">
-                              {v.category}
-                            </span>
-                          </div>
-                        )}
-                        <h3 className="font-bold text-foreground leading-tight text-[13px] flex flex-col uppercase tracking-tight min-w-0" style={{ fontFamily: 'Roboto, sans-serif' }}>
-                          {(() => {
-                            const { first, second } = splitNameTwoLines(v.name);
-                            return (
-                              <>
-                                <span className="truncate block w-full">{first}</span>
-                                <span className="truncate block w-full opacity-100">{second}</span>
-                              </>
-                            );
-                          })()}
-                        </h3>
-                        {v.callsign && (
-                          <span className="text-[9px] font-bold uppercase tracking-widest text-primary/80 leading-none mt-1 truncate">
-                            {v.callsign}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-0.5 text-[11px] text-muted-foreground mt-0.5">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="font-semibold text-foreground text-[9px] uppercase tracking-wider opacity-60 shrink-0">Звідки:</span>
-                      <span className="break-words">
-                        {v.location || (v.group && !v.group.toLowerCase().includes('особлив') ? v.group : '—')}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="mt-auto pt-2 border-t border-border/50 flex flex-col gap-1.5">
-                    {displayLogs.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        <div className="flex items-center text-[11px] sm:text-xs font-mono font-bold bg-muted/60 border border-transparent rounded px-2 py-1 w-full justify-between">
-                          <span className="text-emerald-600" title="Перший захід (в цій зміні)">
-                            {displayLogs[0].in ? new Date(displayLogs[0].in).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false}) : '--:--'}
-                          </span>
-                          <span className="text-muted-foreground/30">➜</span>
-                          <span className="text-red-500" title="Останній вихід (в цій зміні)">
-                            {displayLogs[displayLogs.length - 1].out 
-                              ? new Date(displayLogs[displayLogs.length - 1].out!).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false}) 
-                              : (v.status === 'in' ? 'на локації' : '--:--')}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                    
-                    <div className="flex gap-1.5 w-full">
-                      {v.status !== 'in' && (
-                        <button
-                          onClick={() => !activeDirtySky && markIn(v.id)}
-                          disabled={!!activeDirtySky}
-                          title={activeDirtySky ? "Вхід заблоковано режимом Брудне небо" : undefined}
-                          className={`flex-1 flex justify-center items-center gap-1 px-1.5 py-1.5 text-[9px] font-bold uppercase tracking-wider rounded-lg border transition-colors ${
-                            activeDirtySky
-                              ? 'border-muted bg-muted/50 text-muted-foreground cursor-not-allowed'
-                              : 'border-emerald-500/30 text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20 active:bg-emerald-500/30'
-                          }`}
-                        >
-                          <LogIn className="w-3 h-3" />
-                          Зайшов
-                        </button>
-                      )}
-                      {v.status === 'in' && (() => {
-                        const isGuard = v.groupId === '3' || (v.location || v.locationId || v.group || '').toLowerCase().includes('охорон') || (v.location || v.locationId || v.group || '').toLowerCase().includes('рота');
-                        const isGuardOnDuty = isGuard && shifts.some(s => s.guardId === v.id && !s.endTime);
-                        const isOutDisabled = isGuardOnDuty || !!activeDirtySky;
-                        return (
-                          <button
-                            onClick={() => !isOutDisabled && markOut(v.id)}
-                            disabled={isOutDisabled}
-                            title={isGuardOnDuty ? "Не можна вийти до передачі зміни" : activeDirtySky ? "Вихід заблоковано режимом Брудне небо" : undefined}
-                            className={`flex-1 flex justify-center items-center gap-1 px-1.5 py-1.5 text-[9px] font-bold uppercase tracking-wider rounded-lg border transition-colors ${
-                              isOutDisabled 
-                                ? 'border-muted bg-muted/50 text-muted-foreground cursor-not-allowed'
-                                : 'border-red-500/30 text-red-600 bg-red-500/10 hover:bg-red-500/20 active:bg-red-500/30'
-                            }`}
-                          >
-                            <LogOut className="w-3 h-3" />
-                            Вийшов
-                          </button>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <VisitorCard
+                key={v.id}
+                visitor={v}
+                group={visitorGroup}
+                location={visitorLocation}
+                customIcon={customIcon}
+                currentTime={currentTime}
+                activeDirtySky={activeDirtySky}
+                isGuardOnDuty={isGuardOnDuty}
+                onMarkIn={markIn}
+                onMarkOut={markOut}
+              />
             );
           })}
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 }

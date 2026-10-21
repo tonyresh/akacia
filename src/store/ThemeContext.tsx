@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-type Theme = 'light' | 'dark';
+export type Theme = 'light' | 'dark';
 type FontSize = 'normal' | 'large' | 'xlarge';
 
 interface ThemeContextType {
@@ -21,7 +21,19 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('theme') as Theme) || 'light');
+  const [theme, setTheme] = useState<Theme>(() => {
+    try {
+      const saved = localStorage.getItem('theme');
+      if (saved === 'light' || saved === 'dark') {
+        return saved;
+      }
+      localStorage.setItem('theme', 'dark');
+      localStorage.setItem('theme_default_set', 'true');
+      return 'dark';
+    } catch {
+      return 'dark';
+    }
+  });
   const [fontSize, setFontSize] = useState<FontSize>(() => (localStorage.getItem('fontSize') as FontSize) || 'normal');
   const [toastsEnabled, setToastsEnabled] = useState<boolean>(() => {
     try {
@@ -58,10 +70,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     localStorage.setItem('theme', theme);
+    const root = document.documentElement;
+    root.classList.remove('dark', 'theme-military', 'theme-emerald', 'theme-nordic', 'theme-amber');
+    
     if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+      root.classList.add('dark');
     }
   }, [theme]);
 
